@@ -3,7 +3,6 @@ deployment:
   tasks:
     - export DEPLOYPATH=/home/mtpc/public_html/agent/
     - /bin/cp -f index.html $DEPLOYPATH
-    - /bin/cp -R mtpc-assets $DEPLOYPATH
     - /bin/mkdir -p $DEPLOYPATH/api
     - /bin/cp -R api/* $DEPLOYPATH/api/
     - /bin/cp -f api/chat56.php $DEPLOYPATH/api/chat.php
