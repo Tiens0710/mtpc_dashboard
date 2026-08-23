@@ -1,0 +1,5 @@
+RewriteEngine On
+
+# Đảm bảo microphone và Gemini Live luôn chạy trong secure context.
+RewriteCond %{HTTPS} !=on
+RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [R=301,L]

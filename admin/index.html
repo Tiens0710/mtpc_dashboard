@@ -57,6 +57,8 @@
     .admin-ai-welcome:not(.hidden)~.admin-orb-widget .admin-orb-launch.ai-orb-stage{width:238px;height:238px;filter:drop-shadow(0 20px 36px rgba(0,45,18,.3))}.admin-ai-welcome:not(.hidden)~.admin-orb-widget .admin-orb-launch.ai-orb-stage .ai-orb{width:184px;height:184px}
     .admin-ai-welcome:not(.hidden)~.admin-orb-widget .admin-orb-launch.ai-orb-stage:before,.admin-ai-welcome:not(.hidden)~.admin-orb-widget .admin-orb-launch.ai-orb-stage:after{display:none!important;content:none!important}
     @media(max-width:760px){.admin-ai-welcome:not(.hidden)~.admin-orb-widget .admin-orb-launch.ai-orb-stage{width:194px;height:194px}.admin-ai-welcome:not(.hidden)~.admin-orb-widget .admin-orb-launch.ai-orb-stage .ai-orb{width:150px;height:150px}.admin-orb-launch.ai-orb-stage{width:68px;height:68px}.admin-orb-launch.ai-orb-stage .ai-orb{width:68px;height:68px}}
+    /* Voice-first admin flow: the orb is the control, never a large chat popup. */
+    .admin-orb-panel{display:none!important}
   </style>
 </head>
 <body>
@@ -204,13 +206,14 @@
       $$('.quick-action').forEach(x=>x.addEventListener('click',()=>{const action=x.dataset.action;if(action==='new-program')openProgram();if(action==='new-news')openNews();if(action==='new-knowledge')openKnowledge();if(action==='export')exportData()}));$('#clearLeads').onclick=()=>{if(confirm('Xóa toàn bộ hồ sơ đang lưu trên trình duyệt?')){state.leads=[];addActivity('Xóa toàn bộ hồ sơ tư vấn');save();flash('Đã xóa hồ sơ')}};$('#saveSettings').onclick=()=>{Object.keys(state.settings).forEach(key=>{const el=$(`[data-setting="${key}"]`);if(el)state.settings[key]=el.type==='checkbox'?el.checked:el.value});addActivity('Cập nhật cài đặt hệ thống');save();flash('Đã lưu cài đặt')};$('#exportButton').onclick=()=>exportData();$('#mobileToggle').onclick=()=>$('.sidebar').classList.toggle('mobile-open');$('#importButton').onclick=()=>$('#importFile').click();$('#importFile').addEventListener('change',e=>{const file=e.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=()=>{try{const incoming=JSON.parse(reader.result);if(!incoming.programs||!incoming.knowledge)throw new Error();state=Object.assign(clone(seed),incoming,{settings:Object.assign({},seed.settings,incoming.settings||{})});addActivity('Khôi phục dữ liệu từ file backup');save();flash('Đã nhập bản sao lưu')}catch(err){flash('File backup không hợp lệ')}};reader.readAsText(file)})
     }
     function bindSeoActions(){document.addEventListener('click',e=>{const edit=e.target.closest('[data-edit-seo]')?.dataset.editSeo;if(edit)openSeoEditor((state.seoDrafts||[]).find(x=>x.id===edit));const del=e.target.closest('[data-delete-seo]')?.dataset.deleteSeo;if(del&&confirm('Xóa bản nháp SEO này?')){state.seoDrafts=(state.seoDrafts||[]).filter(x=>x.id!==del);addActivity('Xóa một bản nháp SEO');save();flash('Đã xóa bản nháp SEO')}})}
+    function adminLiveFailure(error){console.error('[MTPC_ADMIN_GEMINI_LIVE]',error);adminOrbStatus('Gemini Live chưa sẵn sàng','idle')}
     function bindAdminOrb(){
-      $('#adminOrbLaunch').addEventListener('click',()=>{$('#adminOrbPanel').classList.remove('hidden');adminConnectLive().catch(()=>adminOrbStatus('Chưa kết nối được Gemini Live','idle'))});
+      $('#adminOrbLaunch').addEventListener('click',()=>{if(adminLiveReady||adminMicStream){adminCloseLive();return}adminAudioContext().resume().catch(()=>{});adminConnectLive().catch(adminLiveFailure)});
       $('#adminOrbClose').addEventListener('click',()=>{$('#adminOrbPanel').classList.add('hidden');adminCloseLive()});
     }
     function bindAdminEntry(){
       const entry=$('#adminAiEntry'),welcome=$('#adminAiWelcome'),close=$('#adminAiWelcomeClose');
-      const open=()=>{entry.classList.add('is-hidden');welcome.classList.remove('hidden');adminConnectLive().catch(()=>adminOrbStatus('Chưa kết nối được Gemini Live','idle'))};
+      const open=()=>{entry.classList.add('is-hidden');welcome.classList.remove('hidden');adminAudioContext().resume().catch(()=>{});adminConnectLive().catch(adminLiveFailure)};
       const dismiss=()=>{welcome.classList.add('hidden');$('#adminOrbPanel').classList.add('hidden');adminCloseLive()};
       entry.addEventListener('click',open);close.addEventListener('click',dismiss);welcome.addEventListener('click',event=>{if(event.target===welcome)dismiss()});document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!welcome.classList.contains('hidden'))dismiss()});
     }
