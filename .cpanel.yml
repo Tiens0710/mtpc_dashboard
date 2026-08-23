@@ -14,3 +14,4 @@ deployment:
     - /bin/mkdir -p /home/mtpc/public_html/admin/api
     - /bin/cp -f api/chat56.php /home/mtpc/public_html/admin/api/chat.php
     - /bin/cp -f api/live-token56.php /home/mtpc/public_html/admin/api/live-token.php
+    - /bin/cp -f admin/api/students.php /home/mtpc/public_html/admin/api/students.php
