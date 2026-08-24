@@ -62,7 +62,16 @@ function draft_mime($draft,$username){
 }
 function append_gmail_draft($draft,$cfg){
   $imap=open_imap_rw($cfg,'INBOX');
-  try{$mailbox=gmail_drafts_mailbox($imap,$cfg);$mime=draft_mime($draft,$cfg['username']);if(!@imap_append($imap,$mailbox,$mime['raw'],'\\Draft')){$e=imap_error_text();if($e!=='')error_log('[MTPC_EMAIL_DRAFT_APPEND] '.$e);throw new Exception('Gmail từ chối lưu thư nháp.');}@imap_close($imap);return array('mailbox'=>$mailbox,'message_id'=>$mime['message_id']);}
+  try{
+    $mailbox=gmail_drafts_mailbox($imap,$cfg);$mime=draft_mime($draft,$cfg['username']);$raw=$mime['raw']."\r\n";
+    @imap_errors();$ok=@imap_append($imap,$mailbox,$raw,'\\Draft');$firstError=$ok?'':imap_error_text();
+    /* Some old PHP 5.6/c-client builds reject custom flags during APPEND. Gmail
+       still treats messages stored in its Drafts mailbox as drafts, so retry
+       the exact same append without the optional flag. */
+    if(!$ok){@imap_errors();$ok=@imap_append($imap,$mailbox,$raw);}
+    if(!$ok){$lastError=imap_error_text();$detail=$lastError!==''?$lastError:$firstError;if($detail!=='')error_log('[MTPC_EMAIL_DRAFT_APPEND] mailbox='.decode_mailbox_name($mailbox).' '.$detail);throw new Exception('Gmail từ chối lưu thư nháp'.($detail!==''?' ('.$detail.').':'.'));}
+    @imap_close($imap);return array('mailbox'=>$mailbox,'message_id'=>$mime['message_id']);
+  }
   catch(Exception $e){@imap_close($imap);throw $e;}
 }
 function smtp_read($s){$r='';while(($l=fgets($s,1024))!==false){$r.=$l;if(strlen($l)<4||$l[3]===' ')break;}return $r;}
