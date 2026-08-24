@@ -41,7 +41,15 @@ function open_imap_rw($cfg,$mailbox){
   if(!$imap){$e=imap_error_text();if($e!=='')error_log('[MTPC_EMAIL_IMAP_WRITE] '.$e);throw new Exception('Không mở được hộp thư Gmail để lưu bản nháp.');}
   return $imap;
 }
-function decode_mailbox_name($name){$x=preg_replace('/^\{[^}]+\}/','',(string)$name);if(function_exists('imap_utf7_decode')){$d=@imap_utf7_decode($x);if($d!==false)$x=$d;}return $x;}
+function decode_mailbox_name($name){
+  $x=preg_replace('/^\{[^}]+\}/','',(string)$name);
+  /* Gmail returns localized system folders in IMAP modified UTF-7. imap_utf8
+     preserves Vietnamese characters (for example "Thư nháp"), while the old
+     imap_utf7_decode helper only targets ISO-8859-1 and loses that name. */
+  if(function_exists('imap_utf8')){$d=@imap_utf8($x);if($d!==false&&$d!=='')return $d;}
+  if(function_exists('imap_utf7_decode')){$d=@imap_utf7_decode($x);if($d!==false)$x=$d;}
+  return $x;
+}
 function gmail_drafts_mailbox($imap,$cfg){
   $root=imap_root($cfg);$boxes=@imap_getmailboxes($imap,$root,'*');
   if(is_array($boxes))foreach($boxes as $box){
