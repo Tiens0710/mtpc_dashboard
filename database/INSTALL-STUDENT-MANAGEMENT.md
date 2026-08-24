@@ -12,9 +12,19 @@
 - `training`: hồ sơ, học tập, điểm danh; chỉ được xem tài chính.
 - `teacher`: xem dữ liệu học vụ đã giới hạn và nhập điểm danh.
 
-## Import Excel
+## Import Excel kèm hình ảnh
 
-Xuất file CSV mẫu từ dashboard, chỉnh bằng Excel rồi lưu lại dạng **CSV UTF-8**. Import tối đa 500 dòng/lần. Các cột bắt buộc là `student_code` và `full_name`.
+Trong **Hồ sơ sinh viên**, chọn **Nhập Excel + ảnh**:
+
+1. Tải file mẫu từ dashboard và điền dữ liệu. Hỗ trợ `.xlsx` (sheet đầu tiên) hoặc `.csv` UTF-8, tối đa 1.000 dòng.
+2. Đặt tên ảnh theo mã sinh viên, ví dụ `MTPC001.jpg`, `MTPC002.png`.
+3. Chọn nhiều ảnh trực tiếp hoặc nén ảnh thành một file ZIP.
+4. Chọn loại ảnh: **Ảnh chân dung** hoặc **Ảnh giấy tờ/hồ sơ**.
+5. Kiểm tra màn hình xem trước rồi mới xác nhận nhập.
+
+Hệ thống kiểm tra mã sinh viên, CCCD, email và số điện thoại bị trùng. Ảnh được lưu tại `/home/mtpc/private/student-files`, không nằm trong `public_html`; ảnh chân dung chỉ được đọc qua API sau khi đăng nhập Directory Privacy.
+
+Nếu hosting chưa bật `ZipArchive`, hãy dùng `.csv` và chọn nhiều ảnh trực tiếp. Giới hạn tải lên thực tế phụ thuộc `upload_max_filesize`, `post_max_size` và `max_file_uploads` trong PHP Selector.
 
 ## An toàn dữ liệu
 
