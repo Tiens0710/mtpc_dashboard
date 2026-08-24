@@ -1,5 +1,21 @@
 <?php
 /* MTPC Admin email gateway. PHP 5.6 compatible. */
+namespace MTPCAdminEmail;
+use Exception;
+use DateTime;
+use DateTimeZone;
+
+ini_set('display_errors','0');
+register_shutdown_function(function(){
+  $e=error_get_last();
+  if(!$e||!in_array($e['type'],array(E_ERROR,E_PARSE,E_CORE_ERROR,E_COMPILE_ERROR,E_USER_ERROR),true))return;
+  error_log('[MTPC_EMAIL_FATAL] '.$e['message'].' in '.$e['file'].':'.$e['line']);
+  if(!headers_sent()){
+    http_response_code(500);
+    header('Content-Type: application/json; charset=utf-8');
+  }
+  echo json_encode(array('ok'=>false,'error'=>'PHP gặp lỗi khi xử lý hộp thư. Hãy kiểm tra error_log trên cPanel.','code'=>'EMAIL_PHP_FATAL'),JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
+});
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
 header('X-Content-Type-Options: nosniff');
@@ -29,6 +45,7 @@ if(!empty($_SERVER['HTTP_ORIGIN'])){$oh=parse_url($_SERVER['HTTP_ORIGIN'],PHP_UR
 $config='/home/mtpc/private/email-config.php';if(!is_file($config))out(503,array('ok'=>false,'error'=>'Chưa cấu hình hộp thư.'));require $config;
 $auth=isset($MTPC_EMAIL_REQUIRE_AUTH)?(bool)$MTPC_EMAIL_REQUIRE_AUTH:true;if($auth&&empty($_SERVER['REMOTE_USER']))out(403,array('ok'=>false,'error'=>'Hãy bật Directory Privacy cho admin.'));
 $body=input();$action=isset($_GET['action'])?(string)$_GET['action']:'';$user=isset($MTPC_EMAIL_USERNAME)?trim((string)$MTPC_EMAIL_USERNAME):'';$pass=isset($MTPC_EMAIL_PASSWORD)?(string)$MTPC_EMAIL_PASSWORD:'';
+if(stripos($user,'@gmail.com')!==false)$pass=preg_replace('/\s+/u','',$pass);
 
 if($action==='draft'){
   $to=isset($body['to'])?trim((string)$body['to']):'';$subject=clean_line(isset($body['subject'])?$body['subject']:'');$message=trim(isset($body['message'])?(string)$body['message']:'');
@@ -44,7 +61,7 @@ if($action==='send'){
 if(!function_exists('imap_open'))out(503,array('ok'=>false,'error'=>'PHP IMAP chưa được bật.'));
 $host=isset($MTPC_EMAIL_IMAP_HOST)?trim((string)$MTPC_EMAIL_IMAP_HOST):'';$port=isset($MTPC_EMAIL_IMAP_PORT)?(int)$MTPC_EMAIL_IMAP_PORT:993;$enc=isset($MTPC_EMAIL_IMAP_ENCRYPTION)?strtolower(trim((string)$MTPC_EMAIL_IMAP_ENCRYPTION)):'ssl';$folder=isset($MTPC_EMAIL_FOLDER)?trim((string)$MTPC_EMAIL_FOLDER):'INBOX';$cert=isset($MTPC_EMAIL_VALIDATE_CERT)?(bool)$MTPC_EMAIL_VALIDATE_CERT:true;
 if($host===''||$user===''||$pass==='')out(503,array('ok'=>false,'error'=>'Cấu hình IMAP còn thiếu.'));if(!preg_match('/^[a-z0-9.-]+$/i',$host)||$port<1||$port>65535||!in_array($enc,array('ssl','tls','none'),true))out(500,array('ok'=>false,'error'=>'Cấu hình IMAP không hợp lệ.'));
-$flags='/imap'.($enc==='ssl'?'/ssl':'').($enc==='tls'?'/tls':'').(!$cert?'/novalidate-cert':'');$imap=@imap_open('{'.$host.':'.$port.$flags.'}'.$folder,$user,$pass,OP_READONLY,1);if(!$imap)out(502,array('ok'=>false,'error'=>'Không kết nối được IMAP.'));
+$flags='/imap'.($enc==='ssl'?'/ssl':'').($enc==='tls'?'/tls':'').(!$cert?'/novalidate-cert':'');if(function_exists('imap_timeout')){@imap_timeout(IMAP_OPENTIMEOUT,12);}@imap_errors();$imap=@imap_open('{'.$host.':'.$port.$flags.'}'.$folder,$user,$pass,OP_READONLY,1);if(!$imap){$ie=function_exists('imap_last_error')?(string)@imap_last_error():'';if($ie!=='')error_log('[MTPC_EMAIL_IMAP] '.$ie);$msg=stripos($ie,'auth')!==false||stripos($ie,'credential')!==false||stripos($ie,'password')!==false?'Gmail từ chối đăng nhập IMAP. Hãy kiểm tra tài khoản và mật khẩu ứng dụng.':'Không kết nối được máy chủ IMAP. Hãy kiểm tra PHP IMAP và kết nối ra cổng 993 trên hosting.';out(502,array('ok'=>false,'error'=>$msg,'code'=>'IMAP_CONNECTION_FAILED'));}
 function mail_utf8($s){$parts=function_exists('imap_mime_header_decode')?@imap_mime_header_decode((string)$s):false;if(!is_array($parts))return trim((string)$s);$r='';foreach($parts as $p){$c=isset($p->charset)?strtoupper($p->charset):'DEFAULT';$t=isset($p->text)?$p->text:'';if($c!=='DEFAULT'&&$c!=='UTF-8'&&function_exists('iconv')){$x=@iconv($c,'UTF-8//IGNORE',$t);if($x!==false)$t=$x;}$r.=$t;}return trim($r);}
 function charset_of($p){$g=array();if(isset($p->parameters)&&is_array($p->parameters))$g[]=$p->parameters;if(isset($p->dparameters)&&is_array($p->dparameters))$g[]=$p->dparameters;foreach($g as $a)foreach($a as $x)if(isset($x->attribute,$x->value)&&strtoupper($x->attribute)==='CHARSET')return(string)$x->value;return'UTF-8';}
 function decode_part($raw,$encoding,$charset,$html){if((int)$encoding===3)$raw=base64_decode($raw);elseif((int)$encoding===4)$raw=quoted_printable_decode($raw);if($charset&&strtoupper($charset)!=='UTF-8'&&strtoupper($charset)!=='US-ASCII'&&function_exists('iconv')){$x=@iconv($charset,'UTF-8//IGNORE',$raw);if($x!==false)$raw=$x;}if($html){$raw=preg_replace('/<script\b[^>]*>.*?<\/script>/is',' ',$raw);$raw=preg_replace('/<style\b[^>]*>.*?<\/style>/is',' ',$raw);$raw=html_entity_decode(strip_tags($raw),ENT_QUOTES,'UTF-8');}return trim(preg_replace('/\r?\n(?:\s*\r?\n)+/',"\n\n",preg_replace('/[\t ]+/',' ',$raw)));}
