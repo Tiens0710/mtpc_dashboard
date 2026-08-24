@@ -32,6 +32,39 @@ function clean_line($s){return trim(preg_replace('/[\r\n]+/',' ',(string)$s));}
 function drafts_path(){return '/home/mtpc/private/mtpc-admin/email-drafts.json';}
 function load_drafts(){$p=drafts_path();if(!is_file($p))return array();$x=json_decode(@file_get_contents($p),true);return is_array($x)?$x:array();}
 function save_drafts($x){$p=drafts_path();$d=dirname($p);if(!is_dir($d)&&!@mkdir($d,0750,true))return false;$t=$p.'.tmp';if(@file_put_contents($t,json_encode(array_values($x),JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES),LOCK_EX)===false)return false;@chmod($t,0600);if(!@rename($t,$p)){@unlink($t);return false;}@chmod($p,0600);return true;}
+function imap_root($cfg){return '{'.$cfg['host'].':'.$cfg['port'].'/imap'.($cfg['encryption']==='ssl'?'/ssl':'').($cfg['encryption']==='tls'?'/tls':'').(!$cfg['validate_cert']?'/novalidate-cert':'').'}';}
+function imap_error_text(){$e=function_exists('imap_last_error')?(string)@imap_last_error():'';$all=function_exists('imap_errors')?@imap_errors():false;if($e===''&&is_array($all))$e=implode(' | ',$all);return $e;}
+function open_imap_rw($cfg,$mailbox){
+  if(!function_exists('imap_open'))throw new Exception('PHP IMAP chưa được bật.');
+  if(function_exists('imap_timeout'))@imap_timeout(IMAP_OPENTIMEOUT,12);
+  @imap_errors();$imap=@imap_open(imap_root($cfg).$mailbox,$cfg['username'],$cfg['password'],0,1);
+  if(!$imap){$e=imap_error_text();if($e!=='')error_log('[MTPC_EMAIL_IMAP_WRITE] '.$e);throw new Exception('Không mở được hộp thư Gmail để lưu bản nháp.');}
+  return $imap;
+}
+function decode_mailbox_name($name){$x=preg_replace('/^\{[^}]+\}/','',(string)$name);if(function_exists('imap_utf7_decode')){$d=@imap_utf7_decode($x);if($d!==false)$x=$d;}return $x;}
+function gmail_drafts_mailbox($imap,$cfg){
+  $root=imap_root($cfg);$boxes=@imap_getmailboxes($imap,$root,'*');
+  if(is_array($boxes))foreach($boxes as $box){
+    if(!isset($box->name))continue;$full=(string)$box->name;$name=decode_mailbox_name($full);$low=function_exists('mb_strtolower')?mb_strtolower($name,'UTF-8'):strtolower($name);
+    if(strpos($low,'draft')!==false||strpos($low,'nháp')!==false||strpos($low,'nhap')!==false)return $full;
+  }
+  $candidate=$root.'[Gmail]/Drafts';
+  if(@imap_reopen($imap,$candidate))return $candidate;
+  throw new Exception('Không tìm thấy thư mục Thư nháp của Gmail.');
+}
+function draft_mime($draft,$username){
+  $id='<'.$draft['id'].'.'.time().'@admin.mtpc.edu.vn>';$headers=array(
+    'Date: '.date(DATE_RFC2822),'From: MTPC <'.$username.'>','To: <'.$draft['to'].'>',
+    'Subject: =?UTF-8?B?'.base64_encode($draft['subject']).'?=','Message-ID: '.$id,
+    'X-Unsent: 1','MIME-Version: 1.0','Content-Type: text/plain; charset=UTF-8','Content-Transfer-Encoding: base64'
+  );
+  return array('message_id'=>$id,'raw'=>implode("\r\n",$headers)."\r\n\r\n".chunk_split(base64_encode($draft['message']),76,"\r\n"));
+}
+function append_gmail_draft($draft,$cfg){
+  $imap=open_imap_rw($cfg,'INBOX');
+  try{$mailbox=gmail_drafts_mailbox($imap,$cfg);$mime=draft_mime($draft,$cfg['username']);if(!@imap_append($imap,$mailbox,$mime['raw'],'\\Draft')){$e=imap_error_text();if($e!=='')error_log('[MTPC_EMAIL_DRAFT_APPEND] '.$e);throw new Exception('Gmail từ chối lưu thư nháp.');}@imap_close($imap);return array('mailbox'=>$mailbox,'message_id'=>$mime['message_id']);}
+  catch(Exception $e){@imap_close($imap);throw $e;}
+}
 function smtp_read($s){$r='';while(($l=fgets($s,1024))!==false){$r.=$l;if(strlen($l)<4||$l[3]===' ')break;}return $r;}
 function smtp_cmd($s,$c,$codes){if($c!==null)fwrite($s,$c."\r\n");$r=smtp_read($s);$n=(int)substr($r,0,3);if(!in_array($n,$codes,true))throw new Exception('SMTP từ chối yêu cầu (mã '.$n.').');}
 function smtp_send($draft,$cfg){
@@ -51,11 +84,16 @@ $config='/home/mtpc/private/email-config.php';if(!is_file($config))out(503,array
  */
 $body=input();$action=isset($_GET['action'])?(string)$_GET['action']:'';$user=isset($MTPC_EMAIL_USERNAME)?trim((string)$MTPC_EMAIL_USERNAME):'';$pass=isset($MTPC_EMAIL_PASSWORD)?(string)$MTPC_EMAIL_PASSWORD:'';
 if(stripos($user,'@gmail.com')!==false)$pass=preg_replace('/\s+/u','',$pass);
+$imapCfg=array('host'=>isset($MTPC_EMAIL_IMAP_HOST)?trim((string)$MTPC_EMAIL_IMAP_HOST):'','port'=>isset($MTPC_EMAIL_IMAP_PORT)?(int)$MTPC_EMAIL_IMAP_PORT:993,'encryption'=>isset($MTPC_EMAIL_IMAP_ENCRYPTION)?strtolower(trim((string)$MTPC_EMAIL_IMAP_ENCRYPTION)):'ssl','username'=>$user,'password'=>$pass,'validate_cert'=>isset($MTPC_EMAIL_VALIDATE_CERT)?(bool)$MTPC_EMAIL_VALIDATE_CERT:true);
 
 if($action==='draft'){
   $to=isset($body['to'])?trim((string)$body['to']):'';$subject=clean_line(isset($body['subject'])?$body['subject']:'');$message=trim(isset($body['message'])?(string)$body['message']:'');
   if(!filter_var($to,FILTER_VALIDATE_EMAIL)||$subject===''||$message==='')out(422,array('ok'=>false,'error'=>'Bản nháp cần người nhận, tiêu đề và nội dung hợp lệ.'));if(strlen($message)>50000)out(422,array('ok'=>false,'error'=>'Bản nháp quá dài.'));
-  $all=load_drafts();$d=array('id'=>'mail_'.date('YmdHis').'_'.substr(md5(uniqid('',true)),0,8),'to'=>$to,'subject'=>cut($subject,250),'message'=>$message,'original_uid'=>isset($body['original_uid'])?preg_replace('/\D/','',(string)$body['original_uid']):'','status'=>'draft','created_at'=>date('c'),'updated_at'=>date('c'));array_unshift($all,$d);$all=array_slice($all,0,100);if(!save_drafts($all))out(500,array('ok'=>false,'error'=>'Không lưu được bản nháp.'));out(200,array('ok'=>true,'message'=>'Đã lưu bản nháp, chưa gửi.','draft'=>$d));
+  if($imapCfg['host']===''||$user===''||$pass==='')out(503,array('ok'=>false,'error'=>'Cấu hình Gmail IMAP còn thiếu nên chưa thể lưu thư nháp thật.'));
+  $all=load_drafts();$d=array('id'=>'mail_'.date('YmdHis').'_'.substr(md5(uniqid('',true)),0,8),'to'=>$to,'subject'=>cut($subject,250),'message'=>$message,'original_uid'=>isset($body['original_uid'])?preg_replace('/\D/','',(string)$body['original_uid']):'','status'=>'draft','created_at'=>date('c'),'updated_at'=>date('c'));
+  try{$saved=append_gmail_draft($d,$imapCfg);}catch(Exception $e){out(502,array('ok'=>false,'error'=>$e->getMessage(),'code'=>'GMAIL_DRAFT_FAILED'));}
+  $d['gmail_mailbox']=$saved['mailbox'];$d['gmail_message_id']=$saved['message_id'];array_unshift($all,$d);$all=array_slice($all,0,100);if(!save_drafts($all))out(500,array('ok'=>false,'error'=>'Gmail đã nhận thư nháp nhưng hệ thống chưa lưu được nhật ký nội bộ.'));
+  $public=$d;unset($public['message']);out(200,array('ok'=>true,'message'=>'Đã lưu bản nháp thật trong Gmail. Thư chưa được gửi.','draft'=>$public));
 }
 if($action==='drafts'){$all=load_drafts();foreach($all as &$d)unset($d['message']);unset($d);out(200,array('ok'=>true,'count'=>count($all),'drafts'=>$all));}
 if($action==='send'){

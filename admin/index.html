@@ -418,7 +418,7 @@
       }
       if(name==='create_email_reply_draft'){
         const request={to:String(args.to||'').trim(),subject:String(args.subject||'').trim(),message:String(args.message||'').trim(),original_uid:String(args.original_uid||'').trim()};if(!request.to||!request.subject||!request.message)return{ok:false,error:'Cần người nhận, tiêu đề và nội dung để lưu bản nháp.'};
-        const data=await emailRequest('draft',request);await recordAudit(name,'success','Nhi lưu bản nháp email cho '+request.to,{draft_id:data.draft?.id||'',recipient:request.to,subject:request.subject});return{ok:true,message:'Đã lưu bản nháp email. Thư chưa được gửi.',draft:data.draft};
+        const data=await emailRequest('draft',request);await recordAudit(name,'success','Nhi lưu bản nháp Gmail cho '+request.to,{draft_id:data.draft?.id||'',recipient:request.to,subject:request.subject});return{ok:true,message:data.message||'Đã lưu bản nháp thật trong Gmail. Thư chưa được gửi.',draft:data.draft};
       }
       if(name==='list_email_drafts'){
         const data=await emailRequest('drafts',{});await recordAudit(name,'success','Nhi đọc danh sách bản nháp email',{count:Number(data.count)||0});return{ok:true,message:'Có '+(Number(data.count)||0)+' bản nháp email.',count:Number(data.count)||0,drafts:data.drafts||[]};
