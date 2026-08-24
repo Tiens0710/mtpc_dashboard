@@ -1,188 +1,24 @@
 <?php
-/* MTPC student management API. PHP 5.6 compatible. */
-header('Content-Type: application/json; charset=utf-8');
-header('Cache-Control: no-store');
-header('Access-Control-Allow-Headers: Content-Type');
-header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
-
-function mtpc_students_response($status, $payload) {
-    http_response_code($status);
-    echo json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-    exit;
-}
-
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    http_response_code(204);
-    exit;
-}
-
-$configPath = '/home/mtpc/private/db-config.php';
-if (!is_file($configPath)) {
-    mtpc_students_response(500, array('ok' => false, 'error' => 'Chưa tìm thấy file cấu hình database.'));
-}
-
-require $configPath;
-
-$requiredConfig = array('$MTPC_DB_HOST', '$MTPC_DB_NAME', '$MTPC_DB_USER', '$MTPC_DB_PASS');
-if (!isset($MTPC_DB_HOST, $MTPC_DB_NAME, $MTPC_DB_USER, $MTPC_DB_PASS)) {
-    mtpc_students_response(500, array('ok' => false, 'error' => 'File cấu hình database chưa đủ thông tin.'));
-}
-
-try {
-    $pdo = new PDO(
-        'mysql:host=' . $MTPC_DB_HOST . ';dbname=' . $MTPC_DB_NAME . ';charset=utf8mb4',
-        $MTPC_DB_USER,
-        $MTPC_DB_PASS,
-        array(PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC)
-    );
-} catch (Exception $error) {
-    mtpc_students_response(500, array('ok' => false, 'error' => 'Không thể kết nối database.'));
-}
-
-function mtpc_students_json_body() {
-    $raw = file_get_contents('php://input');
-    $body = json_decode($raw, true);
-    return is_array($body) ? $body : array();
-}
-
-function mtpc_students_clean($value, $maxLength) {
-    $value = trim((string)$value);
-    if (function_exists('mb_substr')) return mb_substr($value, 0, $maxLength, 'UTF-8');
-    return substr($value, 0, $maxLength);
-}
-
-function mtpc_students_row($row) {
-    return array(
-        'id' => (int)$row['id'],
-        'student_code' => $row['student_code'],
-        'full_name' => $row['full_name'],
-        'date_of_birth' => $row['date_of_birth'],
-        'phone' => $row['phone'],
-        'email' => $row['email'],
-        'program_name' => $row['program_name'],
-        'class_name' => $row['class_name'],
-        'status' => $row['status'],
-        'note' => $row['note'],
-        'created_at' => $row['created_at'],
-        'updated_at' => $row['updated_at']
-    );
-}
-
-function mtpc_students_find_identifier($pdo, $identifier) {
-    $identifier = trim((string)$identifier);
-    if ($identifier === '') return null;
-    if (ctype_digit($identifier)) {
-        $statement = $pdo->prepare('SELECT * FROM students WHERE id = :id LIMIT 1');
-        $statement->execute(array(':id' => (int)$identifier));
-    } else {
-        $statement = $pdo->prepare('SELECT * FROM students WHERE student_code = :student_code LIMIT 1');
-        $statement->execute(array(':student_code' => $identifier));
-    }
-    $row = $statement->fetch();
-    return $row ? mtpc_students_row($row) : null;
-}
-
-$action = isset($_GET['action']) ? (string)$_GET['action'] : 'list';
-
-try {
-    if ($_SERVER['REQUEST_METHOD'] === 'GET' && $action === 'summary') {
-        $total = (int)$pdo->query('SELECT COUNT(*) FROM students')->fetchColumn();
-        $statement = $pdo->query('SELECT status, COUNT(*) AS count FROM students GROUP BY status ORDER BY status');
-        $byStatus = array();
-        foreach ($statement as $row) $byStatus[$row['status']] = (int)$row['count'];
-        mtpc_students_response(200, array('ok' => true, 'summary' => array('total' => $total, 'by_status' => $byStatus)));
-    }
-
-    if ($_SERVER['REQUEST_METHOD'] === 'GET' && $action === 'get') {
-        $identifier = isset($_GET['id']) ? $_GET['id'] : (isset($_GET['student_code']) ? $_GET['student_code'] : '');
-        $student = mtpc_students_find_identifier($pdo, $identifier);
-        if (!$student) mtpc_students_response(404, array('ok' => false, 'error' => 'Không tìm thấy sinh viên.'));
-        mtpc_students_response(200, array('ok' => true, 'student' => $student));
-    }
-
-    if ($_SERVER['REQUEST_METHOD'] === 'GET' && $action === 'list') {
-        $query = isset($_GET['q']) ? mtpc_students_clean($_GET['q'], 120) : '';
-        $status = isset($_GET['status']) ? mtpc_students_clean($_GET['status'], 50) : '';
-        $limit = isset($_GET['limit']) ? max(1, min(200, (int)$_GET['limit'])) : 50;
-        $offset = isset($_GET['offset']) ? max(0, (int)$_GET['offset']) : 0;
-        $where = array('1=1');
-        $params = array();
-        if ($query !== '') {
-            $where[] = '(student_code LIKE :query OR full_name LIKE :query OR phone LIKE :query OR email LIKE :query OR program_name LIKE :query OR class_name LIKE :query)';
-            $params[':query'] = '%' . $query . '%';
-        }
-        if ($status !== '') {
-            $where[] = 'status = :status';
-            $params[':status'] = $status;
-        }
-        $whereSql = implode(' AND ', $where);
-        $countStatement = $pdo->prepare('SELECT COUNT(*) FROM students WHERE ' . $whereSql);
-        $countStatement->execute($params);
-        $total = (int)$countStatement->fetchColumn();
-        $sql = 'SELECT * FROM students WHERE ' . $whereSql . ' ORDER BY updated_at DESC, id DESC LIMIT ' . $limit . ' OFFSET ' . $offset;
-        $statement = $pdo->prepare($sql);
-        $statement->execute($params);
-        $students = array();
-        foreach ($statement as $row) $students[] = mtpc_students_row($row);
-        mtpc_students_response(200, array('ok' => true, 'students' => $students, 'total' => $total, 'limit' => $limit, 'offset' => $offset));
-    }
-
-    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-        mtpc_students_response(405, array('ok' => false, 'error' => 'Phương thức không được hỗ trợ.'));
-    }
-
-    $body = mtpc_students_json_body();
-    $fields = array(
-        'student_code' => mtpc_students_clean(isset($body['student_code']) ? $body['student_code'] : '', 30),
-        'full_name' => mtpc_students_clean(isset($body['full_name']) ? $body['full_name'] : '', 150),
-        'date_of_birth' => mtpc_students_clean(isset($body['date_of_birth']) ? $body['date_of_birth'] : '', 10),
-        'phone' => mtpc_students_clean(isset($body['phone']) ? $body['phone'] : '', 30),
-        'email' => mtpc_students_clean(isset($body['email']) ? $body['email'] : '', 150),
-        'program_name' => mtpc_students_clean(isset($body['program_name']) ? $body['program_name'] : '', 150),
-        'class_name' => mtpc_students_clean(isset($body['class_name']) ? $body['class_name'] : '', 100),
-        'status' => mtpc_students_clean(isset($body['status']) ? $body['status'] : 'Đang học', 50),
-        'note' => mtpc_students_clean(isset($body['note']) ? $body['note'] : '', 2000)
-    );
-
-    if ($action === 'create') {
-        if ($fields['student_code'] === '' || $fields['full_name'] === '') {
-            mtpc_students_response(422, array('ok' => false, 'error' => 'Mã sinh viên và họ tên là bắt buộc.'));
-        }
-        $statement = $pdo->prepare('INSERT INTO students (student_code, full_name, date_of_birth, phone, email, program_name, class_name, status, note) VALUES (:student_code, :full_name, :date_of_birth, :phone, :email, :program_name, :class_name, :status, :note)');
-        $statement->execute(array(
-            ':student_code' => $fields['student_code'], ':full_name' => $fields['full_name'],
-            ':date_of_birth' => $fields['date_of_birth'] !== '' ? $fields['date_of_birth'] : null,
-            ':phone' => $fields['phone'], ':email' => $fields['email'], ':program_name' => $fields['program_name'],
-            ':class_name' => $fields['class_name'], ':status' => $fields['status'], ':note' => $fields['note']
-        ));
-        $student = mtpc_students_find_identifier($pdo, $pdo->lastInsertId());
-        mtpc_students_response(201, array('ok' => true, 'student' => $student, 'message' => 'Đã thêm sinh viên.'));
-    }
-
-    if ($action === 'update') {
-        $identifier = isset($body['id']) ? $body['id'] : (isset($body['student_code']) ? $body['student_code'] : '');
-        $current = mtpc_students_find_identifier($pdo, $identifier);
-        if (!$current) mtpc_students_response(404, array('ok' => false, 'error' => 'Không tìm thấy sinh viên để cập nhật.'));
-        if ($fields['student_code'] === '' || $fields['full_name'] === '') {
-            mtpc_students_response(422, array('ok' => false, 'error' => 'Mã sinh viên và họ tên là bắt buộc.'));
-        }
-        $statement = $pdo->prepare('UPDATE students SET student_code = :student_code, full_name = :full_name, date_of_birth = :date_of_birth, phone = :phone, email = :email, program_name = :program_name, class_name = :class_name, status = :status, note = :note WHERE id = :id');
-        $statement->execute(array(
-            ':student_code' => $fields['student_code'], ':full_name' => $fields['full_name'],
-            ':date_of_birth' => $fields['date_of_birth'] !== '' ? $fields['date_of_birth'] : null,
-            ':phone' => $fields['phone'], ':email' => $fields['email'], ':program_name' => $fields['program_name'],
-            ':class_name' => $fields['class_name'], ':status' => $fields['status'], ':note' => $fields['note'], ':id' => (int)$current['id']
-        ));
-        $student = mtpc_students_find_identifier($pdo, $current['id']);
-        mtpc_students_response(200, array('ok' => true, 'student' => $student, 'message' => 'Đã cập nhật hồ sơ sinh viên.'));
-    }
-
-    mtpc_students_response(400, array('ok' => false, 'error' => 'Thao tác không hợp lệ.'));
-} catch (PDOException $error) {
-    if ((int)$error->errorInfo[1] === 1062) {
-        mtpc_students_response(409, array('ok' => false, 'error' => 'Mã sinh viên đã tồn tại.'));
-    }
-    mtpc_students_response(500, array('ok' => false, 'error' => 'Database không thể xử lý yêu cầu.'));
-} catch (Exception $error) {
-    mtpc_students_response(500, array('ok' => false, 'error' => 'Không thể xử lý yêu cầu.'));
-}
+/* MTPC student profile API. PHP 5.6 compatible. */
+header('Content-Type: application/json; charset=utf-8'); header('Cache-Control: no-store'); header('X-Content-Type-Options: nosniff'); header('Access-Control-Allow-Headers: Content-Type'); header('Access-Control-Allow-Methods: GET,POST,OPTIONS');
+function mtpc_students_response($status,$payload){http_response_code($status);echo json_encode($payload,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);exit;}
+if($_SERVER['REQUEST_METHOD']==='OPTIONS'){http_response_code(204);exit;} require __DIR__.'/_student_bootstrap.php';
+function student_body(){$v=json_decode(file_get_contents('php://input'),true);return is_array($v)?$v:array();}
+function student_text($v,$n){$v=trim((string)$v);return function_exists('mb_substr')?mb_substr($v,0,$n,'UTF-8'):substr($v,0,$n);}
+function student_nullable($v,$n){$v=student_text($v,$n);return $v===''?null:$v;}
+function student_row($r){global $mtpcActor;$limited=$mtpcActor['role']==='teacher';return array('id'=>(int)$r['id'],'student_code'=>$r['student_code'],'full_name'=>$r['full_name'],'date_of_birth'=>$r['date_of_birth'],'gender'=>$r['gender'],'citizen_id'=>$limited?mtpc_mask($r['citizen_id'],3):$r['citizen_id'],'phone'=>$limited?mtpc_mask($r['phone'],4):$r['phone'],'email'=>$r['email'],'address'=>$limited?'Không thuộc phạm vi truy cập':$r['address'],'guardian_name'=>$limited?'':$r['guardian_name'],'guardian_phone'=>$limited?mtpc_mask($r['guardian_phone'],4):$r['guardian_phone'],'program_name'=>$r['program_name'],'class_name'=>$r['class_name'],'admission_year'=>$r['admission_year']===null?'':(int)$r['admission_year'],'cohort'=>$r['cohort'],'photo_path'=>$r['photo_path'],'status'=>$r['status'],'note'=>$limited?'':$r['note'],'created_at'=>$r['created_at'],'updated_at'=>$r['updated_at']);}
+function student_find($pdo,$identifier){$identifier=trim((string)$identifier);if($identifier==='')return null;if(ctype_digit($identifier)){$s=$pdo->prepare('SELECT * FROM students WHERE id=:id LIMIT 1');$s->execute(array(':id'=>(int)$identifier));}else{$s=$pdo->prepare('SELECT * FROM students WHERE student_code=:code LIMIT 1');$s->execute(array(':code'=>$identifier));}$r=$s->fetch();return $r?$r:null;}
+function student_fields($b){$status=student_text(isset($b['status'])?$b['status']:'Đang học',50);$allowed=array('Đang học','Bảo lưu','Đã tốt nghiệp','Thôi học');if(!in_array($status,$allowed,true))$status='Đang học';$year=isset($b['admission_year'])?(int)$b['admission_year']:0;return array('student_code'=>student_text(isset($b['student_code'])?$b['student_code']:'',30),'full_name'=>student_text(isset($b['full_name'])?$b['full_name']:'',150),'date_of_birth'=>student_nullable(isset($b['date_of_birth'])?$b['date_of_birth']:'',10),'gender'=>student_text(isset($b['gender'])?$b['gender']:'',20),'citizen_id'=>student_nullable(isset($b['citizen_id'])?$b['citizen_id']:'',20),'phone'=>student_nullable(isset($b['phone'])?$b['phone']:'',30),'email'=>student_nullable(isset($b['email'])?$b['email']:'',150),'address'=>student_text(isset($b['address'])?$b['address']:'',500),'guardian_name'=>student_text(isset($b['guardian_name'])?$b['guardian_name']:'',150),'guardian_phone'=>student_text(isset($b['guardian_phone'])?$b['guardian_phone']:'',30),'program_name'=>student_text(isset($b['program_name'])?$b['program_name']:'',150),'class_name'=>student_text(isset($b['class_name'])?$b['class_name']:'',100),'admission_year'=>$year>=2000&&$year<=2100?$year:null,'cohort'=>student_text(isset($b['cohort'])?$b['cohort']:'',50),'photo_path'=>student_text(isset($b['photo_path'])?$b['photo_path']:'',255),'status'=>$status,'note'=>student_text(isset($b['note'])?$b['note']:'',2000));}
+function student_unique($pdo,$f,$ignore){foreach(array('student_code'=>'Mã sinh viên','citizen_id'=>'CCCD','email'=>'Email','phone'=>'Số điện thoại') as$field=>$label){$v=$f[$field];if($v===null||$v==='')continue;$sql='SELECT id FROM students WHERE '.$field.'=:v';$p=array(':v'=>$v);if($ignore){$sql.=' AND id<>:id';$p[':id']=$ignore;}$s=$pdo->prepare($sql.' LIMIT 1');$s->execute($p);if($s->fetchColumn())mtpc_students_response(409,array('ok'=>false,'error'=>$label.' đã tồn tại.','field'=>$field));}}
+$action=isset($_GET['action'])?(string)$_GET['action']:'list';
+try{
+ if($_SERVER['REQUEST_METHOD']==='GET'&&$action==='summary'){mtpc_require_permission('students.read');$total=(int)$pdo->query('SELECT COUNT(*) FROM students')->fetchColumn();$rows=$pdo->query('SELECT status,COUNT(*) count FROM students GROUP BY status')->fetchAll();$by=array();foreach($rows as$r)$by[$r['status']]=(int)$r['count'];mtpc_students_response(200,array('ok'=>true,'summary'=>array('total'=>$total,'by_status'=>$by)));}
+ if($_SERVER['REQUEST_METHOD']==='GET'&&$action==='get'){mtpc_require_permission('students.read');$id=isset($_GET['id'])?$_GET['id']:(isset($_GET['student_code'])?$_GET['student_code']:'');$r=student_find($pdo,$id);if(!$r)mtpc_students_response(404,array('ok'=>false,'error'=>'Không tìm thấy sinh viên.'));mtpc_students_response(200,array('ok'=>true,'student'=>student_row($r)));}
+ if($_SERVER['REQUEST_METHOD']==='GET'&&$action==='duplicates'){mtpc_require_permission('students.read');$result=array();foreach(array('citizen_id','email','phone') as$field){$result[$field]=$pdo->query('SELECT '.$field.' value,COUNT(*) count,GROUP_CONCAT(student_code ORDER BY student_code SEPARATOR ", ") students FROM students WHERE '.$field.' IS NOT NULL AND '.$field.'<>"" GROUP BY '.$field.' HAVING COUNT(*)>1 ORDER BY count DESC LIMIT 50')->fetchAll();}mtpc_students_response(200,array('ok'=>true,'duplicates'=>$result));}
+ if($_SERVER['REQUEST_METHOD']==='GET'&&$action==='list'){mtpc_require_permission('students.read');$where=array('1=1');$p=array();$q=isset($_GET['q'])?student_text($_GET['q'],120):'';if($q!==''){$where[]='(student_code LIKE :q OR full_name LIKE :q OR phone LIKE :q OR email LIKE :q OR citizen_id LIKE :q)';$p[':q']='%'.$q.'%';}foreach(array('status'=>'status','program'=>'program_name','class_name'=>'class_name','cohort'=>'cohort','admission_year'=>'admission_year') as$key=>$column){$v=isset($_GET[$key])?student_text($_GET[$key],150):'';if($v!==''){$where[]=$column.'=:'.$key;$p[':'.$key]=$v;}}$limit=isset($_GET['limit'])?max(1,min(100,(int)$_GET['limit'])):20;$offset=isset($_GET['offset'])?max(0,(int)$_GET['offset']):0;$w=implode(' AND ',$where);$c=$pdo->prepare('SELECT COUNT(*) FROM students WHERE '.$w);$c->execute($p);$total=(int)$c->fetchColumn();$s=$pdo->prepare('SELECT * FROM students WHERE '.$w.' ORDER BY updated_at DESC,id DESC LIMIT '.$limit.' OFFSET '.$offset);$s->execute($p);$rows=array();foreach($s as$r)$rows[]=student_row($r);mtpc_students_response(200,array('ok'=>true,'students'=>$rows,'total'=>$total,'limit'=>$limit,'offset'=>$offset));}
+ if($_SERVER['REQUEST_METHOD']!=='POST')mtpc_students_response(405,array('ok'=>false,'error'=>'Phương thức không được hỗ trợ.'));
+ mtpc_require_permission('students.write');$b=student_body();$f=student_fields($b);if($f['student_code']===''||$f['full_name']==='')mtpc_students_response(422,array('ok'=>false,'error'=>'Mã sinh viên và họ tên là bắt buộc.'));if($f['email']!==null&&!filter_var($f['email'],FILTER_VALIDATE_EMAIL))mtpc_students_response(422,array('ok'=>false,'error'=>'Email không hợp lệ.','field'=>'email'));$columns=array_keys($f);
+ if($action==='create'){student_unique($pdo,$f,0);$marks=array();$values=array();foreach($columns as$c){$marks[]=':'.$c;$values[':'.$c]=$f[$c];}$s=$pdo->prepare('INSERT INTO students('.implode(',',$columns).') VALUES('.implode(',',$marks).')');$s->execute($values);$id=(int)$pdo->lastInsertId();$s=$pdo->prepare('INSERT INTO student_history(student_id,action,new_value,reason,actor_username,actor_role) VALUES(:id,"create",:value,:reason,:actor,:role)');$s->execute(array(':id'=>$id,':value'=>$f['full_name'],':reason'=>'Tạo hồ sơ',':actor'=>$mtpcActor['username'],':role'=>$mtpcActor['role']));mtpc_audit('student.create','student',$id,null,$f);mtpc_students_response(201,array('ok'=>true,'student'=>student_row(student_find($pdo,$id)),'message'=>'Đã thêm sinh viên.'));}
+ if($action==='update'){$id=isset($b['id'])?(int)$b['id']:0;$current=student_find($pdo,$id);if(!$current)mtpc_students_response(404,array('ok'=>false,'error'=>'Không tìm thấy sinh viên.'));student_unique($pdo,$f,$id);$sets=array();$values=array(':id'=>$id);foreach($columns as$c){$sets[]=$c.'=:'.$c;$values[':'.$c]=$f[$c];}$pdo->beginTransaction();$s=$pdo->prepare('UPDATE students SET '.implode(',',$sets).' WHERE id=:id');$s->execute($values);$h=$pdo->prepare('INSERT INTO student_history(student_id,action,field_name,old_value,new_value,reason,actor_username,actor_role) VALUES(:id,"update",:field,:old,:new,:reason,:actor,:role)');foreach($columns as$c){$old=isset($current[$c])?(string)$current[$c]:'';$new=$f[$c]===null?'':(string)$f[$c];if($old!==$new)$h->execute(array(':id'=>$id,':field'=>$c,':old'=>$old,':new'=>$new,':reason'=>student_text(isset($b['change_reason'])?$b['change_reason']:'Cập nhật hồ sơ',500),':actor'=>$mtpcActor['username'],':role'=>$mtpcActor['role']));}$pdo->commit();mtpc_audit('student.update','student',$id,$current,$f);mtpc_students_response(200,array('ok'=>true,'student'=>student_row(student_find($pdo,$id)),'message'=>'Đã cập nhật hồ sơ sinh viên.'));}
+ mtpc_students_response(400,array('ok'=>false,'error'=>'Thao tác không hợp lệ.'));
+}catch(PDOException$e){if($pdo->inTransaction())$pdo->rollBack();mtpc_students_response(500,array('ok'=>false,'error'=>'Database không thể xử lý yêu cầu.'));}catch(Exception$e){if($pdo->inTransaction())$pdo->rollBack();mtpc_students_response(500,array('ok'=>false,'error'=>'Không thể xử lý yêu cầu.'));}
