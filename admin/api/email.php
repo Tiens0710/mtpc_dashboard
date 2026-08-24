@@ -1,252 +1,63 @@
 <?php
-/* MTPC Admin read-only IMAP gateway. PHP 5.6 compatible. */
+/* MTPC Admin email gateway. PHP 5.6 compatible. */
 header('Content-Type: application/json; charset=utf-8');
-header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
-header('Pragma: no-cache');
+header('Cache-Control: no-store');
 header('X-Content-Type-Options: nosniff');
 header('Referrer-Policy: no-referrer');
 header('Access-Control-Allow-Headers: Content-Type');
 header('Access-Control-Allow-Methods: POST, OPTIONS');
 date_default_timezone_set('Asia/Ho_Chi_Minh');
 
-function mtpc_mail_response($status, $payload) {
-    http_response_code($status);
-    echo json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-    exit;
+function out($status,$data){http_response_code($status);echo json_encode($data,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);exit;}
+function input(){ $x=json_decode(file_get_contents('php://input'),true);return is_array($x)?$x:array(); }
+function cut($s,$n){return function_exists('mb_substr')?mb_substr($s,0,$n,'UTF-8'):substr($s,0,$n);}
+function has_text($s,$q){$q=trim((string)$q);if($q==='')return true;return function_exists('mb_stripos')?mb_stripos((string)$s,$q,0,'UTF-8')!==false:stripos((string)$s,$q)!==false;}
+function clean_line($s){return trim(preg_replace('/[\r\n]+/',' ',(string)$s));}
+function drafts_path(){return '/home/mtpc/private/mtpc-admin/email-drafts.json';}
+function load_drafts(){$p=drafts_path();if(!is_file($p))return array();$x=json_decode(@file_get_contents($p),true);return is_array($x)?$x:array();}
+function save_drafts($x){$p=drafts_path();$d=dirname($p);if(!is_dir($d)&&!@mkdir($d,0750,true))return false;$t=$p.'.tmp';if(@file_put_contents($t,json_encode(array_values($x),JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES),LOCK_EX)===false)return false;@chmod($t,0600);if(!@rename($t,$p)){@unlink($t);return false;}@chmod($p,0600);return true;}
+function smtp_read($s){$r='';while(($l=fgets($s,1024))!==false){$r.=$l;if(strlen($l)<4||$l[3]===' ')break;}return $r;}
+function smtp_cmd($s,$c,$codes){if($c!==null)fwrite($s,$c."\r\n");$r=smtp_read($s);$n=(int)substr($r,0,3);if(!in_array($n,$codes,true))throw new Exception('SMTP từ chối yêu cầu (mã '.$n.').');}
+function smtp_send($draft,$cfg){
+  $prefix=$cfg['encryption']==='ssl'?'ssl://':'tcp://';$s=@stream_socket_client($prefix.$cfg['host'].':'.$cfg['port'],$errno,$errstr,20,STREAM_CLIENT_CONNECT);if(!$s)throw new Exception('Không kết nối được SMTP.');stream_set_timeout($s,20);
+  try{smtp_cmd($s,null,array(220));smtp_cmd($s,'EHLO admin.mtpc.edu.vn',array(250));if($cfg['encryption']==='tls'){smtp_cmd($s,'STARTTLS',array(220));if(!stream_socket_enable_crypto($s,true,STREAM_CRYPTO_METHOD_TLS_CLIENT))throw new Exception('Không bật được TLS.');smtp_cmd($s,'EHLO admin.mtpc.edu.vn',array(250));}smtp_cmd($s,'AUTH LOGIN',array(334));smtp_cmd($s,base64_encode($cfg['username']),array(334));smtp_cmd($s,base64_encode($cfg['password']),array(235));smtp_cmd($s,'MAIL FROM:<'.$cfg['username'].'>',array(250));smtp_cmd($s,'RCPT TO:<'.$draft['to'].'>',array(250,251));smtp_cmd($s,'DATA',array(354));$h=array('From: MTPC <'.$cfg['username'].'>','To: <'.$draft['to'].'>','Subject: =?UTF-8?B?'.base64_encode($draft['subject']).'?=','Date: '.date(DATE_RFC2822),'MIME-Version: 1.0','Content-Type: text/plain; charset=UTF-8','Content-Transfer-Encoding: base64');$m=implode("\r\n",$h)."\r\n\r\n".chunk_split(base64_encode($draft['message']),76,"\r\n");fwrite($s,preg_replace('/(?m)^\./','..',$m)."\r\n.\r\n");smtp_cmd($s,null,array(250));smtp_cmd($s,'QUIT',array(221));fclose($s);}catch(Exception $e){fclose($s);throw $e;}
 }
 
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    http_response_code(204);
-    exit;
+if($_SERVER['REQUEST_METHOD']==='OPTIONS'){http_response_code(204);exit;}
+if($_SERVER['REQUEST_METHOD']!=='POST')out(405,array('ok'=>false,'error'=>'Chỉ hỗ trợ POST.'));
+if(!empty($_SERVER['HTTP_ORIGIN'])){$oh=parse_url($_SERVER['HTTP_ORIGIN'],PHP_URL_HOST);$rh=isset($_SERVER['HTTP_HOST'])?preg_replace('/:\d+$/','',$_SERVER['HTTP_HOST']):'';if(!$oh||strcasecmp($oh,$rh)!==0)out(403,array('ok'=>false,'error'=>'Nguồn yêu cầu không hợp lệ.'));}
+$config='/home/mtpc/private/email-config.php';if(!is_file($config))out(503,array('ok'=>false,'error'=>'Chưa cấu hình hộp thư.'));require $config;
+$auth=isset($MTPC_EMAIL_REQUIRE_AUTH)?(bool)$MTPC_EMAIL_REQUIRE_AUTH:true;if($auth&&empty($_SERVER['REMOTE_USER']))out(403,array('ok'=>false,'error'=>'Hãy bật Directory Privacy cho admin.'));
+$body=input();$action=isset($_GET['action'])?(string)$_GET['action']:'';$user=isset($MTPC_EMAIL_USERNAME)?trim((string)$MTPC_EMAIL_USERNAME):'';$pass=isset($MTPC_EMAIL_PASSWORD)?(string)$MTPC_EMAIL_PASSWORD:'';
+
+if($action==='draft'){
+  $to=isset($body['to'])?trim((string)$body['to']):'';$subject=clean_line(isset($body['subject'])?$body['subject']:'');$message=trim(isset($body['message'])?(string)$body['message']:'');
+  if(!filter_var($to,FILTER_VALIDATE_EMAIL)||$subject===''||$message==='')out(422,array('ok'=>false,'error'=>'Bản nháp cần người nhận, tiêu đề và nội dung hợp lệ.'));if(strlen($message)>50000)out(422,array('ok'=>false,'error'=>'Bản nháp quá dài.'));
+  $all=load_drafts();$d=array('id'=>'mail_'.date('YmdHis').'_'.substr(md5(uniqid('',true)),0,8),'to'=>$to,'subject'=>cut($subject,250),'message'=>$message,'original_uid'=>isset($body['original_uid'])?preg_replace('/\D/','',(string)$body['original_uid']):'','status'=>'draft','created_at'=>date('c'),'updated_at'=>date('c'));array_unshift($all,$d);$all=array_slice($all,0,100);if(!save_drafts($all))out(500,array('ok'=>false,'error'=>'Không lưu được bản nháp.'));out(200,array('ok'=>true,'message'=>'Đã lưu bản nháp, chưa gửi.','draft'=>$d));
 }
-if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    mtpc_mail_response(405, array('ok' => false, 'error' => 'Chỉ hỗ trợ yêu cầu POST.'));
+if($action==='drafts'){$all=load_drafts();foreach($all as &$d)unset($d['message']);unset($d);out(200,array('ok'=>true,'count'=>count($all),'drafts'=>$all));}
+if($action==='send'){
+  $id=isset($body['draft_id'])?trim((string)$body['draft_id']):'';$all=load_drafts();$idx=-1;foreach($all as $i=>$d)if(isset($d['id'])&&$d['id']===$id){$idx=$i;break;}if($idx<0)out(404,array('ok'=>false,'error'=>'Không tìm thấy bản nháp.'));if(isset($all[$idx]['status'])&&$all[$idx]['status']==='sent')out(409,array('ok'=>false,'error'=>'Email này đã gửi.'));
+  $cfg=array('host'=>isset($MTPC_EMAIL_SMTP_HOST)?trim((string)$MTPC_EMAIL_SMTP_HOST):'smtp.gmail.com','port'=>isset($MTPC_EMAIL_SMTP_PORT)?(int)$MTPC_EMAIL_SMTP_PORT:465,'encryption'=>isset($MTPC_EMAIL_SMTP_ENCRYPTION)?strtolower(trim((string)$MTPC_EMAIL_SMTP_ENCRYPTION)):'ssl','username'=>$user,'password'=>$pass);if(!filter_var($user,FILTER_VALIDATE_EMAIL)||$pass===''||!in_array($cfg['encryption'],array('ssl','tls','none'),true))out(503,array('ok'=>false,'error'=>'Cấu hình SMTP chưa hợp lệ.'));try{smtp_send($all[$idx],$cfg);}catch(Exception $e){out(502,array('ok'=>false,'error'=>$e->getMessage()));}$all[$idx]['status']='sent';$all[$idx]['sent_at']=date('c');$all[$idx]['updated_at']=date('c');if(!save_drafts($all))out(500,array('ok'=>false,'error'=>'Đã gửi nhưng chưa cập nhật được lịch sử.'));out(200,array('ok'=>true,'message'=>'Email đã được gửi sau khi phê duyệt.','draft'=>array('id'=>$id,'to'=>$all[$idx]['to'],'subject'=>$all[$idx]['subject'],'status'=>'sent','sent_at'=>$all[$idx]['sent_at'])));
 }
 
-/* Block cross-origin calls even when the browser already has an admin session. */
-if (!empty($_SERVER['HTTP_ORIGIN'])) {
-    $originHost = parse_url($_SERVER['HTTP_ORIGIN'], PHP_URL_HOST);
-    $requestHost = isset($_SERVER['HTTP_HOST']) ? preg_replace('/:\\d+$/', '', $_SERVER['HTTP_HOST']) : '';
-    if (!$originHost || strcasecmp($originHost, $requestHost) !== 0) {
-        mtpc_mail_response(403, array('ok' => false, 'error' => 'Nguồn yêu cầu không hợp lệ.'));
-    }
-}
+if(!function_exists('imap_open'))out(503,array('ok'=>false,'error'=>'PHP IMAP chưa được bật.'));
+$host=isset($MTPC_EMAIL_IMAP_HOST)?trim((string)$MTPC_EMAIL_IMAP_HOST):'';$port=isset($MTPC_EMAIL_IMAP_PORT)?(int)$MTPC_EMAIL_IMAP_PORT:993;$enc=isset($MTPC_EMAIL_IMAP_ENCRYPTION)?strtolower(trim((string)$MTPC_EMAIL_IMAP_ENCRYPTION)):'ssl';$folder=isset($MTPC_EMAIL_FOLDER)?trim((string)$MTPC_EMAIL_FOLDER):'INBOX';$cert=isset($MTPC_EMAIL_VALIDATE_CERT)?(bool)$MTPC_EMAIL_VALIDATE_CERT:true;
+if($host===''||$user===''||$pass==='')out(503,array('ok'=>false,'error'=>'Cấu hình IMAP còn thiếu.'));if(!preg_match('/^[a-z0-9.-]+$/i',$host)||$port<1||$port>65535||!in_array($enc,array('ssl','tls','none'),true))out(500,array('ok'=>false,'error'=>'Cấu hình IMAP không hợp lệ.'));
+$flags='/imap'.($enc==='ssl'?'/ssl':'').($enc==='tls'?'/tls':'').(!$cert?'/novalidate-cert':'');$imap=@imap_open('{'.$host.':'.$port.$flags.'}'.$folder,$user,$pass,OP_READONLY,1);if(!$imap)out(502,array('ok'=>false,'error'=>'Không kết nối được IMAP.'));
+function mail_utf8($s){$parts=function_exists('imap_mime_header_decode')?@imap_mime_header_decode((string)$s):false;if(!is_array($parts))return trim((string)$s);$r='';foreach($parts as $p){$c=isset($p->charset)?strtoupper($p->charset):'DEFAULT';$t=isset($p->text)?$p->text:'';if($c!=='DEFAULT'&&$c!=='UTF-8'&&function_exists('iconv')){$x=@iconv($c,'UTF-8//IGNORE',$t);if($x!==false)$t=$x;}$r.=$t;}return trim($r);}
+function charset_of($p){$g=array();if(isset($p->parameters)&&is_array($p->parameters))$g[]=$p->parameters;if(isset($p->dparameters)&&is_array($p->dparameters))$g[]=$p->dparameters;foreach($g as $a)foreach($a as $x)if(isset($x->attribute,$x->value)&&strtoupper($x->attribute)==='CHARSET')return(string)$x->value;return'UTF-8';}
+function decode_part($raw,$encoding,$charset,$html){if((int)$encoding===3)$raw=base64_decode($raw);elseif((int)$encoding===4)$raw=quoted_printable_decode($raw);if($charset&&strtoupper($charset)!=='UTF-8'&&strtoupper($charset)!=='US-ASCII'&&function_exists('iconv')){$x=@iconv($charset,'UTF-8//IGNORE',$raw);if($x!==false)$raw=$x;}if($html){$raw=preg_replace('/<script\b[^>]*>.*?<\/script>/is',' ',$raw);$raw=preg_replace('/<style\b[^>]*>.*?<\/style>/is',' ',$raw);$raw=html_entity_decode(strip_tags($raw),ENT_QUOTES,'UTF-8');}return trim(preg_replace('/\r?\n(?:\s*\r?\n)+/',"\n\n",preg_replace('/[\t ]+/',' ',$raw)));}
+function collect_parts($s,$prefix,&$plain,&$html){if(isset($s->parts)&&is_array($s->parts)){foreach($s->parts as $i=>$c)collect_parts($c,$prefix===''?(string)($i+1):$prefix.'.'.($i+1),$plain,$html);return;}if(isset($s->type)&&(int)$s->type===0){$sub=isset($s->subtype)?strtoupper($s->subtype):'PLAIN';$x=array('part'=>$prefix,'encoding'=>isset($s->encoding)?(int)$s->encoding:0,'charset'=>charset_of($s));if($sub==='PLAIN')$plain[]=$x;elseif($sub==='HTML')$html[]=$x;}}
+function extract_text($imap,$uid){$s=@imap_fetchstructure($imap,$uid,FT_UID);if(!$s)return'';$p=array();$h=array();collect_parts($s,'',$p,$h);$c=count($p)?$p:$h;foreach($c as $x){$raw=$x['part']===''?@imap_body($imap,$uid,FT_UID|FT_PEEK):@imap_fetchbody($imap,$uid,$x['part'],FT_UID|FT_PEEK);if($raw!==false&&$raw!=='')return decode_part($raw,$x['encoding'],$x['charset'],!count($p));}$raw=@imap_body($imap,$uid,FT_UID|FT_PEEK);return$raw===false?'':decode_part($raw,isset($s->encoding)?$s->encoding:0,charset_of($s),isset($s->subtype)&&strtoupper($s->subtype)==='HTML');}
+function valid_date($v){if(!is_string($v)||!preg_match('/^\d{4}-\d{2}-\d{2}$/',$v))return false;$d=DateTime::createFromFormat('!Y-m-d',$v,new DateTimeZone('Asia/Ho_Chi_Minh'));return$d&&$d->format('Y-m-d')===$v?$d:false;}
+function date_range($b){$z=new DateTimeZone('Asia/Ho_Chi_Minh');$t=new DateTime('today',$z);$m=isset($b['date_mode'])?(string)$b['date_mode']:'today';if($m==='today')return array(clone$t,(clone$t)->modify('+1 day'),'hôm nay');if($m==='yesterday')return array((clone$t)->modify('-1 day'),clone$t,'hôm qua');if($m==='recent')return array((clone$t)->modify('-6 days'),(clone$t)->modify('+1 day'),'trong 7 ngày gần đây');if($m==='date'){$d=valid_date(isset($b['date'])?$b['date']:'');return$d?array($d,(clone$d)->modify('+1 day'),'ngày '.$d->format('d/m/Y')):false;}if($m==='range'){$f=valid_date(isset($b['from_date'])?$b['from_date']:'');$to=valid_date(isset($b['to_date'])?$b['to_date']:'');if(!$f||!$to||$f>$to||(int)$f->diff($to)->format('%a')>31)return false;return array($f,(clone$to)->modify('+1 day'),'từ '.$f->format('d/m/Y').' đến '.$to->format('d/m/Y'));}return false;}
+function priority_hint($s){foreach(array('khẩn','gấp','hạn chót','xét tuyển','khiếu nại','thanh toán','xác nhận','hồ sơ')as$w)if(has_text($s,$w))return'high';return'normal';}
 
-$configPath = '/home/mtpc/private/email-config.php';
-if (!is_file($configPath)) {
-    mtpc_mail_response(503, array('ok' => false, 'error' => 'Chưa cấu hình hộp thư. Hãy tạo /home/mtpc/private/email-config.php.'));
+if($action==='list'){
+  $range=date_range($body);if(!$range){imap_close($imap);out(422,array('ok'=>false,'error'=>'Khoảng ngày không hợp lệ hoặc dài quá 31 ngày.'));}$limit=isset($body['limit'])?max(1,min(20,(int)$body['limit'])):10;$criteria='SINCE "'.$range[0]->format('d-M-Y').'" BEFORE "'.$range[1]->format('d-M-Y').'"'.(!empty($body['unread_only'])?' UNSEEN':'');$uids=@imap_search($imap,$criteria,SE_UID,'UTF-8');if(!is_array($uids))$uids=array();$sender=isset($body['sender'])?trim((string)$body['sender']):'';$sf=isset($body['subject'])?trim((string)$body['subject']):'';$q=isset($body['query'])?trim((string)$body['query']):'';$items=array();
+  foreach($uids as$uid){$o=@imap_fetch_overview($imap,(string)$uid,FT_UID);if(!is_array($o)||!isset($o[0]))continue;$row=$o[0];$from=mail_utf8(isset($row->from)?$row->from:'');$sub=mail_utf8(isset($row->subject)?$row->subject:'(Không có tiêu đề)');if(!has_text($from,$sender)||!has_text($sub,$sf))continue;$ts=isset($row->udate)?(int)$row->udate:(isset($row->date)?strtotime($row->date):0);$items[]=array('uid'=>(string)$uid,'from'=>$from,'subject'=>$sub,'date'=>$ts?date('c',$ts):'','unread'=>empty($row->seen),'_ts'=>$ts);}
+  usort($items,function($a,$b){return$a['_ts']===$b['_ts']?0:($a['_ts']<$b['_ts']?1:-1);});$result=array();foreach($items as$x){$preview=cut(preg_replace('/\s+/',' ',extract_text($imap,$x['uid'])),500);if($q!==''&&!has_text($x['from'].' '.$x['subject'].' '.$preview,$q))continue;$x['preview']=$preview;$x['priority']=priority_hint($x['subject'].' '.$preview);unset($x['_ts']);$result[]=$x;if(count($result)>=$limit)break;}imap_close($imap);out(200,array('ok'=>true,'range_label'=>$range[2],'count'=>count($result),'emails'=>$result,'filters'=>array('sender'=>$sender,'subject'=>$sf,'query'=>$q)));
 }
-require $configPath;
-
-$requireAuth = isset($MTPC_EMAIL_REQUIRE_AUTH) ? (bool)$MTPC_EMAIL_REQUIRE_AUTH : true;
-if ($requireAuth && empty($_SERVER['REMOTE_USER'])) {
-    mtpc_mail_response(403, array('ok' => false, 'error' => 'Hãy bật Directory Privacy cho thư mục admin trước khi sử dụng công cụ email.'));
-}
-if (!function_exists('imap_open')) {
-    mtpc_mail_response(503, array('ok' => false, 'error' => 'PHP IMAP chưa được bật trên hosting. Hãy bật extension imap trong Select PHP Version.'));
-}
-
-$host = isset($MTPC_EMAIL_IMAP_HOST) ? trim((string)$MTPC_EMAIL_IMAP_HOST) : '';
-$port = isset($MTPC_EMAIL_IMAP_PORT) ? (int)$MTPC_EMAIL_IMAP_PORT : 993;
-$encryption = isset($MTPC_EMAIL_IMAP_ENCRYPTION) ? strtolower(trim((string)$MTPC_EMAIL_IMAP_ENCRYPTION)) : 'ssl';
-$username = isset($MTPC_EMAIL_USERNAME) ? trim((string)$MTPC_EMAIL_USERNAME) : '';
-$password = isset($MTPC_EMAIL_PASSWORD) ? (string)$MTPC_EMAIL_PASSWORD : '';
-$folder = isset($MTPC_EMAIL_FOLDER) ? trim((string)$MTPC_EMAIL_FOLDER) : 'INBOX';
-$validateCertificate = isset($MTPC_EMAIL_VALIDATE_CERT) ? (bool)$MTPC_EMAIL_VALIDATE_CERT : true;
-
-if ($host === '' || $username === '' || $password === '') {
-    mtpc_mail_response(503, array('ok' => false, 'error' => 'Cấu hình IMAP còn thiếu host, username hoặc password.'));
-}
-if (!preg_match('/^[a-z0-9.-]+$/i', $host) || $port < 1 || $port > 65535 || !in_array($encryption, array('ssl', 'tls', 'none'), true)) {
-    mtpc_mail_response(500, array('ok' => false, 'error' => 'Cấu hình máy chủ IMAP không hợp lệ.'));
-}
-
-$flags = '/imap';
-if ($encryption === 'ssl') $flags .= '/ssl';
-if ($encryption === 'tls') $flags .= '/tls';
-if (!$validateCertificate) $flags .= '/novalidate-cert';
-$mailbox = '{' . $host . ':' . $port . $flags . '}' . $folder;
-$imap = @imap_open($mailbox, $username, $password, OP_READONLY, 1);
-if (!$imap) {
-    mtpc_mail_response(502, array('ok' => false, 'error' => 'Không kết nối được hộp thư IMAP. Hãy kiểm tra máy chủ, tài khoản và mật khẩu.'));
-}
-
-function mtpc_mail_body() {
-    $body = json_decode(file_get_contents('php://input'), true);
-    return is_array($body) ? $body : array();
-}
-
-function mtpc_mail_utf8($value) {
-    $value = (string)$value;
-    if ($value === '') return '';
-    if (function_exists('imap_mime_header_decode')) {
-        $parts = @imap_mime_header_decode($value);
-        if (is_array($parts)) {
-            $result = '';
-            foreach ($parts as $part) {
-                $charset = isset($part->charset) ? strtoupper($part->charset) : 'DEFAULT';
-                $text = isset($part->text) ? $part->text : '';
-                if ($charset !== 'DEFAULT' && $charset !== 'UTF-8' && function_exists('iconv')) {
-                    $converted = @iconv($charset, 'UTF-8//IGNORE', $text);
-                    if ($converted !== false) $text = $converted;
-                }
-                $result .= $text;
-            }
-            return trim($result);
-        }
-    }
-    return trim($value);
-}
-
-function mtpc_mail_part_charset($part) {
-    $groups = array();
-    if (isset($part->parameters) && is_array($part->parameters)) $groups[] = $part->parameters;
-    if (isset($part->dparameters) && is_array($part->dparameters)) $groups[] = $part->dparameters;
-    foreach ($groups as $params) {
-        foreach ($params as $param) {
-            if (isset($param->attribute, $param->value) && strtoupper($param->attribute) === 'CHARSET') return (string)$param->value;
-        }
-    }
-    return 'UTF-8';
-}
-
-function mtpc_mail_decode_part($raw, $encoding, $charset, $isHtml) {
-    if ((int)$encoding === 3) $raw = base64_decode($raw);
-    elseif ((int)$encoding === 4) $raw = quoted_printable_decode($raw);
-    if ($charset && strtoupper($charset) !== 'UTF-8' && strtoupper($charset) !== 'US-ASCII' && function_exists('iconv')) {
-        $converted = @iconv($charset, 'UTF-8//IGNORE', $raw);
-        if ($converted !== false) $raw = $converted;
-    }
-    if ($isHtml) {
-        $raw = preg_replace('/<script\\b[^>]*>.*?<\\/script>/is', ' ', $raw);
-        $raw = preg_replace('/<style\\b[^>]*>.*?<\\/style>/is', ' ', $raw);
-        $raw = html_entity_decode(strip_tags($raw), ENT_QUOTES, 'UTF-8');
-    }
-    $raw = preg_replace('/[\\t ]+/', ' ', $raw);
-    $raw = preg_replace('/\\r?\\n(?:\\s*\\r?\\n)+/', "\n\n", $raw);
-    return trim($raw);
-}
-
-function mtpc_mail_collect_parts($structure, $prefix, &$plain, &$html) {
-    if (isset($structure->parts) && is_array($structure->parts)) {
-        foreach ($structure->parts as $index => $child) {
-            $number = $prefix === '' ? (string)($index + 1) : $prefix . '.' . ($index + 1);
-            mtpc_mail_collect_parts($child, $number, $plain, $html);
-        }
-        return;
-    }
-    if (isset($structure->type) && (int)$structure->type === 0) {
-        $subtype = isset($structure->subtype) ? strtoupper($structure->subtype) : 'PLAIN';
-        $item = array('part' => $prefix, 'encoding' => isset($structure->encoding) ? (int)$structure->encoding : 0, 'charset' => mtpc_mail_part_charset($structure));
-        if ($subtype === 'PLAIN') $plain[] = $item;
-        elseif ($subtype === 'HTML') $html[] = $item;
-    }
-}
-
-function mtpc_mail_extract_text($imap, $uid) {
-    $structure = @imap_fetchstructure($imap, $uid, FT_UID);
-    if (!$structure) return '';
-    $plain = array(); $html = array();
-    mtpc_mail_collect_parts($structure, '', $plain, $html);
-    $candidates = count($plain) ? $plain : $html;
-    foreach ($candidates as $item) {
-        $raw = $item['part'] === '' ? @imap_body($imap, $uid, FT_UID | FT_PEEK) : @imap_fetchbody($imap, $uid, $item['part'], FT_UID | FT_PEEK);
-        if ($raw !== false && $raw !== '') return mtpc_mail_decode_part($raw, $item['encoding'], $item['charset'], !count($plain));
-    }
-    $raw = @imap_body($imap, $uid, FT_UID | FT_PEEK);
-    return $raw === false ? '' : mtpc_mail_decode_part($raw, isset($structure->encoding) ? $structure->encoding : 0, mtpc_mail_part_charset($structure), isset($structure->subtype) && strtoupper($structure->subtype) === 'HTML');
-}
-
-function mtpc_mail_slice($value, $length) {
-    if (function_exists('mb_substr')) return mb_substr($value, 0, $length, 'UTF-8');
-    return substr($value, 0, $length);
-}
-
-function mtpc_mail_date($value) {
-    if (!is_string($value) || !preg_match('/^\\d{4}-\\d{2}-\\d{2}$/', $value)) return false;
-    $date = DateTime::createFromFormat('!Y-m-d', $value, new DateTimeZone('Asia/Ho_Chi_Minh'));
-    return $date && $date->format('Y-m-d') === $value ? $date : false;
-}
-
-function mtpc_mail_range($body) {
-    $zone = new DateTimeZone('Asia/Ho_Chi_Minh');
-    $today = new DateTime('today', $zone);
-    $mode = isset($body['date_mode']) ? (string)$body['date_mode'] : 'today';
-    if ($mode === 'today') return array(clone $today, (clone $today)->modify('+1 day'), 'hôm nay');
-    if ($mode === 'yesterday') return array((clone $today)->modify('-1 day'), clone $today, 'hôm qua');
-    if ($mode === 'recent') return array((clone $today)->modify('-6 days'), (clone $today)->modify('+1 day'), 'trong 7 ngày gần đây');
-    if ($mode === 'date') {
-        $date = mtpc_mail_date(isset($body['date']) ? $body['date'] : '');
-        if (!$date) return false;
-        return array($date, (clone $date)->modify('+1 day'), 'ngày ' . $date->format('d/m/Y'));
-    }
-    if ($mode === 'range') {
-        $from = mtpc_mail_date(isset($body['from_date']) ? $body['from_date'] : '');
-        $to = mtpc_mail_date(isset($body['to_date']) ? $body['to_date'] : '');
-        if (!$from || !$to || $from > $to) return false;
-        if ((int)$from->diff($to)->format('%a') > 31) return false;
-        return array($from, (clone $to)->modify('+1 day'), 'từ ' . $from->format('d/m/Y') . ' đến ' . $to->format('d/m/Y'));
-    }
-    return false;
-}
-
-$body = mtpc_mail_body();
-$action = isset($_GET['action']) ? (string)$_GET['action'] : '';
-
-if ($action === 'list') {
-    $range = mtpc_mail_range($body);
-    if (!$range) { imap_close($imap); mtpc_mail_response(422, array('ok' => false, 'error' => 'Khoảng ngày không hợp lệ hoặc dài quá 31 ngày.')); }
-    $limit = isset($body['limit']) ? max(1, min(20, (int)$body['limit'])) : 10;
-    $criteria = 'SINCE "' . $range[0]->format('d-M-Y') . '" BEFORE "' . $range[1]->format('d-M-Y') . '"';
-    if (!empty($body['unread_only'])) $criteria .= ' UNSEEN';
-    $uids = @imap_search($imap, $criteria, SE_UID, 'UTF-8');
-    if (!is_array($uids)) $uids = array();
-    $items = array();
-    foreach ($uids as $uid) {
-        $overview = @imap_fetch_overview($imap, (string)$uid, FT_UID);
-        if (!is_array($overview) || !isset($overview[0])) continue;
-        $row = $overview[0];
-        $timestamp = isset($row->udate) ? (int)$row->udate : (isset($row->date) ? strtotime($row->date) : 0);
-        $items[] = array(
-            'uid' => (string)$uid,
-            'from' => mtpc_mail_utf8(isset($row->from) ? $row->from : ''),
-            'subject' => mtpc_mail_utf8(isset($row->subject) ? $row->subject : '(Không có tiêu đề)'),
-            'date' => $timestamp ? date('c', $timestamp) : '',
-            'unread' => empty($row->seen),
-            '_timestamp' => $timestamp
-        );
-    }
-    usort($items, function($a, $b) { return $a['_timestamp'] === $b['_timestamp'] ? 0 : ($a['_timestamp'] < $b['_timestamp'] ? 1 : -1); });
-    $items = array_slice($items, 0, $limit);
-    foreach ($items as &$item) {
-        $preview = mtpc_mail_extract_text($imap, $item['uid']);
-        $item['preview'] = mtpc_mail_slice(preg_replace('/\\s+/', ' ', $preview), 500);
-        unset($item['_timestamp']);
-    }
-    unset($item);
-    imap_close($imap);
-    mtpc_mail_response(200, array('ok' => true, 'range_label' => $range[2], 'count' => count($items), 'emails' => $items));
-}
-
-if ($action === 'read') {
-    $uid = isset($body['uid']) ? trim((string)$body['uid']) : '';
-    if (!preg_match('/^\\d+$/', $uid)) { imap_close($imap); mtpc_mail_response(422, array('ok' => false, 'error' => 'UID email không hợp lệ.')); }
-    $overview = @imap_fetch_overview($imap, $uid, FT_UID);
-    if (!is_array($overview) || !isset($overview[0])) { imap_close($imap); mtpc_mail_response(404, array('ok' => false, 'error' => 'Không tìm thấy email.')); }
-    $row = $overview[0];
-    $timestamp = isset($row->udate) ? (int)$row->udate : (isset($row->date) ? strtotime($row->date) : 0);
-    $email = array(
-        'uid' => $uid,
-        'from' => mtpc_mail_utf8(isset($row->from) ? $row->from : ''),
-        'to' => mtpc_mail_utf8(isset($row->to) ? $row->to : ''),
-        'subject' => mtpc_mail_utf8(isset($row->subject) ? $row->subject : '(Không có tiêu đề)'),
-        'date' => $timestamp ? date('c', $timestamp) : '',
-        'unread' => empty($row->seen),
-        'body' => mtpc_mail_slice(mtpc_mail_extract_text($imap, $uid), 16000)
-    );
-    imap_close($imap);
-    mtpc_mail_response(200, array('ok' => true, 'email' => $email));
-}
-
-imap_close($imap);
-mtpc_mail_response(400, array('ok' => false, 'error' => 'Thao tác email không hợp lệ.'));
+if($action==='read'){$uid=isset($body['uid'])?trim((string)$body['uid']):'';if(!preg_match('/^\d+$/',$uid)){imap_close($imap);out(422,array('ok'=>false,'error'=>'UID không hợp lệ.'));}$o=@imap_fetch_overview($imap,$uid,FT_UID);if(!is_array($o)||!isset($o[0])){imap_close($imap);out(404,array('ok'=>false,'error'=>'Không tìm thấy email.'));}$r=$o[0];$ts=isset($r->udate)?(int)$r->udate:(isset($r->date)?strtotime($r->date):0);$e=array('uid'=>$uid,'from'=>mail_utf8(isset($r->from)?$r->from:''),'to'=>mail_utf8(isset($r->to)?$r->to:''),'subject'=>mail_utf8(isset($r->subject)?$r->subject:'(Không có tiêu đề)'),'date'=>$ts?date('c',$ts):'','unread'=>empty($r->seen),'body'=>cut(extract_text($imap,$uid),16000));imap_close($imap);out(200,array('ok'=>true,'email'=>$e));}
+imap_close($imap);out(400,array('ok'=>false,'error'=>'Thao tác email không hợp lệ.'));

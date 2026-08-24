@@ -11,6 +11,10 @@ $MTPC_EMAIL_PASSWORD = 'replace-with-an-app-password-or-mailbox-password';
 $MTPC_EMAIL_FOLDER = 'INBOX';
 $MTPC_EMAIL_VALIDATE_CERT = true;
 
+/* Gmail SMTP used for approved sends. These defaults may be omitted. */
+$MTPC_EMAIL_SMTP_HOST = 'smtp.gmail.com';
+$MTPC_EMAIL_SMTP_PORT = 465;
+$MTPC_EMAIL_SMTP_ENCRYPTION = 'ssl';
+
 /* Keep true. Protect /public_html/admin with cPanel Directory Privacy. */
 $MTPC_EMAIL_REQUIRE_AUTH = true;
-
