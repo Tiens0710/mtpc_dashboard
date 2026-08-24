@@ -230,6 +230,10 @@
     @keyframes mtpcV5Hover{0%,100%{translate:0 2px}50%{translate:0 -4px}}@keyframes mtpcV5Aura{0%,100%{transform:scale(.94);opacity:.58}50%{transform:scale(1.07);opacity:.9}}@keyframes mtpcV5Sphere{0%,100%{transform:rotate(-2deg)}50%{transform:rotate(3deg)}}@keyframes mtpcV5Grid{to{transform:rotate(360deg)}}@keyframes mtpcV5Sheen{0%,25%{transform:translateX(-75%)}72%,100%{transform:translateX(82%)}}@keyframes mtpcV5Core{0%,100%{transform:scale(.96)}50%{transform:scale(1.05)}}
     @keyframes mtpcV5Listen{0%,100%{scale:.98}50%{scale:1.025}}@keyframes mtpcV5ListenRing{0%{opacity:0;transform:scale(.7)}20%{opacity:.72}100%{opacity:0;transform:scale(1.42)}}@keyframes mtpcV5Speak{0%,100%{scale:.985}50%{scale:1.035}}@keyframes mtpcV5SpeakAura{0%,100%{transform:scale(.95);opacity:.58}50%{transform:scale(1.12);opacity:1}}@keyframes mtpcV5SpeakSurface{0%,100%{filter:brightness(.96)}50%{filter:brightness(1.16)}}@keyframes mtpcV5SpeakRing{0%{opacity:0;transform:scale(.76)}18%{opacity:.82}100%{opacity:0;transform:scale(1.5)}}@keyframes mtpcV5SpeakCore{0%,100%{transform:scale(.9)}50%{transform:scale(1.12)}}
   </style>
+  <style id="mtpc-orb-v5-cleanup">
+    /* Voice energy is conveyed by light and rings; no equalizer marks inside the orb. */
+    .ai-orb-eq{display:none!important}
+  </style>
 </head>
 <body>
   <header class="header-modern" id="siteHeader">
