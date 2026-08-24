@@ -68,7 +68,37 @@ function decode_part($raw,$encoding,$charset,$html){if((int)$encoding===3)$raw=b
 function collect_parts($s,$prefix,&$plain,&$html){if(isset($s->parts)&&is_array($s->parts)){foreach($s->parts as $i=>$c)collect_parts($c,$prefix===''?(string)($i+1):$prefix.'.'.($i+1),$plain,$html);return;}if(isset($s->type)&&(int)$s->type===0){$sub=isset($s->subtype)?strtoupper($s->subtype):'PLAIN';$x=array('part'=>$prefix,'encoding'=>isset($s->encoding)?(int)$s->encoding:0,'charset'=>charset_of($s));if($sub==='PLAIN')$plain[]=$x;elseif($sub==='HTML')$html[]=$x;}}
 function extract_text($imap,$uid){$s=@imap_fetchstructure($imap,$uid,FT_UID);if(!$s)return'';$p=array();$h=array();collect_parts($s,'',$p,$h);$c=count($p)?$p:$h;foreach($c as $x){$raw=$x['part']===''?@imap_body($imap,$uid,FT_UID|FT_PEEK):@imap_fetchbody($imap,$uid,$x['part'],FT_UID|FT_PEEK);if($raw!==false&&$raw!=='')return decode_part($raw,$x['encoding'],$x['charset'],!count($p));}$raw=@imap_body($imap,$uid,FT_UID|FT_PEEK);return$raw===false?'':decode_part($raw,isset($s->encoding)?$s->encoding:0,charset_of($s),isset($s->subtype)&&strtoupper($s->subtype)==='HTML');}
 function valid_date($v){if(!is_string($v)||!preg_match('/^\d{4}-\d{2}-\d{2}$/',$v))return false;$d=DateTime::createFromFormat('!Y-m-d',$v,new DateTimeZone('Asia/Ho_Chi_Minh'));return$d&&$d->format('Y-m-d')===$v?$d:false;}
-function date_range($b){$z=new DateTimeZone('Asia/Ho_Chi_Minh');$t=new DateTime('today',$z);$m=isset($b['date_mode'])?(string)$b['date_mode']:'today';if($m==='today')return array(clone$t,(clone$t)->modify('+1 day'),'hôm nay');if($m==='yesterday')return array((clone$t)->modify('-1 day'),clone$t,'hôm qua');if($m==='recent')return array((clone$t)->modify('-6 days'),(clone$t)->modify('+1 day'),'trong 7 ngày gần đây');if($m==='date'){$d=valid_date(isset($b['date'])?$b['date']:'');return$d?array($d,(clone$d)->modify('+1 day'),'ngày '.$d->format('d/m/Y')):false;}if($m==='range'){$f=valid_date(isset($b['from_date'])?$b['from_date']:'');$to=valid_date(isset($b['to_date'])?$b['to_date']:'');if(!$f||!$to||$f>$to||(int)$f->diff($to)->format('%a')>31)return false;return array($f,(clone$to)->modify('+1 day'),'từ '.$f->format('d/m/Y').' đến '.$to->format('d/m/Y'));}return false;}
+function date_range($b){
+  $z=new DateTimeZone('Asia/Ho_Chi_Minh');
+  $t=new DateTime('today',$z);
+  $m=isset($b['date_mode'])?(string)$b['date_mode']:'today';
+  if($m==='today'){
+    $from=clone $t;$to=clone $t;$to->modify('+1 day');
+    return array($from,$to,'hôm nay');
+  }
+  if($m==='yesterday'){
+    $from=clone $t;$from->modify('-1 day');$to=clone $t;
+    return array($from,$to,'hôm qua');
+  }
+  if($m==='recent'){
+    $from=clone $t;$from->modify('-6 days');$to=clone $t;$to->modify('+1 day');
+    return array($from,$to,'trong 7 ngày gần đây');
+  }
+  if($m==='date'){
+    $d=valid_date(isset($b['date'])?$b['date']:'');
+    if(!$d)return false;
+    $to=clone $d;$to->modify('+1 day');
+    return array($d,$to,'ngày '.$d->format('d/m/Y'));
+  }
+  if($m==='range'){
+    $f=valid_date(isset($b['from_date'])?$b['from_date']:'');
+    $to=valid_date(isset($b['to_date'])?$b['to_date']:'');
+    if(!$f||!$to||$f>$to||(int)$f->diff($to)->format('%a')>31)return false;
+    $end=clone $to;$end->modify('+1 day');
+    return array($f,$end,'từ '.$f->format('d/m/Y').' đến '.$to->format('d/m/Y'));
+  }
+  return false;
+}
 function priority_hint($s){foreach(array('khẩn','gấp','hạn chót','xét tuyển','khiếu nại','thanh toán','xác nhận','hồ sơ')as$w)if(has_text($s,$w))return'high';return'normal';}
 
 if($action==='list'){
