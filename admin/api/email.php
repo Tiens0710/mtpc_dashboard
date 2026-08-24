@@ -108,9 +108,23 @@ if($action==='draft'){
   if(!filter_var($to,FILTER_VALIDATE_EMAIL)||$subject===''||$message==='')out(422,array('ok'=>false,'error'=>'Bản nháp cần người nhận, tiêu đề và nội dung hợp lệ.'));if(strlen($message)>50000)out(422,array('ok'=>false,'error'=>'Bản nháp quá dài.'));
   if($imapCfg['host']===''||$user===''||$pass==='')out(503,array('ok'=>false,'error'=>'Cấu hình Gmail IMAP còn thiếu nên chưa thể lưu thư nháp thật.'));
   $all=load_drafts();$d=array('id'=>'mail_'.date('YmdHis').'_'.substr(md5(uniqid('',true)),0,8),'to'=>$to,'subject'=>cut($subject,250),'message'=>$message,'original_uid'=>isset($body['original_uid'])?preg_replace('/\D/','',(string)$body['original_uid']):'','status'=>'draft','created_at'=>date('c'),'updated_at'=>date('c'));
-  try{$saved=append_gmail_draft($d,$imapCfg);}catch(Exception $e){out(502,array('ok'=>false,'error'=>$e->getMessage(),'code'=>'GMAIL_DRAFT_FAILED'));}
-  $d['gmail_mailbox']=$saved['mailbox'];$d['gmail_message_id']=$saved['message_id'];array_unshift($all,$d);$all=array_slice($all,0,100);if(!save_drafts($all))out(500,array('ok'=>false,'error'=>'Gmail đã nhận thư nháp nhưng hệ thống chưa lưu được nhật ký nội bộ.'));
-  $public=$d;unset($public['message']);out(200,array('ok'=>true,'message'=>'Đã lưu bản nháp thật trong Gmail. Thư chưa được gửi.','draft'=>$public));
+  $gmailSaved=false;$gmailWarning='';
+  try{
+    $saved=append_gmail_draft($d,$imapCfg);
+    $d['gmail_mailbox']=$saved['mailbox'];$d['gmail_message_id']=$saved['message_id'];$gmailSaved=true;
+  }
+  catch(Exception $e){
+    /* A localized Gmail account can reject APPEND to its Drafts mailbox on old
+       PHP/c-client builds. Keep the approval workflow usable by storing the
+       draft privately; SMTP sending remains impossible until an administrator
+       explicitly approves the matching draft. */
+    $gmailWarning=$e->getMessage();error_log('[MTPC_EMAIL_DRAFT_SYNC] '.$gmailWarning);
+  }
+  $d['gmail_synced']=$gmailSaved;$d['gmail_warning']=$gmailWarning;array_unshift($all,$d);$all=array_slice($all,0,100);
+  if(!save_drafts($all))out(500,array('ok'=>false,'error'=>'Không lưu được bản nháp nội bộ an toàn.'));
+  $public=$d;unset($public['message'],$public['gmail_warning']);
+  $message=$gmailSaved?'Đã lưu bản nháp trong Gmail. Thư chưa được gửi.':'Đã lưu bản nháp nội bộ để chờ phê duyệt. Gmail chưa đồng bộ thư nháp, nhưng vẫn có thể gửi qua SMTP sau khi bạn xác nhận.';
+  out(200,array('ok'=>true,'message'=>$message,'draft'=>$public,'gmail_synced'=>$gmailSaved));
 }
 if($action==='drafts'){$all=load_drafts();foreach($all as &$d)unset($d['message']);unset($d);out(200,array('ok'=>true,'count'=>count($all),'drafts'=>$all));}
 if($action==='send'){
