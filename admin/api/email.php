@@ -29,6 +29,19 @@ function input(){ $x=json_decode(file_get_contents('php://input'),true);return i
 function cut($s,$n){return function_exists('mb_substr')?mb_substr($s,0,$n,'UTF-8'):substr($s,0,$n);}
 function has_text($s,$q){$q=trim((string)$q);if($q==='')return true;return function_exists('mb_stripos')?mb_stripos((string)$s,$q,0,'UTF-8')!==false:stripos((string)$s,$q)!==false;}
 function clean_line($s){return trim(preg_replace('/[\r\n]+/',' ',(string)$s));}
+function directory_user(){
+  foreach(array('REMOTE_USER','PHP_AUTH_USER','REDIRECT_REMOTE_USER','AUTH_USER') as $key){
+    if(isset($_SERVER[$key])&&trim((string)$_SERVER[$key])!=='')return trim((string)$_SERVER[$key]);
+  }
+  $header='';
+  if(isset($_SERVER['HTTP_AUTHORIZATION']))$header=(string)$_SERVER['HTTP_AUTHORIZATION'];
+  elseif(isset($_SERVER['REDIRECT_HTTP_AUTHORIZATION']))$header=(string)$_SERVER['REDIRECT_HTTP_AUTHORIZATION'];
+  if(stripos($header,'Basic ')===0){
+    $decoded=base64_decode(substr($header,6),true);
+    if($decoded!==false&&strpos($decoded,':')!==false)return substr($decoded,0,strpos($decoded,':'));
+  }
+  return '';
+}
 function drafts_path(){return '/home/mtpc/private/mtpc-admin/email-drafts.json';}
 function load_drafts(){$p=drafts_path();if(!is_file($p))return array();$x=json_decode(@file_get_contents($p),true);return is_array($x)?$x:array();}
 function save_drafts($x){$p=drafts_path();$d=dirname($p);if(!is_dir($d)&&!@mkdir($d,0750,true))return false;$t=$p.'.tmp';if(@file_put_contents($t,json_encode(array_values($x),JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES),LOCK_EX)===false)return false;@chmod($t,0600);if(!@rename($t,$p)){@unlink($t);return false;}@chmod($p,0600);return true;}
@@ -43,7 +56,7 @@ if($_SERVER['REQUEST_METHOD']==='OPTIONS'){http_response_code(204);exit;}
 if($_SERVER['REQUEST_METHOD']!=='POST')out(405,array('ok'=>false,'error'=>'Chỉ hỗ trợ POST.'));
 if(!empty($_SERVER['HTTP_ORIGIN'])){$oh=parse_url($_SERVER['HTTP_ORIGIN'],PHP_URL_HOST);$rh=isset($_SERVER['HTTP_HOST'])?preg_replace('/:\d+$/','',$_SERVER['HTTP_HOST']):'';if(!$oh||strcasecmp($oh,$rh)!==0)out(403,array('ok'=>false,'error'=>'Nguồn yêu cầu không hợp lệ.'));}
 $config='/home/mtpc/private/email-config.php';if(!is_file($config))out(503,array('ok'=>false,'error'=>'Chưa cấu hình hộp thư.'));require $config;
-$auth=isset($MTPC_EMAIL_REQUIRE_AUTH)?(bool)$MTPC_EMAIL_REQUIRE_AUTH:true;if($auth&&empty($_SERVER['REMOTE_USER']))out(403,array('ok'=>false,'error'=>'Hãy bật Directory Privacy cho admin.'));
+$auth=isset($MTPC_EMAIL_REQUIRE_AUTH)?(bool)$MTPC_EMAIL_REQUIRE_AUTH:true;if($auth&&directory_user()==='')out(403,array('ok'=>false,'error'=>'Hãy bật lại Directory Privacy cho thư mục public_html/admin sau khi deploy.'));
 $body=input();$action=isset($_GET['action'])?(string)$_GET['action']:'';$user=isset($MTPC_EMAIL_USERNAME)?trim((string)$MTPC_EMAIL_USERNAME):'';$pass=isset($MTPC_EMAIL_PASSWORD)?(string)$MTPC_EMAIL_PASSWORD:'';
 if(stripos($user,'@gmail.com')!==false)$pass=preg_replace('/\s+/u','',$pass);
 
