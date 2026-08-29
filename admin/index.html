@@ -413,6 +413,7 @@
       request_send_email:['Email cần xác nhận','✉','approvals'],approve_pending_email:['Kết quả gửi email','✉','audit'],get_email_briefing:['Tóm tắt hộp thư','✉','audit']
     };
     function adminToolText(value){if(value===null||value===undefined||value==='')return'—';if(typeof value==='boolean')return value?'Có':'Không';return String(value)}
+    function adminFormatEmailDate(value){const date=new Date(value);if(Number.isNaN(date.getTime()))return String(value);try{return new Intl.DateTimeFormat('vi-VN',{timeZone:'Asia/Ho_Chi_Minh',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}).format(date)}catch(error){return date.toLocaleString('vi-VN')}}
     function adminToolRows(name,result){
       if(result.student)return[['Sinh viên',[result.student.student_code,result.student.full_name].filter(Boolean).join(' · ')],['Lớp / ngành',[result.student.class_name,result.student.program_name].filter(Boolean).join(' · ')]];
       if(result.summary&&typeof result.summary==='object')return Object.entries(result.summary).slice(0,6).map(([key,value])=>[key.replace(/_/g,' '),Array.isArray(value)?value.join(', '):value]);
@@ -426,7 +427,12 @@
     }
     function adminToolItemParts(item){
       if(!item||typeof item!=='object')return[adminToolText(item),''];
-      const left=item.full_name||item.subject_name||item.subject||item.title||item.class_name||item.username||item.name||item.student_code||item.fee_name||item.semester||'Mục dữ liệu';
+      if(item.subject||item.from){
+        const left=item.subject||'(Không có tiêu đề)';
+        const right=[item.from,item.date?adminFormatEmailDate(item.date):''].filter(Boolean).join(' · ');
+        return[adminToolText(left),adminToolText(right)];
+      }
+      const left=item.full_name||item.subject_name||item.title||item.class_name||item.username||item.name||item.student_code||item.fee_name||item.semester||'Mục dữ liệu';
       const right=item.status||item.result||item.role||item.amount_due||item.final_score||item.session_date||item.warning_score||item.updated_at||item.email||'';
       return[adminToolText(left),adminToolText(right)==='—'?'':adminToolText(right)];
     }
@@ -627,8 +633,11 @@
       }
       if(name==='list_emails'){
         const request={date_mode:String(args.date_mode||'today'),date:String(args.date||''),from_date:String(args.from_date||''),to_date:String(args.to_date||''),unread_only:Boolean(args.unread_only),limit:Math.max(1,Math.min(20,Number(args.limit)||10))};
-        const data=await emailRequest('list',request);await recordAudit(name,'success','Nhi đọc danh sách email '+data.range_label,{count:Number(data.count)||0,range:data.range_label,unread_only:request.unread_only});
-        return{ok:true,message:data.count?'Đã tìm thấy '+data.count+' email '+data.range_label+'.':'Không tìm thấy email '+data.range_label+'.',range:data.range_label,count:Number(data.count)||0,emails:data.emails||[]};
+        const data=await emailRequest('list',request);let visible=data;let recent=null;const todayCount=Number(data.count)||0;
+        if(request.date_mode==='today'&&!todayCount){try{recent=await emailRequest('list',Object.assign({},request,{date_mode:'recent'}));if(Number(recent.count)>0)visible=recent;}catch(error){console.warn('[MTPC_EMAIL_RECENT_FALLBACK]',error)}}
+        const visibleCount=Number(visible.count)||0;const message=todayCount?'Đã tìm thấy '+todayCount+' email hôm nay.':visibleCount?'Hôm nay chưa có email mới. Mình tìm thấy '+visibleCount+' email gần đây trong 7 ngày qua để bạn xem.':'Hôm nay chưa có email mới và 7 ngày gần đây cũng không có email.';
+        await recordAudit(name,'success','Nhi đọc danh sách email '+(todayCount?data.range_label:(recent&&recent.count?data.range_label+'; mở rộng '+recent.range_label:data.range_label)),{count:visibleCount,today_count:todayCount,recent_count:recent?Number(recent.count)||0:0,range:data.range_label,unread_only:request.unread_only});
+        return{ok:true,message,range:visible.range_label,requested_range:data.range_label,count:visibleCount,today_count:todayCount,recent_count:recent?Number(recent.count)||0:0,emails:visible.emails||[]};
       }
       if(name==='read_email'){
         const emailUid=String(args.uid||'').trim();if(!/^\d+$/.test(emailUid))return{ok:false,error:'UID email không hợp lệ. Hãy dùng UID từ công cụ list_emails.'};
@@ -652,8 +661,11 @@
       }
       if(name==='search_emails'||name==='get_email_briefing'){
         const request={date_mode:String(args.date_mode||'today'),date:String(args.date||''),from_date:String(args.from_date||''),to_date:String(args.to_date||''),sender:String(args.sender||''),subject:String(args.subject||''),query:String(args.query||''),unread_only:Boolean(args.unread_only),limit:Math.max(1,Math.min(20,Number(args.limit)||12))};
-        const data=await emailRequest('list',request);await recordAudit(name,'success',name==='get_email_briefing'?'Nhi chuẩn bị bản điểm tin email '+data.range_label:'Nhi tìm kiếm email '+data.range_label,{count:Number(data.count)||0,range:data.range_label,filters:{sender:request.sender,subject:request.subject,query:request.query,unread_only:request.unread_only}});
-        return{ok:true,message:data.count?'Có '+data.count+' email phù hợp. Hãy tóm tắt thư quan trọng và việc cần làm.':'Không tìm thấy email phù hợp.',range:data.range_label,count:Number(data.count)||0,emails:data.emails||[]};
+        const data=await emailRequest('list',request);let visible=data;let recent=null;const todayCount=Number(data.count)||0;
+        if(request.date_mode==='today'&&!todayCount&&!request.sender&&!request.subject&&!request.query){try{recent=await emailRequest('list',Object.assign({},request,{date_mode:'recent'}));if(Number(recent.count)>0)visible=recent;}catch(error){console.warn('[MTPC_EMAIL_RECENT_FALLBACK]',error)}}
+        const visibleCount=Number(visible.count)||0;const message=todayCount?'Có '+todayCount+' email hôm nay. Hãy tóm tắt thư quan trọng và việc cần làm.':visibleCount?'Hôm nay chưa có email mới; có '+visibleCount+' email trong 7 ngày gần đây để tóm tắt. Hãy nêu rõ ngày gửi.':'Không tìm thấy email phù hợp trong hôm nay hoặc 7 ngày gần đây.';
+        await recordAudit(name,'success',name==='get_email_briefing'?'Nhi chuẩn bị bản điểm tin email '+(todayCount?data.range_label:(recent&&recent.count?data.range_label+'; mở rộng '+recent.range_label:data.range_label)):'Nhi tìm kiếm email '+data.range_label,{count:visibleCount,today_count:todayCount,recent_count:recent?Number(recent.count)||0:0,range:data.range_label,filters:{sender:request.sender,subject:request.subject,query:request.query,unread_only:request.unread_only}});
+        return{ok:true,message,range:visible.range_label,requested_range:data.range_label,count:visibleCount,today_count:todayCount,recent_count:recent?Number(recent.count)||0:0,emails:visible.emails||[]};
       }
       if(name==='request_send_email'){
         const request={to:String(args.to||'').trim(),subject:String(args.subject||'').trim(),message:String(args.message||'').trim()};if(!request.to||!request.subject||!request.message)return{ok:false,error:'Cần đủ người nhận, tiêu đề và nội dung email trước khi xin duyệt.'};
