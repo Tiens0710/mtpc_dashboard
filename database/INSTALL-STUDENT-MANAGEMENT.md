@@ -1,7 +1,7 @@
 # Cài đặt quản lý sinh viên MTPC
 
 1. Mở phpMyAdmin, chọn database `mtpc_students`.
-2. Chọn **Import** và chạy `student_management_v2.sql` đúng một lần. File này mở rộng bảng `students`, vì vậy không chạy lại sau khi đã thành công.
+2. Chọn **Import** và chạy `student_management_v2.sql` đúng một lần. File này mở rộng bảng `students`, tạo các bảng quản lý và thêm/cập nhật hai dữ liệu mẫu `MTPC001` (Nguyễn Nhật Tiến) và `MTPC002` (Huỳnh Xuân Hiệp); không xóa các sinh viên đang có.
 3. Deploy commit mới trong **cPanel Git Version Control → Pull or Deploy**.
 4. Đăng nhập `admin.mtpc.edu.vn` bằng tài khoản Directory Privacy hiện tại. Tài khoản đầu tiên truy cập sau migration tự nhận vai trò `admin`.
 5. Mở **Đăng nhập & phân quyền** để thêm username của Phòng đào tạo hoặc Giáo viên. Username phải tồn tại trong Directory Privacy.

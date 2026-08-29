@@ -127,3 +127,20 @@ CREATE TABLE IF NOT EXISTS system_audit_logs (
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id), KEY idx_audit_entity (entity_type,entity_id), KEY idx_audit_actor (actor_username,created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Dữ liệu mẫu để kiểm thử trợ lý AI. Không xóa các sinh viên đang có.
+INSERT INTO students
+  (student_code, full_name, date_of_birth, gender, program_name, class_name, admission_year, cohort, status, note)
+VALUES
+  ('MTPC001', 'Nguyễn Nhật Tiến', '2007-01-01', 'Nam', 'Công nghệ thông tin', 'CNTT-K26', 2026, 'K26', 'Đang học', 'Dữ liệu mẫu để kiểm thử trợ lý AI.'),
+  ('MTPC002', 'Huỳnh Xuân Hiệp', '2007-01-01', 'Nam', 'Công nghệ thông tin', 'CNTT-K26', 2026, 'K26', 'Đang học', 'Dữ liệu mẫu để kiểm thử trợ lý AI.')
+ON DUPLICATE KEY UPDATE
+  full_name = VALUES(full_name),
+  date_of_birth = VALUES(date_of_birth),
+  gender = VALUES(gender),
+  program_name = VALUES(program_name),
+  class_name = VALUES(class_name),
+  admission_year = VALUES(admission_year),
+  cohort = VALUES(cohort),
+  status = VALUES(status),
+  note = VALUES(note);
