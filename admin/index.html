@@ -137,6 +137,16 @@
     .admin-orb-transcript{padding:16px 24px 10px}.admin-orb-message{max-width:min(78%,700px);padding:11px 14px;border-radius:15px 15px 15px 5px;font-size:14px;line-height:1.52}.admin-orb-message.user{border-radius:15px 15px 5px 15px}.admin-orb-composer{min-height:50px;padding:5px 6px;background:rgba(3,55,27,.58)}.admin-orb-composer input{height:38px;font-size:13px}.admin-orb-composer button{width:38px;height:38px;font-size:17px}
     @media(max-width:760px){.admin-ai-welcome:not(.hidden)~.admin-orb-widget .admin-orb-launch.ai-orb-stage{top:35%;width:176px;height:176px}.admin-ai-welcome:not(.hidden)~.admin-orb-widget .admin-orb-launch.ai-orb-stage .ai-orb{width:138px;height:138px}.admin-ai-welcome:not(.hidden)~.admin-orb-widget .admin-orb-chat-toggle{top:calc(35% + 104px);width:32px;height:32px}.admin-ai-welcome:not(.hidden)~.admin-orb-widget .admin-orb-panel{bottom:12px!important;width:calc(100vw - 24px)}.admin-orb-transcript{padding:12px 12px 8px}.admin-orb-message{max-width:90%;padding:9px 11px;font-size:13px}.admin-orb-composer{min-height:48px}.admin-orb-composer input{height:36px;font-size:12px}.admin-orb-composer button{width:36px;height:36px}}
   </style>
+  <style id="admin-orb-always-open">
+    /* Conversation is always present while Nhi is active; only the composer arrow remains interactive. */
+    .admin-orb-chat-toggle{display:none!important}
+    .admin-orb-quick-actions{display:none!important}
+    .admin-ai-welcome:not(.hidden)~.admin-orb-widget .admin-orb-launch.ai-orb-stage{top:38%;width:270px;height:270px;filter:drop-shadow(0 0 26px rgba(79,242,116,.58)) drop-shadow(0 20px 34px rgba(0,45,18,.3))}
+    .admin-ai-welcome:not(.hidden)~.admin-orb-widget .admin-orb-launch.ai-orb-stage .ai-orb{width:212px;height:212px;filter:drop-shadow(0 0 18px rgba(116,255,143,.58))}
+    .admin-ai-welcome:not(.hidden)~.admin-orb-widget .admin-orb-launch.ai-orb-stage .ai-orb-field{border-color:rgba(217,255,224,.82)!important;background:radial-gradient(circle at 30% 23%,rgba(240,255,244,.72) 0 4%,rgba(126,255,151,.34) 14%,transparent 31%),radial-gradient(circle at 72% 77%,rgba(40,231,110,.7),transparent 45%),linear-gradient(145deg,#0b6940 0%,#06452f 52%,#021d18 100%)!important;box-shadow:inset 11px 11px 24px rgba(224,255,230,.14),inset -17px -19px 30px rgba(0,19,14,.72),0 0 0 9px rgba(76,239,112,.14),0 0 32px rgba(74,244,117,.64),0 0 78px rgba(36,194,88,.34)!important}
+    .admin-ai-welcome:not(.hidden)~.admin-orb-widget .admin-orb-launch.ai-orb-stage .ai-orb-rings{inset:-9%;opacity:.94!important}.admin-ai-welcome:not(.hidden)~.admin-orb-widget .admin-orb-launch.ai-orb-stage .ai-orb-ring{border-color:rgba(207,255,217,.58)!important;box-shadow:0 0 14px rgba(123,255,146,.3)}.admin-ai-welcome:not(.hidden)~.admin-orb-widget .admin-orb-launch.ai-orb-stage .ai-orb-core{box-shadow:0 0 14px rgba(255,255,255,.96),0 0 30px rgba(117,255,143,.98),inset -6px -7px 12px rgba(0,28,16,.75)!important}
+    @media(max-width:760px){.admin-ai-welcome:not(.hidden)~.admin-orb-widget .admin-orb-launch.ai-orb-stage{top:35%;width:206px;height:206px}.admin-ai-welcome:not(.hidden)~.admin-orb-widget .admin-orb-launch.ai-orb-stage .ai-orb{width:160px;height:160px}.admin-ai-welcome:not(.hidden)~.admin-orb-widget .admin-orb-launch.ai-orb-stage .ai-orb-rings{inset:-7%}}
+  </style>
 </head>
 <body>
   <div class="app">
