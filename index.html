@@ -239,6 +239,15 @@
     .chat-launch{position:relative;z-index:1500;display:grid!important;place-items:center;width:44px;height:44px;padding:0;border:1px solid rgba(255,255,255,.82);border-radius:50%;background:rgba(245,255,247,.24);box-shadow:0 12px 30px rgba(12,51,29,.18),0 0 0 5px rgba(255,255,255,.1),inset 0 1px 0 rgba(255,255,255,.55),inset 0 -8px 16px rgba(20,85,44,.12);color:#145a32;font-size:0;opacity:1!important;visibility:visible!important;backdrop-filter:blur(16px) saturate(1.08);-webkit-backdrop-filter:blur(16px) saturate(1.08);transition:transform .25s cubic-bezier(.2,.8,.2,1),background .25s ease,border-color .25s ease,box-shadow .25s ease}.chat-launch:after{content:"";position:absolute;inset:6px;border:1px solid rgba(255,255,255,.32);border-radius:50%;pointer-events:none}.chat-launch:before{display:none}.chat-launch .chat-launch-icon{display:block;width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;transition:transform .25s cubic-bezier(.2,.8,.2,1)}.chat-launch:hover{border-color:rgba(255,255,255,.98);background:rgba(255,255,255,.38);box-shadow:0 15px 34px rgba(12,51,29,.24),0 0 0 6px rgba(255,255,255,.13),inset 0 1px 0 rgba(255,255,255,.72),inset 0 -8px 16px rgba(20,85,44,.1);transform:translateX(-50%) translateY(-3px)}.chat-launch.is-open .chat-launch-icon{transform:rotate(180deg)}.chat-launch:focus-visible{outline:2px solid rgba(198,255,208,.95);outline-offset:5px}
     @media(max-width:600px){.chat-launch{width:40px;height:40px}.chat-launch:after{inset:5px}.chat-launch:before{width:8px;height:8px}}
   </style>
+  <style id="agent-stable-orb-layout">
+    /* Match Admin: keep the public website usable until the assistant is opened. */
+    #aiEntryPrompt{display:none!important}
+    #chatLaunch{display:none!important}
+    #aiWelcome .ai-welcome-suggestions,#aiWelcome .ai-welcome-form,#aiWelcome .ai-welcome-note{display:none!important}
+    #aiWelcome:not(.is-hidden) #aiLiveTextForm{opacity:1;visibility:visible;pointer-events:auto;transform:translateX(-50%)}
+    #aiReopen{right:24px;bottom:24px;z-index:1500;width:74px;height:74px}
+    @media(max-width:600px){#aiReopen{right:16px;bottom:16px;width:62px;height:62px}}
+  </style>
 </head>
 <body>
   <header class="header-modern" id="siteHeader">
@@ -327,7 +336,7 @@
 
   <button class="scroll-top" id="scrollTop" aria-label="Lên đầu trang">↑</button>
   <div class="floating-social"><a class="social-float" href="#" aria-label="Facebook"><img src="mtpc-assets/facebook-f-logo.webp" alt="Facebook"></a><a class="social-float" href="https://zalo.me/0375711766" aria-label="Zalo"><img src="mtpc-assets/Icon_of_Zalo.svg.webp" alt="Zalo"></a></div>
-  <div class="ai-entry-prompt" id="aiEntryPrompt" role="dialog" aria-modal="true" aria-labelledby="aiEntryTitle"><div class="ai-entry-card"><h2 class="ai-entry-title" id="aiEntryTitle">Chào bạn đến với <span>Trung cấp Miền Tây</span></h2></div></div>
+  <div class="ai-entry-prompt is-hidden" id="aiEntryPrompt" role="dialog" aria-modal="true" aria-labelledby="aiEntryTitle"><div class="ai-entry-card"><h2 class="ai-entry-title" id="aiEntryTitle">Chào bạn đến với <span>Trung cấp Miền Tây</span></h2></div></div>
   <section class="ai-welcome is-hidden" id="aiWelcome" aria-label="Trợ lý tuyển sinh Nhi"><div class="ai-welcome-card"><img class="ai-school-logo" src="mtpc-assets/logo.png" alt="Trường Trung cấp Miền Tây"><div class="ai-welcome-intro"><p class="ai-welcome-eyebrow"><i></i>TRỢ LÝ TUYỂN SINH MTPC</p><h2>Xin chào, <span>mình là Nhi</span></h2><p class="ai-welcome-lead">Trợ lý tuyển sinh AI của Trường Trung cấp Miền Tây.</p></div><div class="ai-welcome-orb-side"><div class="ai-orb-stage" aria-hidden="true"><div class="ai-orb"><span class="ai-orb-mark">N</span></div></div></div><div class="ai-live-transcript" id="aiLiveTranscript" aria-live="polite" aria-label="Cuộc hội thoại với Nhi"></div><form class="ai-live-text-form" id="aiLiveTextForm"><input class="ai-live-text-input" id="aiLiveTextInput" autocomplete="off" placeholder="Nhập yêu cầu cho Nhi..."><button class="ai-live-text-send" type="submit" aria-label="Gửi yêu cầu">➜</button></form><div class="ai-welcome-status" id="aiWelcomeStatus">NHI ĐANG KẾT NỐI</div><form class="ai-welcome-form" id="aiWelcomeForm"><input id="aiWelcomeInput" autocomplete="off"><button class="ai-welcome-send" type="submit">➜</button></form><div class="ai-welcome-suggestions"><button type="button" data-ai-question="MTPC có những ngành nào?">Ngành học</button></div><button class="ai-welcome-skip" id="aiWelcomeSkip" type="button" aria-label="Đóng trợ lý và xem website">Xem website</button><p class="ai-welcome-note"><span>●</span></p></div></section>
   <button class="ai-reopen" id="aiReopen" type="button" aria-label="Mở lại trợ lý Nhi"><span class="ai-reopen-core"><i></i><i></i><i></i><i></i></span></button>
   <button class="chat-launch" id="chatLaunch" type="button" aria-label="Mở trò chuyện với Nhi" aria-controls="aiLiveTextForm" aria-expanded="false"><svg class="chat-launch-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></button>
@@ -775,7 +784,6 @@
       stage.addEventListener('click',activateOrb);
       stage.addEventListener('keydown',function(event){if(event.key==='Enter'||event.key===' '){event.preventDefault();activateOrb();}});
       skip.addEventListener('click',function(){shutdown();welcome.classList.add('is-hidden');});
-      window.setTimeout(function(){connectLive(false,true).catch(function(){});},650);
     })();
   </script>
 </body>
