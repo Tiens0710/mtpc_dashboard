@@ -153,6 +153,20 @@
     .modal,.roster-list,.ai-messages,.admin-orb-transcript{overscroll-behavior:contain}
     .sidebar::-webkit-scrollbar,.modal::-webkit-scrollbar,.roster-list::-webkit-scrollbar,.ai-messages::-webkit-scrollbar,.table-card::-webkit-scrollbar,.admin-orb-transcript::-webkit-scrollbar{display:none;width:0;height:0}
   </style>
+  <style id="admin-orb-stable-layout">
+    /* Normal dashboard mode: keep the reopened conversation inside a compact panel. */
+    #adminOrbWidget{isolation:isolate}
+    #adminAiWelcome.hidden~#adminOrbWidget.is-chat-open #adminOrbPanel{position:absolute!important;top:auto!important;right:0!important;left:auto!important;bottom:calc(100% + 10px)!important;width:min(430px,calc(100vw - 32px))!important;height:min(620px,calc(100vh - 140px))!important;max-height:calc(100vh - 140px)!important;display:flex!important;flex-direction:column!important;gap:0!important;overflow:hidden!important;border:1px solid rgba(191,238,202,.72)!important;border-radius:24px!important;background:linear-gradient(160deg,rgba(248,255,250,.98),rgba(231,249,236,.96))!important;box-shadow:0 24px 70px rgba(10,55,28,.24),0 0 0 1px rgba(255,255,255,.48) inset!important;transform:none!important;backdrop-filter:blur(22px)!important;-webkit-backdrop-filter:blur(22px)!important}
+    #adminAiWelcome.hidden~#adminOrbWidget.is-chat-open #adminOrbPanel .admin-orb-panel-head{display:flex!important;flex:0 0 auto!important;align-items:center;justify-content:space-between;padding:14px 16px;background:linear-gradient(135deg,#0c6a3a,#159447);color:#fff}
+    #adminAiWelcome.hidden~#adminOrbWidget.is-chat-open #adminOrbPanel .admin-orb-transcript{display:flex!important;flex:1 1 auto!important;min-height:0!important;height:auto!important;max-height:none!important;overflow:auto!important;padding:16px!important;background:linear-gradient(180deg,#f7fcf8,#fff)!important;mask-image:none!important;text-align:left}
+    #adminAiWelcome.hidden~#adminOrbWidget.is-chat-open #adminOrbPanel .admin-orb-quick-actions{display:none!important}
+    #adminAiWelcome.hidden~#adminOrbWidget.is-chat-open #adminOrbPanel .admin-orb-composer{display:flex!important;flex:0 0 auto!important;width:100%!important;min-height:58px!important;margin:0!important;padding:8px!important;border:0!important;border-top:1px solid #dcece0!important;border-radius:0!important;background:rgba(242,252,245,.96)!important;box-shadow:none!important;backdrop-filter:none!important}
+    #adminAiWelcome.hidden~#adminOrbWidget.is-chat-open #adminOrbPanel .admin-orb-footer{display:flex!important;flex:0 0 auto!important;align-items:center;gap:7px;padding:9px 15px;border-top:1px solid #e1eee4;color:#668273;font-size:10px;background:#f8fdf9}
+    #adminAiWelcome.hidden~#adminOrbWidget.is-chat-open #adminOrbPanel .admin-orb-message{max-width:88%;margin:0 0 10px;padding:10px 12px;border:1px solid #e1f0e4;border-radius:14px 14px 14px 5px;background:#fff;color:#264c34;box-shadow:0 5px 15px rgba(18,55,34,.06);font-size:13px;font-weight:400;line-height:1.5;text-shadow:none}
+    #adminAiWelcome.hidden~#adminOrbWidget.is-chat-open #adminOrbPanel .admin-orb-message.user{margin-left:auto;border-color:#b9e6c4;border-radius:14px 14px 5px 14px;background:#effcf1;color:#14632f;text-align:right}
+    #adminAiWelcome.hidden~#adminOrbWidget.is-chat-open #adminOrbPanel .admin-orb-role{margin-bottom:4px;color:#27834a;font-size:9px;letter-spacing:.08em;text-transform:uppercase;text-shadow:none}
+    @media(max-width:760px){#adminAiWelcome.hidden~#adminOrbWidget.is-chat-open #adminOrbPanel{right:0!important;width:min(420px,calc(100vw - 24px))!important;height:min(70vh,calc(100vh - 118px))!important;max-height:calc(100vh - 118px)!important;bottom:calc(100% + 12px)!important;border-radius:20px!important}}
+  </style>
 </head>
 <body>
   <div class="app">
@@ -512,11 +526,11 @@
     }
     function bindSeoActions(){document.addEventListener('click',e=>{const edit=e.target.closest('[data-edit-seo]')?.dataset.editSeo;if(edit)openSeoEditor((state.seoDrafts||[]).find(x=>x.id===edit));const del=e.target.closest('[data-delete-seo]')?.dataset.deleteSeo;if(del&&confirm('Xóa bản nháp SEO này?')){state.seoDrafts=(state.seoDrafts||[]).filter(x=>x.id!==del);addActivity('Xóa một bản nháp SEO');save();flash('Đã xóa bản nháp SEO')}})}
     function adminLiveFailure(error){console.error('[MTPC_ADMIN_GEMINI_LIVE]',error);adminOrbStatus('Gemini Live chưa sẵn sàng','idle')}
-    function setAdminOrbChat(open){const widget=$('#adminOrbWidget'),panel=$('#adminOrbPanel'),toggle=$('#adminOrbChatToggle');open=Boolean(open);widget.classList.toggle('is-chat-open',open);panel.classList.toggle('hidden',!open);toggle.setAttribute('aria-expanded',open?'true':'false');toggle.setAttribute('aria-label',open?'Thu gọn cuộc trò chuyện':'Mở cuộc trò chuyện')}
+    function setAdminOrbChat(open){const widget=$('#adminOrbWidget'),panel=$('#adminOrbPanel'),toggle=$('#adminOrbChatToggle');open=Boolean(open);if(widget){widget.classList.toggle('is-chat-open',open);widget.dataset.chatOpen=open?'true':'false'}if(panel){panel.classList.toggle('hidden',!open);panel.setAttribute('aria-hidden',open?'false':'true')}if(toggle){toggle.setAttribute('aria-expanded',open?'true':'false');toggle.setAttribute('aria-label',open?'Thu gọn cuộc trò chuyện':'Mở cuộc trò chuyện')}if(open){requestAnimationFrame(()=>{const transcript=$('#adminOrbTranscript');if(transcript)transcript.scrollTop=transcript.scrollHeight})}}
     function bindAdminOrb(){
-      $('#adminOrbLaunch').addEventListener('click',()=>{setAdminOrbChat(true);if(!adminLiveReady&&!adminLiveConnecting){adminAudioContext().resume().catch(()=>{});adminConnectLive().catch(adminLiveFailure)}});
+      $('#adminOrbLaunch').addEventListener('click',()=>{const panel=$('#adminOrbPanel'),welcome=$('#adminAiWelcome'),welcomeOpen=Boolean(welcome&&!welcome.classList.contains('hidden')),chatOpen=Boolean(panel&&!panel.classList.contains('hidden'));if(!welcomeOpen&&chatOpen){setAdminOrbChat(false);adminCloseLive();return}setAdminOrbChat(true);if(!adminLiveReady&&!adminLiveConnecting){adminAudioContext().resume().catch(()=>{});adminConnectLive().catch(adminLiveFailure)}});
       $('#adminOrbChatToggle').addEventListener('click',()=>setAdminOrbChat($('#adminOrbPanel').classList.contains('hidden')));
-      $('#adminOrbClose').addEventListener('click',()=>setAdminOrbChat(false));
+      $('#adminOrbClose').addEventListener('click',()=>{setAdminOrbChat(false);adminCloseLive()});
       $('#adminOrbForm').addEventListener('submit',event=>{event.preventDefault();adminSendOrbText()});
       $$('#adminOrbWidget [data-ai-prompt]').forEach(button=>button.addEventListener('click',()=>{const input=$('#adminOrbInput');input.value=button.dataset.aiPrompt||'';adminSendOrbText()}));
       $('#adminOrbTranscript').addEventListener('click',event=>{const button=event.target.closest('[data-admin-tool-view]');if(!button)return;setView(button.dataset.adminToolView);$('#adminAiWelcome').classList.add('hidden');setAdminOrbChat(false)});
