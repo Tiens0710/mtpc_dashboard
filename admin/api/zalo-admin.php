@@ -45,6 +45,68 @@ function mtpc_zalo_admin_find_operator($path, $userId) {
     return null;
 }
 
+function mtpc_zalo_admin_normalize_phone($value) {
+    $digits = preg_replace('/[^0-9]+/', '', (string)$value);
+    if (substr($digits, 0, 2) === '84') $digits = '0' . substr($digits, 2);
+    return $digits;
+}
+
+function mtpc_zalo_admin_link_code($text) {
+    $normalized = mtpc_zalo_admin_normalize($text);
+    if (preg_match('/^(?:ket noi|lien ket)(?: ma)? ([0-9]{6})$/', $normalized, $matches)) return $matches[1];
+    return '';
+}
+
+function mtpc_zalo_admin_create_link_request($path, $body) {
+    $phone = mtpc_zalo_admin_normalize_phone(isset($body['phone']) ? $body['phone'] : '');
+    if (!preg_match('/^0[0-9]{9,10}$/', $phone)) throw new Exception('Số điện thoại không hợp lệ. Hãy nhập số Việt Nam, ví dụ 0375711766.');
+    $userName = mtpc_zalo_admin_text(isset($body['user_name']) ? $body['user_name'] : '', 180);
+    $role = isset($body['role']) && in_array($body['role'], array('admin', 'training', 'teacher'), true) ? $body['role'] : 'teacher';
+    $status = isset($body['status']) && $body['status'] === 'disabled' ? 'disabled' : 'active';
+    $requests = mtpc_zalo_admin_read_json($path, array());
+    $now = time(); $active = array();
+    foreach ($requests as $request) if (is_array($request) && isset($request['expires_unix']) && (int)$request['expires_unix'] > $now) $active[] = $request;
+    $used = array(); foreach ($active as $request) if (isset($request['code'])) $used[(string)$request['code']] = true;
+    do { $code = (string)mt_rand(100000, 999999); } while (isset($used[$code]));
+    $record = array('phone' => $phone, 'user_name' => $userName, 'role' => $role, 'status' => $status, 'code' => $code, 'created_at' => gmdate('c'), 'expires_at' => gmdate('c', $now + 1800), 'expires_unix' => $now + 1800);
+    $active[] = $record;
+    if (!mtpc_zalo_admin_write_json($path, $active)) throw new Exception('Không thể lưu yêu cầu liên kết Zalo.');
+    return $record;
+}
+
+function mtpc_zalo_admin_consume_link_request($requestsPath, $operatorsPath, $userId, $eventUserName, $text) {
+    $code = mtpc_zalo_admin_link_code($text);
+    if ($code === '' || trim((string)$userId) === '') return null;
+    $requests = mtpc_zalo_admin_read_json($requestsPath, array());
+    $now = time(); $matched = null; $remaining = array();
+    foreach ($requests as $request) {
+        if (!is_array($request)) continue;
+        $isMatch = $matched === null && isset($request['code']) && (string)$request['code'] === $code && isset($request['expires_unix']) && (int)$request['expires_unix'] >= $now;
+        if ($isMatch) $matched = $request; else if (isset($request['expires_unix']) && (int)$request['expires_unix'] >= $now) $remaining[] = $request;
+    }
+    if ($matched === null) return null;
+    $operators = mtpc_zalo_admin_operator_list($operatorsPath);
+    $operator = array('user_id' => trim((string)$userId), 'phone' => $matched['phone'], 'user_name' => trim((string)$eventUserName) !== '' ? trim((string)$eventUserName) : $matched['user_name'], 'role' => $matched['role'], 'status' => $matched['status'], 'linked_at' => gmdate('c'), 'updated_at' => gmdate('c'));
+    $saved = false;
+    foreach ($operators as $index => $existing) {
+        if ((string)$existing['user_id'] === (string)$userId || (!empty($existing['phone']) && (string)$existing['phone'] === (string)$matched['phone'])) {
+            if (empty($operator['user_name']) && !empty($existing['user_name'])) $operator['user_name'] = $existing['user_name'];
+            if (!isset($existing['created_at'])) $operator['created_at'] = gmdate('c'); else $operator['created_at'] = $existing['created_at'];
+            $operators[$index] = array_merge($existing, $operator);
+            $saved = true;
+            break;
+        }
+    }
+    if (!$saved) {
+        $operator['created_at'] = gmdate('c');
+        $operators[] = $operator;
+    }
+    if (!mtpc_zalo_admin_write_json($operatorsPath, $operators)) throw new Exception('Không thể lưu Zalo User ID sau khi liên kết.');
+    mtpc_zalo_admin_write_json($requestsPath, $remaining);
+    $reply = $operator['status'] === 'active' ? 'Đã liên kết thành công số điện thoại ' . $operator['phone'] . ' với tài khoản Zalo này. Từ bây giờ bạn có thể gửi lệnh quản trị trực tiếp cho OA.' : 'Đã ghi nhận tài khoản Zalo của bạn, nhưng quyền đang ở trạng thái tạm khóa. Vui lòng liên hệ quản trị viên.';
+    return array('operator' => $operator, 'reply' => $reply);
+}
+
 function mtpc_zalo_admin_permission($role, $permission) {
     $map = array(
         'admin' => array('*'),
@@ -74,8 +136,7 @@ function mtpc_zalo_admin_text($value, $length) {
 
 function mtpc_zalo_admin_normalize($text) {
     $text = function_exists('mb_strtolower') ? mb_strtolower((string)$text, 'UTF-8') : strtolower((string)$text);
-    $converted = @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $text);
-    if ($converted !== false) $text = $converted;
+    $text = strtr($text, array('à'=>'a','á'=>'a','ạ'=>'a','ả'=>'a','ã'=>'a','â'=>'a','ầ'=>'a','ấ'=>'a','ậ'=>'a','ẩ'=>'a','ẫ'=>'a','ă'=>'a','ằ'=>'a','ắ'=>'a','ặ'=>'a','ẳ'=>'a','ẵ'=>'a','è'=>'e','é'=>'e','ẹ'=>'e','ẻ'=>'e','ẽ'=>'e','ê'=>'e','ề'=>'e','ế'=>'e','ệ'=>'e','ể'=>'e','ễ'=>'e','ì'=>'i','í'=>'i','ị'=>'i','ỉ'=>'i','ĩ'=>'i','ò'=>'o','ó'=>'o','ọ'=>'o','ỏ'=>'o','õ'=>'o','ô'=>'o','ồ'=>'o','ố'=>'o','ộ'=>'o','ổ'=>'o','ỗ'=>'o','ơ'=>'o','ờ'=>'o','ớ'=>'o','ợ'=>'o','ở'=>'o','ỡ'=>'o','ù'=>'u','ú'=>'u','ụ'=>'u','ủ'=>'u','ũ'=>'u','ư'=>'u','ừ'=>'u','ứ'=>'u','ự'=>'u','ử'=>'u','ữ'=>'u','ỳ'=>'y','ý'=>'y','ỵ'=>'y','ỷ'=>'y','ỹ'=>'y','đ'=>'d'));
     return trim(preg_replace('/[^a-z0-9]+/i', ' ', $text));
 }
 

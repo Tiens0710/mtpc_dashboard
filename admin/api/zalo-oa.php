@@ -48,6 +48,7 @@ $storageDir = '/home/mtpc/private/mtpc-zalo-oa';
 $messagesPath = $storageDir . '/messages.jsonl';
 $operatorsPath = $storageDir . '/operators.json';
 $pendingCommandsPath = $storageDir . '/pending-commands.json';
+$linkRequestsPath = $storageDir . '/link-requests.json';
 if (!is_dir($storageDir) && !@mkdir($storageDir, 0750, true)) {
     mtpc_zalo_out(500, array('ok' => false, 'error' => 'Không thể tạo vùng lưu tin nhắn Zalo.'));
 }
@@ -132,6 +133,8 @@ function mtpc_zalo_dashboard_admin() {
 function mtpc_zalo_save_operator($path, $body) {
     $userId = trim(isset($body['user_id']) ? (string)$body['user_id'] : '');
     if ($userId === '' || !preg_match('/^[0-9]{6,160}$/', $userId)) throw new Exception('Zalo User ID phải là chuỗi số hợp lệ lấy từ nhật ký tin nhắn.');
+    $phone = mtpc_zalo_admin_normalize_phone(isset($body['phone']) ? $body['phone'] : '');
+    if ($phone !== '' && !preg_match('/^0[0-9]{9,10}$/', $phone)) throw new Exception('Số điện thoại không hợp lệ.');
     $userName = mtpc_zalo_cut(isset($body['user_name']) ? $body['user_name'] : '', 180);
     $role = isset($body['role']) && in_array($body['role'], array('admin', 'training', 'teacher'), true) ? $body['role'] : 'teacher';
     $status = isset($body['status']) && $body['status'] === 'disabled' ? 'disabled' : 'active';
@@ -139,6 +142,7 @@ function mtpc_zalo_save_operator($path, $body) {
     $now = gmdate('c'); $found = false;
     foreach ($rows as $index => $row) {
         if ((string)$row['user_id'] !== $userId) continue;
+        $rows[$index]['phone'] = $phone;
         $rows[$index]['user_name'] = $userName;
         $rows[$index]['role'] = $role;
         $rows[$index]['status'] = $status;
@@ -146,7 +150,7 @@ function mtpc_zalo_save_operator($path, $body) {
         $found = true;
         break;
     }
-    if (!$found) $rows[] = array('user_id' => $userId, 'user_name' => $userName, 'role' => $role, 'status' => $status, 'created_at' => $now, 'updated_at' => $now);
+    if (!$found) $rows[] = array('user_id' => $userId, 'phone' => $phone, 'user_name' => $userName, 'role' => $role, 'status' => $status, 'created_at' => $now, 'updated_at' => $now);
     if (!mtpc_zalo_admin_write_json($path, $rows)) throw new Exception('Không thể lưu danh sách người được phép điều khiển Zalo.');
     return $rows;
 }
@@ -381,7 +385,9 @@ if ($action === 'webhook') {
         array('text')
     ), '');
     $userName = mtpc_zalo_user_name_from_event($event);
+    $linkResult = mtpc_zalo_admin_consume_link_request($linkRequestsPath, $operatorsPath, $userId, $userName, $text);
     $operator = mtpc_zalo_admin_find_operator($operatorsPath, $userId);
+    if ($linkResult && $operator === null && isset($linkResult['operator']) && $linkResult['operator']['status'] === 'active') $operator = $linkResult['operator'];
     if ($userName === '' && $operator && !empty($operator['user_name'])) $userName = $operator['user_name'];
     $row = array(
         'id' => mtpc_zalo_id(),
@@ -406,7 +412,11 @@ if ($action === 'webhook') {
     }
     if ($config['auto_reply'] && $isUserText && $userId !== '') {
         try {
-            if ($operator) {
+            if ($linkResult) {
+                $reply = $linkResult['reply'];
+                $replyEvent = 'zalo_operator_linked';
+                $autoReply['linked'] = true;
+            } elseif ($operator) {
                 $adminResult = mtpc_zalo_admin_handle_message($operator, $text, $pendingCommandsPath);
                 $reply = $adminResult['reply'];
                 $replyEvent = isset($adminResult['event_name']) ? $adminResult['event_name'] : 'zalo_admin_command';
@@ -465,6 +475,17 @@ if ($action === 'operator-upsert') {
             $audit->execute(array(':u' => $dashboard['actor']['username'], ':r' => $dashboard['actor']['role'], ':a' => 'zalo.operator_upsert', ':t' => 'zalo_operator', ':i' => $targetId, ':b' => null, ':n' => json_encode($savedOperator, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), ':ip' => isset($_SERVER['REMOTE_ADDR']) ? $_SERVER['REMOTE_ADDR'] : ''));
         } catch (Exception $ignore) {}
         mtpc_zalo_out(200, array('ok' => true, 'message' => 'Đã lưu quyền điều khiển Zalo OA.', 'operators' => $rows));
+    } catch (Exception $error) {
+        mtpc_zalo_out(422, array('ok' => false, 'error' => $error->getMessage()));
+    }
+}
+
+if ($action === 'operator-link-request') {
+    if (!mtpc_zalo_same_origin()) mtpc_zalo_out(403, array('ok' => false, 'error' => 'Nguồn yêu cầu không hợp lệ.'));
+    mtpc_zalo_dashboard_admin();
+    try {
+        $request = mtpc_zalo_admin_create_link_request($linkRequestsPath, mtpc_zalo_body());
+        mtpc_zalo_out(200, array('ok' => true, 'message' => 'Đã tạo mã liên kết Zalo.', 'request' => $request, 'instructions' => 'Người dùng nhắn KẾT NỐI ' . $request['code'] . ' vào Zalo OA trong vòng 30 phút.'));
     } catch (Exception $error) {
         mtpc_zalo_out(422, array('ok' => false, 'error' => $error->getMessage()));
     }
