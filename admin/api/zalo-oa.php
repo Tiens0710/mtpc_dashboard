@@ -28,6 +28,7 @@ $config = array(
     'access_token' => '',
     'webhook_token' => '',
     'send_url' => 'https://openapi.zalo.me/v3.0/oa/message/cs',
+    'profile_url' => 'https://openapi.zalo.me/v3.0/oa/user/detail',
     'oa_id' => '',
     'auto_reply' => false
 );
@@ -36,6 +37,7 @@ if (is_file($configPath)) {
     if (isset($MTPC_ZALO_OA_ACCESS_TOKEN)) $config['access_token'] = trim((string)$MTPC_ZALO_OA_ACCESS_TOKEN);
     if (isset($MTPC_ZALO_OA_WEBHOOK_TOKEN)) $config['webhook_token'] = trim((string)$MTPC_ZALO_OA_WEBHOOK_TOKEN);
     if (isset($MTPC_ZALO_OA_SEND_URL) && trim((string)$MTPC_ZALO_OA_SEND_URL) !== '') $config['send_url'] = trim((string)$MTPC_ZALO_OA_SEND_URL);
+    if (isset($MTPC_ZALO_OA_PROFILE_URL) && trim((string)$MTPC_ZALO_OA_PROFILE_URL) !== '') $config['profile_url'] = trim((string)$MTPC_ZALO_OA_PROFILE_URL);
     if (isset($MTPC_ZALO_OA_ID)) $config['oa_id'] = trim((string)$MTPC_ZALO_OA_ID);
     if (isset($MTPC_ZALO_OA_AUTO_REPLY)) $config['auto_reply'] = (bool)$MTPC_ZALO_OA_AUTO_REPLY;
 }
@@ -70,6 +72,35 @@ function mtpc_zalo_append($path, $row) {
     $line = json_encode($row, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n";
     return @file_put_contents($path, $line, FILE_APPEND | LOCK_EX) !== false;
 }
+function mtpc_zalo_update_user_name($path, $messageId, $userName) {
+    if ($messageId === '' || $userName === '' || !is_file($path)) return false;
+    $handle = @fopen($path, 'c+');
+    if (!$handle || !@flock($handle, LOCK_EX)) {
+        if ($handle) @fclose($handle);
+        return false;
+    }
+    $contents = stream_get_contents($handle);
+    $lines = preg_split('/\r?\n/', rtrim((string)$contents, "\r\n"));
+    $changed = false;
+    for ($i = count($lines) - 1; $i >= 0; $i--) {
+        if (trim($lines[$i]) === '') continue;
+        $row = json_decode($lines[$i], true);
+        if (!is_array($row) || !isset($row['id']) || (string)$row['id'] !== (string)$messageId) continue;
+        $row['user_name'] = $userName;
+        $lines[$i] = json_encode($row, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        $changed = true;
+        break;
+    }
+    if ($changed) {
+        @ftruncate($handle, 0);
+        @rewind($handle);
+        @fwrite($handle, implode("\n", $lines) . "\n");
+        @fflush($handle);
+    }
+    @flock($handle, LOCK_UN);
+    @fclose($handle);
+    return $changed;
+}
 function mtpc_zalo_same_origin() {
     if (empty($_SERVER['HTTP_ORIGIN'])) return true;
     $originHost = parse_url($_SERVER['HTTP_ORIGIN'], PHP_URL_HOST);
@@ -87,6 +118,53 @@ function mtpc_zalo_event_value($event, $path, $fallback) {
         $value = $value[$key];
     }
     return is_scalar($value) ? (string)$value : $fallback;
+}
+function mtpc_zalo_event_first($event, $paths, $fallback) {
+    foreach ($paths as $path) {
+        $value = mtpc_zalo_event_value($event, $path, '');
+        if (trim($value) !== '') return $value;
+    }
+    return $fallback;
+}
+function mtpc_zalo_user_name_from_event($event) {
+    return mtpc_zalo_event_first($event, array(
+        array('sender', 'display_name'),
+        array('sender', 'name'),
+        array('user', 'display_name'),
+        array('user', 'name'),
+        array('user_profile', 'display_name'),
+        array('user_profile', 'name'),
+        array('from', 'display_name'),
+        array('from', 'name'),
+        array('message', 'sender_name'),
+        array('message', 'from', 'display_name'),
+        array('message', 'from', 'name')
+    ), '');
+}
+function mtpc_zalo_profile_name($config, $userId) {
+    if ($config['access_token'] === '' || $userId === '' || empty($config['profile_url'])) return '';
+    $data = json_encode(array('user_id' => $userId), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    $url = $config['profile_url'] . (strpos($config['profile_url'], '?') === false ? '?' : '&') . 'data=' . rawurlencode($data);
+    $curl = curl_init($url);
+    curl_setopt_array($curl, array(
+        CURLOPT_HTTPGET => true,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_CONNECTTIMEOUT => 3,
+        CURLOPT_TIMEOUT => 6,
+        CURLOPT_HTTPHEADER => array('access_token: ' . $config['access_token'])
+    ));
+    $raw = curl_exec($curl);
+    $status = (int)curl_getinfo($curl, CURLINFO_HTTP_CODE);
+    curl_close($curl);
+    if ($raw === false || $status < 200 || $status >= 300) return '';
+    $response = json_decode($raw, true);
+    if (!is_array($response) || (isset($response['error']) && (int)$response['error'] !== 0)) return '';
+    $profile = isset($response['data']) && is_array($response['data']) ? $response['data'] : array();
+    return mtpc_zalo_event_first($profile, array(
+        array('display_name'),
+        array('name'),
+        array('user_alias')
+    ), '');
 }
 function mtpc_zalo_normalize($text) {
     $text = function_exists('mb_strtolower') ? mb_strtolower((string)$text, 'UTF-8') : strtolower((string)$text);
@@ -147,14 +225,13 @@ function mtpc_zalo_send($config, $userId, $message) {
         'message' => array('text' => $message)
     ), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     $url = $config['send_url'];
-    $separator = strpos($url, '?') === false ? '?' : '&';
-    $curl = curl_init($url . $separator . 'access_token=' . rawurlencode($config['access_token']));
+    $curl = curl_init($url);
     curl_setopt_array($curl, array(
         CURLOPT_POST => true,
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_CONNECTTIMEOUT => 10,
         CURLOPT_TIMEOUT => 20,
-        CURLOPT_HTTPHEADER => array('Content-Type: application/json'),
+        CURLOPT_HTTPHEADER => array('Content-Type: application/json', 'access_token: ' . $config['access_token']),
         CURLOPT_POSTFIELDS => $payload
     ));
     $raw = curl_exec($curl);
@@ -162,13 +239,21 @@ function mtpc_zalo_send($config, $userId, $message) {
     $error = curl_error($curl);
     curl_close($curl);
     if ($raw === false || $status < 200 || $status >= 300) {
-        throw new Exception('Zalo OA từ chối gửi tin.' . ($error !== '' ? ' ' . $error : ''));
+        throw new Exception('Zalo OA từ chối gửi tin (HTTP ' . $status . ').' . ($error !== '' ? ' ' . $error : ''));
     }
     $response = json_decode($raw, true);
-    if (is_array($response) && isset($response['error']) && (int)$response['error'] !== 0) {
-        throw new Exception(isset($response['message']) ? (string)$response['message'] : 'Zalo OA trả về lỗi.');
+    if (!is_array($response)) throw new Exception('Zalo OA trả về dữ liệu không hợp lệ.');
+    $errorCode = null;
+    if (isset($response['error'])) $errorCode = (int)$response['error'];
+    elseif (isset($response['error_code'])) $errorCode = (int)$response['error_code'];
+    elseif (isset($response['code'])) $errorCode = (int)$response['code'];
+    if ($errorCode !== null && $errorCode !== 0) {
+        $errorMessage = '';
+        if (isset($response['message'])) $errorMessage = (string)$response['message'];
+        elseif (isset($response['error_message'])) $errorMessage = (string)$response['error_message'];
+        throw new Exception('Zalo OA trả về lỗi' . ($errorMessage !== '' ? ': ' . $errorMessage : ' (mã ' . $errorCode . ').'));
     }
-    return is_array($response) ? $response : array('raw' => $raw);
+    return $response;
 }
 
 $action = isset($_GET['action']) ? (string)$_GET['action'] : '';
@@ -213,14 +298,26 @@ if ($action === 'webhook') {
         mtpc_zalo_out(403, array('ok' => false, 'error' => 'Webhook token không hợp lệ.'));
     }
     $event = mtpc_zalo_body();
-    $eventName = mtpc_zalo_event_value($event, array('event_name'), 'unknown');
-    $userId = mtpc_zalo_event_value($event, array('sender', 'id'), '');
-    $text = mtpc_zalo_event_value($event, array('message', 'text'), '');
+    $eventName = mtpc_zalo_event_first($event, array(array('event_name'), array('event'), array('eventName')), 'unknown');
+    $userId = mtpc_zalo_event_first($event, array(
+        array('sender', 'id'),
+        array('sender', 'user_id'),
+        array('user_id'),
+        array('from', 'id'),
+        array('user', 'id')
+    ), '');
+    $text = mtpc_zalo_event_first($event, array(
+        array('message', 'text'),
+        array('message', 'content'),
+        array('text')
+    ), '');
+    $userName = mtpc_zalo_user_name_from_event($event);
     $row = array(
         'id' => mtpc_zalo_id(),
         'direction' => 'inbound',
         'event_name' => mtpc_zalo_cut($eventName, 80),
         'user_id' => mtpc_zalo_cut($userId, 160),
+        'user_name' => mtpc_zalo_cut($userName, 180),
         'text' => mtpc_zalo_cut($text, 5000),
         'payload' => $event,
         'received_at' => gmdate('c'),
@@ -228,18 +325,34 @@ if ($action === 'webhook') {
     );
     if (!mtpc_zalo_append($messagesPath, $row)) mtpc_zalo_out(500, array('ok' => false, 'error' => 'Không lưu được tin nhắn Zalo.'));
     $autoReply = array('enabled' => $config['auto_reply'], 'sent' => false);
-    $isUserText = $text !== '' && ($eventName === 'user_send_text' || strpos($eventName, 'user_send_') === 0);
+    $isUserText = $text !== '' && $userId !== '' && ($eventName === 'unknown' || $eventName === 'user_send_text' || strpos($eventName, 'user_send_') === 0);
+    $backgroundResponse = false;
+    if ($config['auto_reply'] && $isUserText && function_exists('fastcgi_finish_request')) {
+        http_response_code(200);
+        echo json_encode(array('ok' => true, 'received' => true, 'auto_reply' => array('enabled' => true, 'queued' => true)), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        fastcgi_finish_request();
+        $backgroundResponse = true;
+    }
     if ($config['auto_reply'] && $isUserText && $userId !== '') {
         try {
             $reply = mtpc_zalo_generate_reply($text);
             mtpc_zalo_send($config, $userId, $reply);
-            mtpc_zalo_append($messagesPath, array('id' => mtpc_zalo_id(), 'direction' => 'outbound', 'event_name' => 'auto_reply_text', 'user_id' => $userId, 'text' => $reply, 'received_at' => gmdate('c'), 'read' => true));
+            mtpc_zalo_append($messagesPath, array('id' => mtpc_zalo_id(), 'direction' => 'outbound', 'event_name' => 'auto_reply_text', 'user_id' => $userId, 'user_name' => $userName, 'text' => $reply, 'received_at' => gmdate('c'), 'read' => true));
             $autoReply['sent'] = true;
         } catch (Exception $error) {
             $autoReply['error'] = $error->getMessage();
+            mtpc_zalo_append($messagesPath, array('id' => mtpc_zalo_id(), 'direction' => 'system', 'event_name' => 'auto_reply_error', 'user_id' => $userId, 'user_name' => $userName, 'text' => 'Không gửi được trả lời tự động: ' . $error->getMessage(), 'received_at' => gmdate('c'), 'read' => true));
             error_log('[MTPC_ZALO_AUTO_REPLY] ' . $error->getMessage());
         }
     }
+    if ($userName === '' && $userId !== '') {
+        $resolvedName = mtpc_zalo_profile_name($config, $userId);
+        if ($resolvedName !== '') {
+            $userName = $resolvedName;
+            mtpc_zalo_update_user_name($messagesPath, $row['id'], $resolvedName);
+        }
+    }
+    if ($backgroundResponse) exit;
     mtpc_zalo_out(200, array('ok' => true, 'received' => true, 'auto_reply' => $autoReply));
 }
 
@@ -247,10 +360,12 @@ if ($action === 'send') {
     if (!mtpc_zalo_same_origin()) mtpc_zalo_out(403, array('ok' => false, 'error' => 'Nguồn yêu cầu không hợp lệ.'));
     $body = mtpc_zalo_body();
     $userId = mtpc_zalo_cut(isset($body['user_id']) ? $body['user_id'] : '', 160);
+    $userName = mtpc_zalo_cut(isset($body['user_name']) ? $body['user_name'] : '', 180);
     $text = mtpc_zalo_cut(isset($body['text']) ? $body['text'] : '', 2000);
     try {
         $response = mtpc_zalo_send($config, $userId, $text);
-        mtpc_zalo_append($messagesPath, array('id' => mtpc_zalo_id(), 'direction' => 'outbound', 'event_name' => 'admin_send_text', 'user_id' => $userId, 'text' => $text, 'received_at' => gmdate('c'), 'read' => true));
+        if ($userName === '') $userName = mtpc_zalo_profile_name($config, $userId);
+        mtpc_zalo_append($messagesPath, array('id' => mtpc_zalo_id(), 'direction' => 'outbound', 'event_name' => 'admin_send_text', 'user_id' => $userId, 'user_name' => $userName, 'text' => $text, 'received_at' => gmdate('c'), 'read' => true));
         mtpc_zalo_out(200, array('ok' => true, 'sent' => true, 'message' => 'Đã gửi tin nhắn qua Zalo OA.', 'response' => $response));
     } catch (Exception $error) {
         mtpc_zalo_out(502, array('ok' => false, 'sent' => false, 'error' => $error->getMessage(), 'code' => 'ZALO_OA_SEND_FAILED'));
