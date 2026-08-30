@@ -416,6 +416,10 @@ if ($action === 'webhook') {
         if ($resolvedName !== '') {
             $userName = $resolvedName;
             mtpc_zalo_update_user_name($messagesPath, $row['id'], $resolvedName);
+            if ($operator) {
+                mtpc_zalo_admin_update_operator_name($operatorsPath, $userId, $resolvedName);
+                $operator['user_name'] = $resolvedName;
+            }
         }
     }
     if ($config['auto_reply'] && $isUserText && $userId !== '') {

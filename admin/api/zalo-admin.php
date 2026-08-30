@@ -45,6 +45,21 @@ function mtpc_zalo_admin_find_operator($path, $userId) {
     return null;
 }
 
+function mtpc_zalo_admin_update_operator_name($path, $userId, $userName) {
+    $userId = mtpc_zalo_admin_operator_id($userId);
+    $userName = trim((string)$userName);
+    if ($userId === '' || $userName === '') return false;
+    $rows = mtpc_zalo_admin_operator_list($path);
+    foreach ($rows as $index => $row) {
+        if ((string)$row['user_id'] !== $userId) continue;
+        if ((string)$row['user_name'] === $userName) return true;
+        $rows[$index]['user_name'] = $userName;
+        $rows[$index]['updated_at'] = gmdate('c');
+        return mtpc_zalo_admin_write_json($path, $rows);
+    }
+    return false;
+}
+
 function mtpc_zalo_admin_normalize_phone($value) {
     $digits = preg_replace('/[^0-9]+/', '', (string)$value);
     if (substr($digits, 0, 2) === '84') $digits = '0' . substr($digits, 2);
