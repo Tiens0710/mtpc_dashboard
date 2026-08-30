@@ -8,3 +8,5 @@ $MTPC_ZALO_OA_AUTO_REPLY = true;
 $MTPC_ZALO_OA_SEND_URL = 'https://openapi.zalo.me/v3.0/oa/message/cs';
 /* Optional: requires the OA permission to manage follower information. */
 $MTPC_ZALO_OA_PROFILE_URL = 'https://openapi.zalo.me/v3.0/oa/user/detail';
+/* Legacy fallback; leave unchanged unless Zalo changes the API. */
+$MTPC_ZALO_OA_PROFILE_FALLBACK_URL = 'https://openapi.zalo.me/v2.0/oa/getprofile';
