@@ -215,7 +215,8 @@ function mtpc_zalo_profile_name($config, $userId) {
             array('display_name'),
             array('user_display_name'),
             array('name'),
-            array('user_alias')
+            array('user_alias'),
+            array('shared_info', 'name')
         ), '');
         if ($name !== '') return $name;
     }
@@ -410,6 +411,13 @@ if ($action === 'webhook') {
         fastcgi_finish_request();
         $backgroundResponse = true;
     }
+    if ($userName === '' && $userId !== '') {
+        $resolvedName = mtpc_zalo_profile_name($config, $userId);
+        if ($resolvedName !== '') {
+            $userName = $resolvedName;
+            mtpc_zalo_update_user_name($messagesPath, $row['id'], $resolvedName);
+        }
+    }
     if ($config['auto_reply'] && $isUserText && $userId !== '') {
         try {
             if ($linkResult) {
@@ -432,13 +440,6 @@ if ($action === 'webhook') {
             $autoReply['error'] = $error->getMessage();
             mtpc_zalo_append($messagesPath, array('id' => mtpc_zalo_id(), 'direction' => 'system', 'event_name' => 'auto_reply_error', 'user_id' => $userId, 'user_name' => $userName, 'text' => 'Không gửi được trả lời tự động: ' . $error->getMessage(), 'received_at' => gmdate('c'), 'read' => true));
             error_log('[MTPC_ZALO_AUTO_REPLY] ' . $error->getMessage());
-        }
-    }
-    if ($userName === '' && $userId !== '') {
-        $resolvedName = mtpc_zalo_profile_name($config, $userId);
-        if ($resolvedName !== '') {
-            $userName = $resolvedName;
-            mtpc_zalo_update_user_name($messagesPath, $row['id'], $resolvedName);
         }
     }
     if ($backgroundResponse) exit;
