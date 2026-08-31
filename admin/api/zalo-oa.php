@@ -607,7 +607,7 @@ if ($action === 'webhook') {
                 $replyEvent = 'zalo_operator_linked';
                 $autoReply['linked'] = true;
             } elseif ($operator) {
-                $adminResult = mtpc_zalo_admin_handle_message($operator, $text, $pendingCommandsPath);
+                $adminResult = mtpc_zalo_admin_handle_message($operator, $text, $pendingCommandsPath, $config, $groupsPath);
                 $reply = $adminResult['reply'];
                 $replyEvent = isset($adminResult['event_name']) ? $adminResult['event_name'] : 'zalo_admin_command';
                 $autoReply['privileged'] = true;

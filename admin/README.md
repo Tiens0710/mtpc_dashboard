@@ -231,6 +231,13 @@ API dùng các endpoint GMF của Zalo, không gửi vào nhóm Zalo cá nhân t
 thường. Có thể xem tài liệu gửi tin nhóm tại
 <https://stc-developers.zdn.vn/docs/v2/official-account/nhom-chat-gmf/tin-nhan/text_message>.
 
+Tài khoản Zalo đã được cấp quyền trong **Quản trị qua Zalo OA** dùng chung
+danh sách nhóm này. Các lệnh đọc như `xem nhóm`, `xem thành viên nhóm <tên hoặc
+group_id>` và `xem tin nhắn nhóm <tên hoặc group_id>` được trả lời ngay trên
+Zalo. Các lệnh thay đổi như `gửi tin vào nhóm ...` hoặc `đổi tên nhóm ...`
+được giữ ở trạng thái chờ và chỉ thực hiện sau khi người điều khiển nhắn
+`XÁC NHẬN`. Web Admin vẫn là kênh quản lý trực tiếp tương ứng.
+
 ## Cấu hình các dịch vụ
 
 Các file secret cần có trên hosting:
