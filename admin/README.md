@@ -78,6 +78,9 @@ tài khoản.
 
 1. Tạo database MySQL, ví dụ `mtpc_students`.
 2. Import `database/student_management_v2.sql` một lần trong phpMyAdmin.
+   Nếu database đã được import từ trước, chạy thêm
+   `database/migrations/20260831_add_student_zalo_user_id.sql` để tạo cột liên kết
+   Zalo cho từng hồ sơ.
 3. Tạo `/home/mtpc/private/db-config.php`:
 
    ```php
@@ -130,6 +133,13 @@ POST api/students.php?action=create
 POST api/students.php?action=update
 ```
 
+Mỗi hồ sơ có thể lưu `zalo_user_id`. Trong mục **Hồ sơ sinh viên**, dùng nút
+**Gắn Zalo học viên** để nhập ID lấy từ nhật ký tin nhắn OA. Có thể dùng nút
+**Thông báo Zalo** để lọc theo lớp/trạng thái/mã hoặc tên rồi gửi một nội dung
+riêng đến từng tài khoản đã liên kết. Nội dung hỗ trợ các biến
+`{{full_name}}`, `{{student_code}}`, `{{class_name}}`, `{{program_name}}`,
+`{{cohort}}`, `{{status}}`.
+
 ### Student operations
 
 `student-ops.php` cung cấp overview, attendance sessions/roster/alerts, fees,
@@ -147,6 +157,7 @@ GET  api/zalo-oa.php?action=group-info&group_id=...
 GET  api/zalo-oa.php?action=group-members&group_id=...
 GET  api/zalo-oa.php?action=group-conversation&group_id=...
 POST api/zalo-oa.php?action=send
+POST api/zalo-oa.php?action=send-student-notifications
 POST api/zalo-oa.php?action=operator-upsert
 POST api/zalo-oa.php?action=operator-link-request
 POST api/zalo-oa.php?action=group-create
@@ -159,6 +170,11 @@ POST api/zalo-oa.php?action=group-accept-members
 Webhook public của OA dùng cùng implementation nhưng đi qua
 `https://agent.mtpc.edu.vn/api/zalo-oa.php?action=webhook&token=...`. Các file
 message/operator/pending command được lưu ngoài web root tại:
+
+Người điều khiển Zalo có quyền phù hợp có thể nhắn, ví dụ: `thông báo lớp
+CNTT-K26: Ngày mai học bù tiết 1`. Nhi sẽ báo số học viên đã liên kết và chờ
+`XÁC NHẬN` trước khi gửi riêng từng tài khoản; học viên chưa có
+`zalo_user_id` sẽ được bỏ qua.
 
 ```text
 /home/mtpc/private/mtpc-zalo-oa/messages.jsonl

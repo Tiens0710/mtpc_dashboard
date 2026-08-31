@@ -315,6 +315,42 @@ function mtpc_zalo_send($config, $userId, $message) {
     }
     return $response;
 }
+function mtpc_zalo_student_message($template, $student) {
+    $values = array(
+        '{{id}}' => (string)$student['id'],
+        '{{student_id}}' => (string)$student['id'],
+        '{{student_code}}' => (string)$student['student_code'],
+        '{{full_name}}' => (string)$student['full_name'],
+        '{{class_name}}' => (string)$student['class_name'],
+        '{{program_name}}' => (string)$student['program_name'],
+        '{{cohort}}' => (string)$student['cohort'],
+        '{{status}}' => (string)$student['status']
+    );
+    return mtpc_zalo_cut(strtr($template, $values), 2000);
+}
+function mtpc_zalo_student_targets($pdo, $body) {
+    $where = array('1=1'); $params = array();
+    $ids = isset($body['student_ids']) && is_array($body['student_ids']) ? $body['student_ids'] : array();
+    $cleanIds = array();
+    foreach ($ids as $id) { if (ctype_digit((string)$id) && (int)$id > 0) $cleanIds[] = (int)$id; }
+    $cleanIds = array_values(array_unique($cleanIds));
+    if (count($cleanIds)) {
+        $marks = array();
+        foreach ($cleanIds as $i => $id) { $key = ':student_id_' . $i; $marks[] = $key; $params[$key] = $id; }
+        $where[] = 'id IN (' . implode(',', $marks) . ')';
+    } else {
+        $query = isset($body['query']) ? trim((string)$body['query']) : '';
+        $className = isset($body['class_name']) ? trim((string)$body['class_name']) : '';
+        $status = isset($body['status']) ? trim((string)$body['status']) : '';
+        if ($query !== '') { $where[] = '(student_code LIKE :q OR full_name LIKE :q OR phone LIKE :q OR email LIKE :q)'; $params[':q'] = '%' . $query . '%'; }
+        if ($className !== '') { $where[] = 'class_name=:class_name'; $params[':class_name'] = $className; }
+        if ($status !== '') { $where[] = 'status=:status'; $params[':status'] = $status; }
+    }
+    $limit = isset($body['limit']) ? max(1, min(100, (int)$body['limit'])) : 100;
+    $statement = $pdo->prepare('SELECT id,student_code,full_name,class_name,program_name,cohort,status,zalo_user_id FROM students WHERE ' . implode(' AND ', $where) . ' ORDER BY full_name ASC,id ASC LIMIT ' . $limit);
+    $statement->execute($params);
+    return $statement->fetchAll();
+}
 function mtpc_zalo_group_read($path) {
     if (!is_file($path)) return array();
     $data = json_decode((string)@file_get_contents($path), true);
@@ -642,6 +678,40 @@ if ($action === 'send') {
     } catch (Exception $error) {
         mtpc_zalo_out(502, array('ok' => false, 'sent' => false, 'error' => $error->getMessage(), 'code' => 'ZALO_OA_SEND_FAILED'));
     }
+}
+
+if ($action === 'send-student-notifications') {
+    if (!mtpc_zalo_same_origin()) mtpc_zalo_out(403, array('ok' => false, 'error' => 'Nguồn yêu cầu không hợp lệ.'));
+    $dashboard = mtpc_zalo_dashboard_admin();
+    $body = mtpc_zalo_body();
+    $template = mtpc_zalo_cut(isset($body['message']) ? $body['message'] : '', 2000);
+    if ($template === '') mtpc_zalo_out(422, array('ok' => false, 'error' => 'Cần nhập nội dung thông báo.'));
+    $dryRun = !empty($body['dry_run']);
+    if (!$dryRun && empty($body['confirm'])) mtpc_zalo_out(422, array('ok' => false, 'error' => 'Cần xác nhận gửi thông báo.'));
+    try {
+        $students = mtpc_zalo_student_targets($dashboard['pdo'], $body);
+    } catch (PDOException $error) {
+        mtpc_zalo_out(503, array('ok' => false, 'error' => 'Database chưa có cột zalo_user_id. Hãy chạy file database/migrations/20260831_add_student_zalo_user_id.sql.'));
+    }
+    if (!count($students)) mtpc_zalo_out(404, array('ok' => false, 'error' => 'Không tìm thấy học viên phù hợp.'));
+    $recipients = array();
+    foreach ($students as $student) $recipients[] = array('id' => (int)$student['id'], 'student_code' => $student['student_code'], 'full_name' => $student['full_name'], 'class_name' => $student['class_name'], 'zalo_linked' => trim((string)$student['zalo_user_id']) !== '');
+    if ($dryRun) mtpc_zalo_out(200, array('ok' => true, 'preview' => true, 'count' => count($students), 'linked_count' => count(array_filter($recipients, function ($row) { return $row['zalo_linked']; })), 'recipients' => $recipients));
+    $sent = 0; $skipped = 0; $failed = 0; $errors = array();
+    foreach ($students as $student) {
+        $userId = trim((string)$student['zalo_user_id']);
+        if ($userId === '' || !preg_match('/^[0-9]{6,160}$/', $userId)) { $skipped++; $errors[] = array('student_id' => (int)$student['id'], 'student_code' => $student['student_code'], 'full_name' => $student['full_name'], 'reason' => 'Chưa có Zalo User ID.'); continue; }
+        $text = mtpc_zalo_student_message($template, $student);
+        try {
+            mtpc_zalo_send($config, $userId, $text);
+            $sent++;
+            mtpc_zalo_append($messagesPath, array('id' => mtpc_zalo_id(), 'direction' => 'outbound', 'event_name' => 'admin_student_notification', 'user_id' => $userId, 'user_name' => $student['full_name'], 'student_id' => (int)$student['id'], 'student_code' => $student['student_code'], 'text' => $text, 'received_at' => gmdate('c'), 'read' => true));
+        } catch (Exception $error) {
+            $failed++; $errors[] = array('student_id' => (int)$student['id'], 'student_code' => $student['student_code'], 'full_name' => $student['full_name'], 'reason' => $error->getMessage());
+        }
+        usleep(120000);
+    }
+    mtpc_zalo_out(200, array('ok' => true, 'sent' => $sent, 'skipped' => $skipped, 'failed' => $failed, 'total' => count($students), 'errors' => $errors, 'message' => 'Đã gửi ' . $sent . '/' . count($students) . ' thông báo riêng qua Zalo OA.'));
 }
 
 if ($action === 'operator-upsert') {
