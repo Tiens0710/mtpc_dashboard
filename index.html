@@ -240,9 +240,11 @@
     @media(max-width:600px){.chat-launch{width:40px;height:40px}.chat-launch:after{inset:5px}.chat-launch:before{width:8px;height:8px}}
   </style>
   <style id="agent-stable-orb-layout">
-    /* Match Admin: keep the public website usable until the assistant is opened. */
-    #aiEntryPrompt{display:none!important}
-    #chatLaunch{display:none!important}
+    /* Keep the public homepage usable until the assistant is explicitly opened. */
+    .ai-entry-prompt,#aiEntryPrompt{display:none!important;opacity:0!important;visibility:hidden!important;pointer-events:none!important}
+    .ai-welcome.is-hidden,#aiWelcome.is-hidden{display:none!important;opacity:0!important;visibility:hidden!important;pointer-events:none!important}
+    /* The public page has one Live assistant UI; hide the legacy chat controls. */
+    #chatLaunch,#chatWindow,#chatBubble{display:none!important}
     #aiWelcome .ai-welcome-suggestions,#aiWelcome .ai-welcome-form,#aiWelcome .ai-welcome-note{display:none!important}
     #aiWelcome:not(.is-hidden) #aiLiveTextForm{opacity:1;visibility:visible;pointer-events:auto;transform:translateX(-50%)}
     #aiReopen{right:24px;bottom:24px;z-index:1500;width:74px;height:74px}
