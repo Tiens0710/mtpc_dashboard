@@ -238,6 +238,11 @@ Zalo. Các lệnh thay đổi như `gửi tin vào nhóm ...` hoặc `đổi tê
 được giữ ở trạng thái chờ và chỉ thực hiện sau khi người điều khiển nhắn
 `XÁC NHẬN`. Web Admin vẫn là kênh quản lý trực tiếp tương ứng.
 
+Để gửi tin nhắn riêng tự động, quản trị viên hoặc tài khoản vai trò phòng đào
+tạo có thể nhắn theo mẫu `nhắn riêng đến <Zalo User ID>: <nội dung>`. Tin này
+được gửi ngay qua OA và được lưu vào nhật ký để Web Admin xem lại; User ID phải
+là ID số đã lấy từ tin nhắn Zalo OA.
+
 ## Cấu hình các dịch vụ
 
 Các file secret cần có trên hosting:

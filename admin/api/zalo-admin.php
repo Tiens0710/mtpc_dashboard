@@ -125,7 +125,7 @@ function mtpc_zalo_admin_consume_link_request($requestsPath, $operatorsPath, $us
 function mtpc_zalo_admin_permission($role, $permission) {
     $map = array(
         'admin' => array('*'),
-        'training' => array('students.read', 'students.write', 'academic.read', 'academic.write', 'attendance.read', 'attendance.write', 'finance.read', 'audit.read', 'groups.read', 'groups.write'),
+        'training' => array('students.read', 'students.write', 'academic.read', 'academic.write', 'attendance.read', 'attendance.write', 'finance.read', 'audit.read', 'groups.read', 'groups.write', 'zalo.send'),
         'teacher' => array('students.read', 'academic.read', 'attendance.read', 'attendance.write', 'groups.read')
     );
     $allowed = isset($map[$role]) ? $map[$role] : array();
@@ -227,7 +227,7 @@ function mtpc_zalo_admin_generate_intent($question, $operator) {
     }
     if (!$apiKey) throw new Exception('Chưa cấu hình GEMINI_API_KEY cho lệnh quản trị Zalo.');
     $role = isset($operator['role']) ? $operator['role'] : 'teacher';
-    $prompt = 'Bạn là bộ phân tích lệnh cho trợ lý quản trị Trường Trung cấp Miền Tây. Người gửi đã được xác thực qua Zalo User ID và có vai trò ' . $role . '. Hãy hiểu câu tiếng Việt và chỉ trả về một JSON hợp lệ, không markdown, theo schema: {"intent":"...","student_identifier":"","query":"","new_status":"","new_class_name":"","group_identifier":"","group_message":"","group_name":"","group_description":""}. Intent hợp lệ: students_summary (tổng quan số lượng sinh viên), student_search (tìm nhiều sinh viên theo tên/mã/lớp), student_profile (xem một hồ sơ theo mã hoặc ID), attendance_alerts (cảnh báo điểm danh), finance_summary (tổng quan học phí/công nợ), student_status_update (đổi trạng thái sinh viên), student_class_update (đổi lớp sinh viên), groups_list (liệt kê nhóm GMF đang quản lý), group_info (xem thông tin nhóm), group_members (xem thành viên nhóm), group_conversation (xem tin nhắn nhóm), group_send (gửi tin vào nhóm), group_update (đổi tên hoặc mô tả nhóm), unknown. Với group_identifier lấy group_id hoặc tên nhóm đã được nêu; với group_message lấy nguyên nội dung cần gửi; với group_name/group_description chỉ lấy giá trị mới. Với student_status_update chỉ dùng trạng thái Đang học, Bảo lưu, Đã tốt nghiệp hoặc Thôi học. Với student_class_update lấy tên lớp mới. Không tự bịa mã sinh viên hoặc group_id; nếu thiếu tham số để thực hiện thì vẫn chọn intent phù hợp và để chuỗi rỗng. Không thực hiện thao tác, không trả lời giải thích. Câu người dùng: ' . mtpc_zalo_admin_text($question, 2000);
+    $prompt = 'Bạn là bộ phân tích lệnh cho trợ lý quản trị Trường Trung cấp Miền Tây. Người gửi đã được xác thực qua Zalo User ID và có vai trò ' . $role . '. Hãy hiểu câu tiếng Việt và chỉ trả về một JSON hợp lệ, không markdown, theo schema: {"intent":"...","student_identifier":"","query":"","new_status":"","new_class_name":"","group_identifier":"","group_message":"","group_name":"","group_description":"","recipient_user_id":"","recipient_name":"","private_message":""}. Intent hợp lệ: students_summary (tổng quan số lượng sinh viên), student_search (tìm nhiều sinh viên theo tên/mã/lớp), student_profile (xem một hồ sơ theo mã hoặc ID), attendance_alerts (cảnh báo điểm danh), finance_summary (tổng quan học phí/công nợ), student_status_update (đổi trạng thái sinh viên), student_class_update (đổi lớp sinh viên), zalo_private_send (gửi ngay một tin nhắn riêng qua OA đến Zalo User ID), groups_list (liệt kê nhóm GMF đang quản lý), group_info (xem thông tin nhóm), group_members (xem thành viên nhóm), group_conversation (xem tin nhắn nhóm), group_send (gửi tin vào nhóm), group_update (đổi tên hoặc mô tả nhóm), unknown. Với recipient_user_id lấy đúng Zalo User ID số do người dùng cung cấp, với recipient_name lấy tên ghi chú nếu có, với private_message lấy nguyên nội dung cần gửi. Với group_identifier lấy group_id hoặc tên nhóm đã được nêu; với group_message lấy nguyên nội dung cần gửi; với group_name/group_description chỉ lấy giá trị mới. Với student_status_update chỉ dùng trạng thái Đang học, Bảo lưu, Đã tốt nghiệp hoặc Thôi học. Với student_class_update lấy tên lớp mới. Không tự bịa mã sinh viên, group_id hoặc recipient_user_id; nếu thiếu tham số để thực hiện thì vẫn chọn intent phù hợp và để chuỗi rỗng. Không thực hiện thao tác, không trả lời giải thích. Câu người dùng: ' . mtpc_zalo_admin_text($question, 2000);
     $payload = json_encode(array(
         'systemInstruction' => array('parts' => array(array('text' => $prompt))),
         'contents' => array(array('role' => 'user', 'parts' => array(array('text' => mtpc_zalo_admin_text($question, 2000))))),
@@ -255,6 +255,9 @@ function mtpc_zalo_admin_generate_intent($question, $operator) {
     $intent['group_message'] = isset($intent['group_message']) ? mtpc_zalo_admin_text($intent['group_message'], 2000) : '';
     $intent['group_name'] = isset($intent['group_name']) ? mtpc_zalo_admin_text($intent['group_name'], 100) : '';
     $intent['group_description'] = isset($intent['group_description']) ? mtpc_zalo_admin_text($intent['group_description'], 500) : '';
+    $intent['recipient_user_id'] = isset($intent['recipient_user_id']) ? mtpc_zalo_admin_text($intent['recipient_user_id'], 160) : '';
+    $intent['recipient_name'] = isset($intent['recipient_name']) ? mtpc_zalo_admin_text($intent['recipient_name'], 180) : '';
+    $intent['private_message'] = isset($intent['private_message']) ? mtpc_zalo_admin_text($intent['private_message'], 2000) : '';
     return $intent;
 }
 
@@ -388,6 +391,22 @@ function mtpc_zalo_admin_group_conversation($config, $groupsPath, $operator, $id
     }
 }
 
+function mtpc_zalo_admin_send_private($config, $messagesPath, $operator, $intent) {
+    if (!mtpc_zalo_admin_permission($operator['role'], 'zalo.send')) return 'Vai trò Zalo hiện tại không được gửi tin nhắn riêng qua OA.';
+    $userId = trim(isset($intent['recipient_user_id']) ? (string)$intent['recipient_user_id'] : '');
+    $message = trim(isset($intent['private_message']) ? (string)$intent['private_message'] : '');
+    if ($userId === '' || !preg_match('/^[0-9]{6,160}$/', $userId)) return 'Cần đúng Zalo User ID dạng số của người nhận. Có thể lấy ID trong mục Tin nhắn Zalo OA trên Admin.';
+    if ($message === '') return 'Cần có nội dung tin nhắn muốn gửi.';
+    try {
+        mtpc_zalo_send($config, $userId, $message);
+        $name = trim(isset($intent['recipient_name']) ? (string)$intent['recipient_name'] : '');
+        mtpc_zalo_append($messagesPath, array('id' => mtpc_zalo_id(), 'direction' => 'outbound', 'event_name' => 'zalo_operator_send_private', 'user_id' => $userId, 'user_name' => $name, 'text' => $message, 'received_at' => gmdate('c'), 'read' => true));
+        return 'Đã gửi tin nhắn riêng qua Zalo OA đến ' . ($name !== '' ? $name . ' (' . $userId . ')' : $userId) . '.';
+    } catch (Exception $error) {
+        return 'Không gửi được tin nhắn riêng: ' . $error->getMessage();
+    }
+}
+
 function mtpc_zalo_admin_group_pending_summary($groupsPath, $operator, $intent) {
     if (!mtpc_zalo_admin_permission($operator['role'], 'groups.write')) return 'Vai trò Zalo hiện tại chỉ được xem nhóm, không được thay đổi hoặc gửi tin.';
     $group = mtpc_zalo_admin_find_group($groupsPath, isset($intent['group_identifier']) ? $intent['group_identifier'] : '');
@@ -486,7 +505,7 @@ function mtpc_zalo_admin_execute_pending($pdo, $operator, $intent, $config, $gro
     throw new Exception('Thao tác Zalo chưa được hỗ trợ.');
 }
 
-function mtpc_zalo_admin_handle_message($operator, $text, $pendingPath, $config, $groupsPath) {
+function mtpc_zalo_admin_handle_message($operator, $text, $pendingPath, $config, $groupsPath, $messagesPath) {
     $userId = isset($operator['user_id']) ? (string)$operator['user_id'] : '';
     $pending = mtpc_zalo_admin_pending_read($pendingPath);
     $normalized = mtpc_zalo_admin_normalize($text);
@@ -538,6 +557,7 @@ function mtpc_zalo_admin_handle_message($operator, $text, $pendingPath, $config,
             if (!mtpc_zalo_admin_permission($operator['role'], 'finance.read')) return array('reply' => 'Vai trò Zalo hiện tại không được xem học phí và công nợ.', 'event_name' => 'zalo_admin_permission_denied');
             return array('reply' => mtpc_zalo_admin_read_finance_summary($pdo), 'event_name' => 'zalo_admin_command');
         }
+        if ($name === 'zalo_private_send') return array('reply' => mtpc_zalo_admin_send_private($config, $messagesPath, $operator, $intent), 'event_name' => 'zalo_private_send');
         if ($name === 'groups_list') return array('reply' => mtpc_zalo_admin_group_list($groupsPath, $operator), 'event_name' => 'zalo_group_command');
         if ($name === 'group_info') return array('reply' => mtpc_zalo_admin_group_info($config, $groupsPath, $operator, $intent['group_identifier']), 'event_name' => 'zalo_group_command');
         if ($name === 'group_members') return array('reply' => mtpc_zalo_admin_group_members($config, $groupsPath, $operator, $intent['group_identifier']), 'event_name' => 'zalo_group_command');
