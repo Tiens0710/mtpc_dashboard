@@ -6,6 +6,7 @@ $MTPC_ZALO_OA_ID = 'YOUR_ZALO_OA_ID';
 $MTPC_ZALO_OA_AUTO_REPLY = true;
 /* Keep the default unless Zalo gives your app a different endpoint. */
 $MTPC_ZALO_OA_SEND_URL = 'https://openapi.zalo.me/v3.0/oa/message/cs';
+$MTPC_ZALO_OA_GROUP_API_BASE = 'https://openapi.zalo.me/v3.0/oa/group';
 /* Optional: requires the OA permission to manage follower information. */
 $MTPC_ZALO_OA_PROFILE_URL = 'https://openapi.zalo.me/v3.0/oa/user/detail';
 /* Legacy fallback; leave unchanged unless Zalo changes the API. */

@@ -28,6 +28,7 @@ $config = array(
     'access_token' => '',
     'webhook_token' => '',
     'send_url' => 'https://openapi.zalo.me/v3.0/oa/message/cs',
+    'group_api_base' => 'https://openapi.zalo.me/v3.0/oa/group',
     'profile_url' => 'https://openapi.zalo.me/v3.0/oa/user/detail',
     'profile_fallback_url' => 'https://openapi.zalo.me/v2.0/oa/getprofile',
     'oa_id' => '',
@@ -38,6 +39,7 @@ if (is_file($configPath)) {
     if (isset($MTPC_ZALO_OA_ACCESS_TOKEN)) $config['access_token'] = trim((string)$MTPC_ZALO_OA_ACCESS_TOKEN);
     if (isset($MTPC_ZALO_OA_WEBHOOK_TOKEN)) $config['webhook_token'] = trim((string)$MTPC_ZALO_OA_WEBHOOK_TOKEN);
     if (isset($MTPC_ZALO_OA_SEND_URL) && trim((string)$MTPC_ZALO_OA_SEND_URL) !== '') $config['send_url'] = trim((string)$MTPC_ZALO_OA_SEND_URL);
+    if (isset($MTPC_ZALO_OA_GROUP_API_BASE) && trim((string)$MTPC_ZALO_OA_GROUP_API_BASE) !== '') $config['group_api_base'] = rtrim(trim((string)$MTPC_ZALO_OA_GROUP_API_BASE), '/');
     if (isset($MTPC_ZALO_OA_PROFILE_URL) && trim((string)$MTPC_ZALO_OA_PROFILE_URL) !== '') $config['profile_url'] = trim((string)$MTPC_ZALO_OA_PROFILE_URL);
     if (isset($MTPC_ZALO_OA_PROFILE_FALLBACK_URL) && trim((string)$MTPC_ZALO_OA_PROFILE_FALLBACK_URL) !== '') $config['profile_fallback_url'] = trim((string)$MTPC_ZALO_OA_PROFILE_FALLBACK_URL);
     if (isset($MTPC_ZALO_OA_ID)) $config['oa_id'] = trim((string)$MTPC_ZALO_OA_ID);
@@ -46,6 +48,7 @@ if (is_file($configPath)) {
 
 $storageDir = '/home/mtpc/private/mtpc-zalo-oa';
 $messagesPath = $storageDir . '/messages.jsonl';
+$groupsPath = $storageDir . '/groups.json';
 $operatorsPath = $storageDir . '/operators.json';
 $pendingCommandsPath = $storageDir . '/pending-commands.json';
 $linkRequestsPath = $storageDir . '/link-requests.json';
@@ -312,6 +315,72 @@ function mtpc_zalo_send($config, $userId, $message) {
     }
     return $response;
 }
+function mtpc_zalo_group_read($path) {
+    if (!is_file($path)) return array();
+    $data = json_decode((string)@file_get_contents($path), true);
+    return is_array($data) ? $data : array();
+}
+function mtpc_zalo_group_write($path, $rows) {
+    return @file_put_contents($path, json_encode(array_values($rows), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT) . "\n", LOCK_EX) !== false;
+}
+function mtpc_zalo_group_id($value) {
+    $value = trim((string)$value);
+    if ($value === '' || !preg_match('/^[A-Za-z0-9._:-]{4,180}$/', $value)) throw new Exception('Group ID không hợp lệ.');
+    return $value;
+}
+function mtpc_zalo_group_api($config, $method, $endpoint, $body, $query) {
+    if ($config['access_token'] === '') throw new Exception('Chưa cấu hình Zalo OA access token.');
+    $url = rtrim($config['group_api_base'], '/') . '/' . ltrim($endpoint, '/');
+    if (!empty($query)) $url .= '?' . http_build_query($query, '', '&');
+    $curl = curl_init($url);
+    $options = array(
+        CURLOPT_CUSTOMREQUEST => strtoupper($method),
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_CONNECTTIMEOUT => 8,
+        CURLOPT_TIMEOUT => 20,
+        CURLOPT_HTTPHEADER => array('Content-Type: application/json', 'access_token: ' . $config['access_token'])
+    );
+    if (strtoupper($method) !== 'GET' && $body !== null) $options[CURLOPT_POSTFIELDS] = json_encode($body, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    curl_setopt_array($curl, $options);
+    $raw = curl_exec($curl);
+    $status = (int)curl_getinfo($curl, CURLINFO_HTTP_CODE);
+    $error = curl_error($curl);
+    curl_close($curl);
+    if ($raw === false || $status < 200 || $status >= 300) throw new Exception('Zalo GMF từ chối yêu cầu (HTTP ' . $status . ').' . ($error !== '' ? ' ' . $error : ''));
+    $response = json_decode($raw, true);
+    if (!is_array($response)) throw new Exception('Zalo GMF trả về dữ liệu không hợp lệ.');
+    $errorCode = isset($response['error']) ? (int)$response['error'] : (isset($response['error_code']) ? (int)$response['error_code'] : 0);
+    if ($errorCode !== 0) {
+        $message = isset($response['message']) ? (string)$response['message'] : '';
+        throw new Exception('Zalo GMF trả về lỗi' . ($message !== '' ? ': ' . $message : ' (mã ' . $errorCode . ').'));
+    }
+    return $response;
+}
+function mtpc_zalo_group_info($response) {
+    $data = isset($response['data']) && is_array($response['data']) ? $response['data'] : array();
+    return isset($data['group_info']) && is_array($data['group_info']) ? $data['group_info'] : (isset($data['group']) && is_array($data['group']) ? $data['group'] : array());
+}
+function mtpc_zalo_group_save($path, $info, $extra) {
+    if (!is_array($info) || empty($info['group_id'])) return mtpc_zalo_group_read($path);
+    $id = (string)$info['group_id'];
+    $rows = mtpc_zalo_group_read($path); $found = false; $now = gmdate('c');
+    foreach ($rows as $index => $row) {
+        if (!is_array($row) || (string)(isset($row['group_id']) ? $row['group_id'] : '') !== $id) continue;
+        $rows[$index] = array_merge($row, $info, $extra, array('group_id' => $id, 'updated_at' => $now));
+        $found = true; break;
+    }
+    if (!$found) $rows[] = array_merge($info, $extra, array('group_id' => $id, 'created_at' => $now, 'updated_at' => $now));
+    if (!mtpc_zalo_group_write($path, $rows)) throw new Exception('Không thể lưu danh sách nhóm Zalo GMF.');
+    return $rows;
+}
+function mtpc_zalo_group_member_ids($value) {
+    $values = is_array($value) ? $value : array(); $result = array();
+    foreach ($values as $item) {
+        $item = trim((string)$item);
+        if ($item !== '' && preg_match('/^[0-9]{6,160}$/', $item)) $result[] = $item;
+    }
+    return array_values(array_unique($result));
+}
 
 $action = isset($_GET['action']) ? (string)$_GET['action'] : '';
 if (defined('MTPC_ZALO_PUBLIC_ENTRYPOINT') && MTPC_ZALO_PUBLIC_ENTRYPOINT && $action !== 'webhook') {
@@ -361,10 +430,119 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         $rows = array_slice($rows, 0, $limit);
         mtpc_zalo_out(200, array('ok' => true, 'count' => count($rows), 'messages' => $rows));
     }
+    if ($action === 'groups') {
+        if (!mtpc_zalo_same_origin()) mtpc_zalo_out(403, array('ok' => false, 'error' => 'Nguồn yêu cầu không hợp lệ.'));
+        mtpc_zalo_dashboard_admin();
+        mtpc_zalo_out(200, array('ok' => true, 'groups' => mtpc_zalo_group_read($groupsPath)));
+    }
+    if ($action === 'group-info') {
+        if (!mtpc_zalo_same_origin()) mtpc_zalo_out(403, array('ok' => false, 'error' => 'Nguồn yêu cầu không hợp lệ.'));
+        mtpc_zalo_dashboard_admin();
+        try {
+            $groupId = mtpc_zalo_group_id(isset($_GET['group_id']) ? $_GET['group_id'] : '');
+            $response = mtpc_zalo_group_api($config, 'GET', 'getgroup', null, array('group_id' => $groupId));
+            $info = mtpc_zalo_group_info($response);
+            if (empty($info['group_id'])) $info['group_id'] = $groupId;
+            mtpc_zalo_group_save($groupsPath, $info, array());
+            mtpc_zalo_out(200, array('ok' => true, 'group' => $info, 'response' => $response));
+        } catch (Exception $error) { mtpc_zalo_out(422, array('ok' => false, 'error' => $error->getMessage())); }
+    }
+    if ($action === 'group-members') {
+        if (!mtpc_zalo_same_origin()) mtpc_zalo_out(403, array('ok' => false, 'error' => 'Nguồn yêu cầu không hợp lệ.'));
+        mtpc_zalo_dashboard_admin();
+        try {
+            $groupId = mtpc_zalo_group_id(isset($_GET['group_id']) ? $_GET['group_id'] : '');
+            $offset = isset($_GET['offset']) ? max(0, (int)$_GET['offset']) : 0;
+            $count = isset($_GET['count']) ? max(1, min(100, (int)$_GET['count'])) : 100;
+            mtpc_zalo_out(200, array('ok' => true, 'response' => mtpc_zalo_group_api($config, 'GET', 'listmember', null, array('group_id' => $groupId, 'offset' => $offset, 'count' => $count))));
+        } catch (Exception $error) { mtpc_zalo_out(422, array('ok' => false, 'error' => $error->getMessage())); }
+    }
+    if ($action === 'group-conversation') {
+        if (!mtpc_zalo_same_origin()) mtpc_zalo_out(403, array('ok' => false, 'error' => 'Nguồn yêu cầu không hợp lệ.'));
+        mtpc_zalo_dashboard_admin();
+        try {
+            $groupId = mtpc_zalo_group_id(isset($_GET['group_id']) ? $_GET['group_id'] : '');
+            $offset = isset($_GET['offset']) ? max(0, (int)$_GET['offset']) : 0;
+            $count = isset($_GET['count']) ? max(1, min(50, (int)$_GET['count'])) : 20;
+            mtpc_zalo_out(200, array('ok' => true, 'response' => mtpc_zalo_group_api($config, 'GET', 'conversation', null, array('group_id' => $groupId, 'offset' => $offset, 'count' => $count))));
+        } catch (Exception $error) { mtpc_zalo_out(422, array('ok' => false, 'error' => $error->getMessage())); }
+    }
     mtpc_zalo_out(400, array('ok' => false, 'error' => 'Thiếu action hợp lệ.'));
 }
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') mtpc_zalo_out(405, array('ok' => false, 'error' => 'Phương thức không được hỗ trợ.'));
+
+if ($action === 'group-create') {
+    if (!mtpc_zalo_same_origin()) mtpc_zalo_out(403, array('ok' => false, 'error' => 'Nguồn yêu cầu không hợp lệ.'));
+    $dashboard = mtpc_zalo_dashboard_admin();
+    try {
+        $body = mtpc_zalo_body();
+        $groupName = mtpc_zalo_cut(isset($body['group_name']) ? $body['group_name'] : '', 100);
+        $assetId = mtpc_zalo_cut(isset($body['asset_id']) ? $body['asset_id'] : '', 180);
+        $description = mtpc_zalo_cut(isset($body['group_description']) ? $body['group_description'] : '', 500);
+        $members = mtpc_zalo_group_member_ids(isset($body['member_user_ids']) ? $body['member_user_ids'] : array());
+        if ($groupName === '') throw new Exception('Vui lòng nhập tên nhóm.');
+        if ($assetId === '') throw new Exception('Vui lòng nhập asset_id của gói GMF trong Zalo Developers/OA Manager.');
+        if (count($members) < 1) throw new Exception('Cần ít nhất một Zalo User ID làm thành viên nhóm.');
+        $payload = array('group_name' => $groupName, 'asset_id' => $assetId, 'member_user_ids' => $members);
+        if ($description !== '') $payload['group_description'] = $description;
+        $response = mtpc_zalo_group_api($config, 'POST', 'creategroupwithoa', $payload, array());
+        $info = mtpc_zalo_group_info($response);
+        if (empty($info['group_id']) && isset($response['data']['group_id'])) $info['group_id'] = $response['data']['group_id'];
+        if (empty($info['group_id'])) throw new Exception('Zalo tạo nhóm thành công nhưng không trả về group_id.');
+        $info['name'] = isset($info['name']) && $info['name'] !== '' ? $info['name'] : $groupName;
+        mtpc_zalo_group_save($groupsPath, $info, array('asset_id' => $assetId, 'group_description' => $description, 'member_user_ids' => $members));
+        try { $audit = $dashboard['pdo']->prepare('INSERT INTO system_audit_logs(actor_username,actor_role,action,entity_type,entity_id,before_data,after_data,ip_address) VALUES(:u,:r,:a,:t,:i,:b,:n,:ip)'); $audit->execute(array(':u' => $dashboard['actor']['username'], ':r' => $dashboard['actor']['role'], ':a' => 'zalo.group_create', ':t' => 'zalo_group', ':i' => (string)$info['group_id'], ':b' => null, ':n' => json_encode($info, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), ':ip' => isset($_SERVER['REMOTE_ADDR']) ? $_SERVER['REMOTE_ADDR'] : '')); } catch (Exception $ignore) {}
+        mtpc_zalo_out(200, array('ok' => true, 'message' => 'Đã tạo nhóm chat GMF.', 'group' => $info, 'response' => $response));
+    } catch (Exception $error) { mtpc_zalo_out(422, array('ok' => false, 'error' => $error->getMessage())); }
+}
+
+if ($action === 'group-register') {
+    if (!mtpc_zalo_same_origin()) mtpc_zalo_out(403, array('ok' => false, 'error' => 'Nguồn yêu cầu không hợp lệ.'));
+    mtpc_zalo_dashboard_admin();
+    try {
+        $body = mtpc_zalo_body(); $groupId = mtpc_zalo_group_id(isset($body['group_id']) ? $body['group_id'] : '');
+        $info = array('group_id' => $groupId, 'name' => mtpc_zalo_cut(isset($body['name']) ? $body['name'] : '', 100), 'group_description' => mtpc_zalo_cut(isset($body['group_description']) ? $body['group_description'] : '', 500), 'group_link' => mtpc_zalo_cut(isset($body['group_link']) ? $body['group_link'] : '', 500));
+        mtpc_zalo_group_save($groupsPath, $info, array());
+        mtpc_zalo_out(200, array('ok' => true, 'message' => 'Đã thêm nhóm GMF vào danh sách quản lý.', 'groups' => mtpc_zalo_group_read($groupsPath)));
+    } catch (Exception $error) { mtpc_zalo_out(422, array('ok' => false, 'error' => $error->getMessage())); }
+}
+
+if ($action === 'group-update') {
+    if (!mtpc_zalo_same_origin()) mtpc_zalo_out(403, array('ok' => false, 'error' => 'Nguồn yêu cầu không hợp lệ.'));
+    mtpc_zalo_dashboard_admin();
+    try {
+        $body = mtpc_zalo_body(); $groupId = mtpc_zalo_group_id(isset($body['group_id']) ? $body['group_id'] : '');
+        $allowed = array('group_name', 'group_avatar', 'group_description', 'lock_send_msg', 'join_appr', 'enable_msg_history', 'enable_link_join'); $payload = array('group_id' => $groupId); $local = array('group_id' => $groupId);
+        foreach ($allowed as $key) if (array_key_exists($key, $body) && $body[$key] !== '') { $payload[$key] = is_bool($body[$key]) ? $body[$key] : mtpc_zalo_cut($body[$key], 500); $local[$key] = $payload[$key]; }
+        if (count($payload) === 1) throw new Exception('Chưa có thông tin nào cần cập nhật.');
+        $response = mtpc_zalo_group_api($config, 'POST', 'updateinfo', $payload, array());
+        mtpc_zalo_group_save($groupsPath, $local, array());
+        mtpc_zalo_out(200, array('ok' => true, 'message' => 'Đã cập nhật nhóm GMF.', 'response' => $response, 'groups' => mtpc_zalo_group_read($groupsPath)));
+    } catch (Exception $error) { mtpc_zalo_out(422, array('ok' => false, 'error' => $error->getMessage())); }
+}
+
+if ($action === 'group-send') {
+    if (!mtpc_zalo_same_origin()) mtpc_zalo_out(403, array('ok' => false, 'error' => 'Nguồn yêu cầu không hợp lệ.'));
+    mtpc_zalo_dashboard_admin();
+    try {
+        $body = mtpc_zalo_body(); $groupId = mtpc_zalo_group_id(isset($body['group_id']) ? $body['group_id'] : ''); $text = mtpc_zalo_cut(isset($body['text']) ? $body['text'] : '', 2000);
+        if ($text === '') throw new Exception('Nội dung tin nhắn không được để trống.');
+        $response = mtpc_zalo_group_api($config, 'POST', 'message', array('recipient' => array('group_id' => $groupId), 'message' => array('text' => $text)), array());
+        mtpc_zalo_out(200, array('ok' => true, 'sent' => true, 'message' => 'Đã gửi tin nhắn vào nhóm GMF.', 'response' => $response));
+    } catch (Exception $error) { mtpc_zalo_out(502, array('ok' => false, 'sent' => false, 'error' => $error->getMessage(), 'code' => 'ZALO_GMF_SEND_FAILED')); }
+}
+
+if ($action === 'group-accept-members') {
+    if (!mtpc_zalo_same_origin()) mtpc_zalo_out(403, array('ok' => false, 'error' => 'Nguồn yêu cầu không hợp lệ.'));
+    mtpc_zalo_dashboard_admin();
+    try {
+        $body = mtpc_zalo_body(); $groupId = mtpc_zalo_group_id(isset($body['group_id']) ? $body['group_id'] : ''); $members = mtpc_zalo_group_member_ids(isset($body['member_user_ids']) ? $body['member_user_ids'] : array());
+        if (!$members) throw new Exception('Chưa chọn thành viên cần duyệt.');
+        $response = mtpc_zalo_group_api($config, 'POST', 'acceptpendinginvite', array('group_id' => $groupId, 'member_user_ids' => $members), array());
+        mtpc_zalo_out(200, array('ok' => true, 'message' => 'Đã duyệt thành viên vào nhóm.', 'response' => $response));
+    } catch (Exception $error) { mtpc_zalo_out(422, array('ok' => false, 'error' => $error->getMessage())); }
+}
 
 if ($action === 'webhook') {
     $provided = isset($_GET['token']) ? trim((string)$_GET['token']) : mtpc_zalo_header('X-MTPC-ZALO-WEBHOOK-TOKEN');

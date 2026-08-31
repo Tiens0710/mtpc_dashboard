@@ -133,6 +133,7 @@ $MTPC_ZALO_OA_WEBHOOK_TOKEN = 'LONG_RANDOM_TOKEN';
 $MTPC_ZALO_OA_ID = 'OA_ID';
 $MTPC_ZALO_OA_AUTO_REPLY = true;
 $MTPC_ZALO_OA_SEND_URL = 'https://openapi.zalo.me/v3.0/oa/message/cs';
+$MTPC_ZALO_OA_GROUP_API_BASE = 'https://openapi.zalo.me/v3.0/oa/group';
 $MTPC_ZALO_OA_PROFILE_URL = 'https://openapi.zalo.me/v3.0/oa/user/detail';
 $MTPC_ZALO_OA_PROFILE_FALLBACK_URL = 'https://openapi.zalo.me/v2.0/oa/getprofile';
 ```

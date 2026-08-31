@@ -142,9 +142,18 @@ gán học phí, nhận thanh toán, cập nhật điểm và thêm tài liệu 
 ```text
 GET  api/zalo-oa.php?action=messages&date_mode=today
 GET  api/zalo-oa.php?action=operators
+GET  api/zalo-oa.php?action=groups
+GET  api/zalo-oa.php?action=group-info&group_id=...
+GET  api/zalo-oa.php?action=group-members&group_id=...
+GET  api/zalo-oa.php?action=group-conversation&group_id=...
 POST api/zalo-oa.php?action=send
 POST api/zalo-oa.php?action=operator-upsert
 POST api/zalo-oa.php?action=operator-link-request
+POST api/zalo-oa.php?action=group-create
+POST api/zalo-oa.php?action=group-register
+POST api/zalo-oa.php?action=group-update
+POST api/zalo-oa.php?action=group-send
+POST api/zalo-oa.php?action=group-accept-members
 ```
 
 Webhook public của OA dùng cùng implementation nhưng đi qua
@@ -154,6 +163,7 @@ message/operator/pending command được lưu ngoài web root tại:
 ```text
 /home/mtpc/private/mtpc-zalo-oa/messages.jsonl
 /home/mtpc/private/mtpc-zalo-oa/operators.json
+/home/mtpc/private/mtpc-zalo-oa/groups.json
 /home/mtpc/private/mtpc-zalo-oa/pending-commands.json
 /home/mtpc/private/mtpc-zalo-oa/link-requests.json
 ```
@@ -204,6 +214,22 @@ Lệnh thay đổi như đổi trạng thái hoặc chuyển lớp sẽ:
 
 Auto-reply thông thường trên OA không cần bấm duyệt trên web. Bước xác nhận
 chỉ áp dụng cho thay đổi dữ liệu quản trị để tránh AI hiểu nhầm câu lệnh.
+
+### Nhóm Zalo OA (GMF)
+
+Trong **Đăng nhập & phân quyền → Nhóm Zalo OA (GMF)**:
+
+1. Chọn **Tạo nhóm GMF**, nhập tên nhóm, `asset_id` của gói GMF và các Zalo
+   User ID thành viên ban đầu.
+2. Nếu nhóm đã tạo trong OA Manager, chọn **Kết nối nhóm có sẵn** rồi nhập
+   `group_id`.
+3. Bấm **Quản lý** để cập nhật tên/mô tả/cài đặt, xem thành viên, đọc hội
+   thoại, duyệt thành viên mới hoặc gửi tin vào nhóm.
+
+Nhóm phải thuộc OA và ứng dụng phải được cấp quyền **Quản lý thông tin nhóm**.
+API dùng các endpoint GMF của Zalo, không gửi vào nhóm Zalo cá nhân thông
+thường. Có thể xem tài liệu gửi tin nhóm tại
+<https://stc-developers.zdn.vn/docs/v2/official-account/nhom-chat-gmf/tin-nhan/text_message>.
 
 ## Cấu hình các dịch vụ
 
