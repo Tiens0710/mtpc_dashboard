@@ -966,5 +966,19 @@
       document.addEventListener('click',function(event){var button=event.target.closest('[data-moodle-card-detail]');if(button&&window.MTPC_MOODLE_OPEN_DETAIL)window.MTPC_MOODLE_OPEN_DETAIL(button.getAttribute('data-moodle-card-detail'),button.getAttribute('data-course-id'))});
     })();
   </script>
+  <script>
+    /* A failed backend action must never be rendered as a successful Moodle card. */
+    (function(){
+      var mtpcOriginalAdminRunTool=window.adminRunTool||adminRunTool;
+      adminRunTool=async function(name,args){
+        var result=await mtpcOriginalAdminRunTool(name,args);
+        if(result&&result.ok===false&&result.moodle_visual)delete result.moodle_visual;
+        if(result&&result.ok===true&&result.moodle_visual&&result.discussionid){
+          result.moodle_visual.details=(result.moodle_visual.details||[]).concat([['Mã bài đăng','Discussion ID '+result.discussionid]]);
+        }
+        return result;
+      };
+    })();
+  </script>
 </body>
 </html>

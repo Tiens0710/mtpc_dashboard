@@ -117,6 +117,11 @@ function mtpc_moodle_find_announcement_forum($moodle, $courseId)
     return null;
 }
 
+function mtpc_moodle_forum_url($moodleUrl, $forumId)
+{
+    return rtrim($moodleUrl, '/') . '/mod/forum/view.php?f=' . (int)$forumId;
+}
+
 try {
     $moodle = new MoodleFullClient($moodleUrl, $moodleToken);
 
@@ -327,8 +332,12 @@ try {
         $forum = $forumId > 0 ? array('id' => $forumId, 'name' => 'Forum #' . $forumId) : mtpc_moodle_find_announcement_forum($moodle, $courseId);
         if (!$forum || empty($forum['id'])) mtpc_moodle_response(422, array('ok' => false, 'error' => 'Không tìm thấy diễn đàn thông báo của khoá học. Hãy truyền Forum ID hoặc tạo forum Announcements trong Moodle.'));
         $result = $moodle->addForumDiscussion((int)$forum['id'], $subject, $message);
+        $discussionId = isset($result['discussionid']) ? (int)$result['discussionid'] : 0;
+        if ($discussionId <= 0) {
+            mtpc_moodle_response(502, array('ok' => false, 'error' => 'Moodle không trả về mã bài đăng sau khi gọi API. Bài thông báo chưa được xác nhận là đã tạo.', 'forum' => $forum, 'result' => $result));
+        }
         mtpc_audit('moodle.announcement.create', 'moodle_course', $courseId, null, array('forumid' => (int)$forum['id'], 'subject' => $subject));
-        mtpc_moodle_response(201, array('ok' => true, 'message' => 'Đã đăng thông báo lên Moodle.', 'courseid' => $courseId, 'forum' => $forum, 'result' => $result));
+        mtpc_moodle_response(201, array('ok' => true, 'message' => 'Đã đăng thông báo lên Moodle.', 'courseid' => $courseId, 'forum' => $forum, 'discussionid' => $discussionId, 'url' => mtpc_moodle_forum_url($moodleUrl, $forum['id']), 'result' => $result));
     }
 
     if ($action === 'save-grade') {
