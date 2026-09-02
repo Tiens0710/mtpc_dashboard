@@ -209,6 +209,10 @@ trong vòng 10 phút. Việc xác nhận diễn ra ngay trong cuộc trò chuy�
 không cần mở website. Tất cả thao tác thay đổi đều ghi vào lịch sử sinh viên
 và audit log.
 
+Quản trị viên cũng có thể yêu cầu orb Nhi tạo nhóm Zalo GMF bằng giọng nói.
+Nhi sẽ hỏi các thông tin còn thiếu như tên nhóm, `asset_id` gói GMF và các Zalo
+User ID muốn thêm ban đầu, sau đó gọi API tạo nhóm và trả về Group ID/link.
+
 ## Đồng bộ knowledge/RAG
 
 `tools/sync-knowledge.php` đọc sitemap và các trang public của `mtpc.edu.vn`,
