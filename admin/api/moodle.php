@@ -31,7 +31,7 @@ $writePermissions = array(
     'create-course' => 'moodle.write', 'update-course' => 'moodle.write', 'delete-course' => 'moodle.write',
     'enrol-user' => 'moodle.write', 'unenrol-user' => 'moodle.write', 'create-user' => 'moodle.write',
     'update-user' => 'moodle.write', 'delete-user' => 'moodle.write',
-    'post-announcement' => 'moodle.content.write', 'save-grade' => 'moodle.grade.write',
+    'post-announcement' => 'moodle.content.write', 'post-lecture' => 'moodle.content.write', 'save-grade' => 'moodle.grade.write',
     'create-group' => 'moodle.group.write', 'add-group-member' => 'moodle.group.write',
     'create-calendar-event' => 'moodle.calendar.write', 'send-message' => 'moodle.message.write'
 );
@@ -137,7 +137,7 @@ try {
             'mod_assign_get_submissions', 'mod_assign_get_grades', 'mod_assign_save_grade',
             'core_group_get_course_groups', 'core_group_create_groups', 'core_group_add_group_members',
             'core_calendar_get_calendar_events', 'core_calendar_create_calendar_events',
-            'core_message_send_instant_messages'
+            'core_message_send_instant_messages', 'local_mtpcbridge_create_lecture'
         );
         $available = array();
         foreach ($required as $name) {
@@ -260,6 +260,23 @@ try {
     }
 
     $body = mtpc_moodle_body();
+    if ($action === 'post-lecture') {
+        $courseId = isset($body['courseid']) ? (int)$body['courseid'] : 0;
+        $sectionNum = isset($body['sectionnum']) ? max(0, (int)$body['sectionnum']) : 0;
+        $type = isset($body['type']) ? strtolower(trim((string)$body['type'])) : 'page';
+        $name = mtpc_moodle_text(isset($body['name']) ? $body['name'] : '', 254);
+        $content = mtpc_moodle_text(isset($body['content']) ? $body['content'] : '', 1000000);
+        $url = mtpc_moodle_text(isset($body['url']) ? $body['url'] : '', 2000);
+        $contentFormat = isset($body['contentformat']) ? (int)$body['contentformat'] : 1;
+        if ($courseId <= 0 || $name === '') mtpc_moodle_response(422, array('ok' => false, 'error' => 'Cần Course ID và tiêu đề bài giảng.'));
+        if (!in_array($type, array('page', 'url'), true)) mtpc_moodle_response(422, array('ok' => false, 'error' => 'Loại bài giảng chỉ hỗ trợ page hoặc url.'));
+        if ($type === 'page' && $content === '') mtpc_moodle_response(422, array('ok' => false, 'error' => 'Bài giảng dạng page cần có nội dung.'));
+        if ($type === 'url' && $url === '') mtpc_moodle_response(422, array('ok' => false, 'error' => 'Bài giảng dạng URL cần có liên kết.'));
+        $result = $moodle->createLecture($courseId, $sectionNum, $type, $name, $content, $contentFormat, $url);
+        mtpc_audit('moodle.lecture.create', 'moodle_course', $courseId, null, array('type' => $type, 'name' => $name, 'sectionnum' => $sectionNum));
+        mtpc_moodle_response(201, array('ok' => true, 'message' => 'Đã đăng bài giảng vào nội dung khoá học Moodle.', 'courseid' => $courseId, 'lecture' => $result));
+    }
+
     if ($action === 'post-announcement') {
         $courseId = isset($body['courseid']) ? (int)$body['courseid'] : 0;
         $forumId = isset($body['forumid']) ? (int)$body['forumid'] : 0;

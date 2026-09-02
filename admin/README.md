@@ -21,7 +21,7 @@ trợ lý giọng nói public nằm ở thư mục gốc của repository; tài 
 - Đọc email quản trị qua IMAP và gửi email qua SMTP.
 - Đọc tin nhắn Zalo OA, trả lời trực tiếp và cấp quyền điều khiển OA.
 - Kết nối Moodle tại `moodle.mtpc.edu.vn`: kiểm tra kết nối, xem khoá học,
-  nội dung, thành viên, tìm tài khoản, tạo khoá học và ghi danh.
+  nội dung, thành viên, tìm tài khoản, đăng bài giảng, tạo khoá học và ghi danh.
 - AI Copilot và SEO Studio hỗ trợ tạo nội dung nháp.
 
 ## Kiến trúc kỹ thuật
@@ -332,10 +332,22 @@ tạo khoá học, ghi danh, đăng thông báo, lưu điểm, tạo nhóm, tạ
 tin không chạy ngay mà tạo yêu cầu trong mục **Phê duyệt AI** để quản trị viên
 kiểm tra và duyệt. Sau khi duyệt, dashboard tự gọi Moodle và tải lại dữ liệu.
 
-Hiện phần “đăng bài” là đăng thông báo vào forum Announcements của khoá học;
-không tự tạo file/tài nguyên hoặc một loại hoạt động bất kỳ. Muốn AI tự tạo
-Assignment, Quiz, Page hoặc upload tài liệu cần bổ sung Moodle local plugin và
-đăng ký thêm external functions tương ứng.
+Phần “đăng bài” có hai dạng: đăng thông báo vào forum Announcements hoặc đăng
+bài giảng dạng **Page** / **URL** vào đúng chủ đề/tuần của khoá học. Để bật Page
+và URL, cài plugin `moodle-plugin/local/mtpcbridge` vào thư mục `local/` của
+Moodle, hoàn tất nâng cấp plugin, sau đó thêm function
+`local_mtpcbridge_create_lecture` vào External service đang cấp cho token.
+
+Ví dụ:
+
+```text
+“Đăng bài giảng tuần 1 vào Course 2, tiêu đề Hệ điều hành, nội dung là ...”
+“Đăng video bài giảng tuần 2 vào Course 2: https://...”
+```
+
+Tạo Assignment, Quiz hoặc upload file trực tiếp vẫn cần bổ sung module-specific
+external functions tương ứng; plugin hiện tại tập trung vào Page và URL để giáo
+viên có luồng đăng bài giảng ngắn nhất.
 
 ## Triển khai
 

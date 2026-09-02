@@ -162,8 +162,14 @@ Moodle Web Services nằm trong [`admin/README.md`](admin/README.md).
 Trong **AI Copilot** và orb Nhi, quản trị viên có thể hỏi trực tiếp về Moodle
 (trạng thái kết nối, khoá học, nội dung, thành viên, tài khoản và bài tập).
 Orb Nhi còn hỗ trợ đăng thông báo lên forum Announcements, xem bài nộp/điểm,
-quản lý nhóm, tạo lịch và gửi tin Moodle. Kết quả được hiển thị thành thẻ trực
-quan; mọi thao tác ghi đều được đưa vào **Phê duyệt AI** trước khi thực hiện.
+quản lý nhóm, tạo lịch, gửi tin Moodle và đăng bài giảng dạng Page hoặc liên kết
+video/tài liệu. Kết quả được hiển thị thành thẻ trực quan; mọi thao tác ghi đều
+được đưa vào **Phê duyệt AI** trước khi thực hiện.
+
+Để đăng bài giảng dạng Page/URL, cần cài plugin Moodle tại
+[`moodle-plugin/local/mtpcbridge`](moodle-plugin/local/mtpcbridge) vào thư mục
+`local/` của Moodle, rồi tạo/cập nhật External service để thêm function
+`local_mtpcbridge_create_lecture` cho token đang dùng.
 
 ### Lấy đúng tên người dùng
 

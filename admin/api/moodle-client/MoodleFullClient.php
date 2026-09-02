@@ -502,6 +502,23 @@ class MoodleFullClient extends MoodleClient
         return $this->call('mod_forum_add_discussion', $params);
     }
 
+    /**
+     * Tạo bài giảng Page hoặc URL thông qua plugin local_mtpcbridge trên Moodle.
+     * Plugin dùng add_moduleinfo() phía Moodle để tạo đúng course module.
+     */
+    public function createLecture($courseId, $sectionNum, $type, $name, $content = '', $contentFormat = 1, $url = '')
+    {
+        return $this->call('local_mtpcbridge_create_lecture', array(
+            'courseid' => (int)$courseId,
+            'sectionnum' => (int)$sectionNum,
+            'type' => (string)$type,
+            'name' => (string)$name,
+            'content' => (string)$content,
+            'contentformat' => (int)$contentFormat,
+            'url' => (string)$url,
+        ));
+    }
+
     public function addDiscussionPost($discussionId, $subject, $message, $options = array())
     {
         $params = array_merge(array(
