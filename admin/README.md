@@ -75,8 +75,10 @@ chiếu với bảng `admin_users`.
 | `training` | Hồ sơ, học tập, điểm danh; được xem tài chính; được cập nhật dữ liệu được cấp |
 | `teacher` | Xem dữ liệu học vụ/sinh viên ở phạm vi giới hạn và nhập điểm danh |
 
-Quyền Moodle được gộp vào quyền dashboard: `admin` toàn quyền, `training` được
-đọc và thao tác Moodle, `teacher` chỉ được đọc.
+Quyền Moodle được kiểm tra theo nhóm chức năng: `admin` toàn quyền, `training`
+được đọc và thao tác Moodle, còn `teacher` mặc định được đọc và có thể được cấp
+riêng quyền nội dung, điểm, nhóm, lịch hoặc tin nhắn Moodle. Các thao tác ghi
+vẫn đi qua **Phê duyệt AI**.
 
 Nếu bảng `admin_users` chưa có bản ghi, lần đăng nhập đầu tiên sau khi chạy
 schema sẽ được bootstrap thành `admin`. Sau đó nên cấp quyền rõ ràng cho từng
@@ -313,15 +315,27 @@ xoá khoá học/tài khoản còn yêu cầu xác nhận `DELETE` ở backend.
 
 ### Moodle trong AI Copilot
 
-AI Copilot và orb Nhi dùng tool `moodle_action`. Có thể nói các yêu cầu như:
+AI Copilot và orb Nhi dùng `moodle_action` cho dữ liệu cơ bản và
+`moodle_teaching_action` cho vận hành giảng dạy. Có thể nói các yêu cầu như:
 
 - “Moodle có những khoá học nào?”
 - “Xem nội dung Course 2” hoặc “xem thành viên khoá học 2”
 - “Tìm tài khoản Moodle Nguyễn Văn A”
+- “Đăng thông báo lên Course 2: Ngày mai học bù tiết 1”
+- “Xem bài nộp Assignment 12” hoặc “xem điểm Assignment 12”
+- “Tạo nhóm Nhóm 1 cho Course 2”
+- “Tạo lịch kiểm tra cho Course 2”
+- “Gửi thông báo Moodle cho User 15 và 18”
 
 Các kết quả đọc được hiển thị thành thẻ trực quan trong khung hội thoại. Lệnh
-tạo khoá học, ghi danh hoặc huỷ ghi danh không chạy ngay mà tạo yêu cầu trong
-mục **Phê duyệt AI** để quản trị viên kiểm tra và duyệt.
+tạo khoá học, ghi danh, đăng thông báo, lưu điểm, tạo nhóm, tạo lịch hoặc gửi
+tin không chạy ngay mà tạo yêu cầu trong mục **Phê duyệt AI** để quản trị viên
+kiểm tra và duyệt. Sau khi duyệt, dashboard tự gọi Moodle và tải lại dữ liệu.
+
+Hiện phần “đăng bài” là đăng thông báo vào forum Announcements của khoá học;
+không tự tạo file/tài nguyên hoặc một loại hoạt động bất kỳ. Muốn AI tự tạo
+Assignment, Quiz, Page hoặc upload tài liệu cần bổ sung Moodle local plugin và
+đăng ký thêm external functions tương ứng.
 
 ## Triển khai
 

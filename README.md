@@ -149,18 +149,21 @@ Thư mục `private/` trong repository đã được `.gitignore` loại khỏi 
 Mã tool Moodle ở `D:/moodle` đã được đưa vào `admin/api/moodle-client/`. Dashboard
 không gọi Moodle trực tiếp từ browser: `admin/api/moodle.php` giữ token ở phía
 server và cung cấp các thao tác kiểm tra kết nối, đọc khoá học/nội dung/thành
-viên, tìm tài khoản, tạo khoá học và ghi danh.
+viên, tìm tài khoản, đăng thông báo, xem bài nộp/điểm, quản lý nhóm, tạo lịch,
+gửi tin nhắn, tạo khoá học và ghi danh.
 
 Tạo file `/home/mtpc/private/moodle-config.php` theo mẫu
 [`docs/moodle-config.example.php`](docs/moodle-config.example.php), sau đó vào
 mục **Moodle** trong Admin. Quyền được áp dụng theo role dashboard: `admin`
-toàn quyền, `training` đọc/ghi Moodle và `teacher` chỉ đọc. Chi tiết cấu hình
+toàn quyền, `training` đọc/ghi Moodle và `teacher` được cấp các quyền giảng dạy
+theo nhóm chức năng. Chi tiết cấu hình
 Moodle Web Services nằm trong [`admin/README.md`](admin/README.md).
 
 Trong **AI Copilot** và orb Nhi, quản trị viên có thể hỏi trực tiếp về Moodle
 (trạng thái kết nối, khoá học, nội dung, thành viên, tài khoản và bài tập).
-Kết quả được hiển thị thành thẻ trực quan ngay trong cuộc trò chuyện; tạo khoá
-học hoặc ghi danh sẽ được đưa vào **Phê duyệt AI** trước khi ghi dữ liệu.
+Orb Nhi còn hỗ trợ đăng thông báo lên forum Announcements, xem bài nộp/điểm,
+quản lý nhóm, tạo lịch và gửi tin Moodle. Kết quả được hiển thị thành thẻ trực
+quan; mọi thao tác ghi đều được đưa vào **Phê duyệt AI** trước khi thực hiện.
 
 ### Lấy đúng tên người dùng
 
