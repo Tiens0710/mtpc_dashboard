@@ -166,10 +166,17 @@ quản lý nhóm, tạo lịch, gửi tin Moodle và đăng bài giảng dạng 
 video/tài liệu. Kết quả được hiển thị thành thẻ trực quan; mọi thao tác ghi đều
 được đưa vào **Phê duyệt AI** trước khi thực hiện.
 
-Để đăng bài giảng dạng Page/URL, cần cài plugin Moodle tại
+Để đăng bài giảng dạng Page/URL hoặc upload file từ máy, cần cài plugin Moodle tại
 [`moodle-plugin/local/mtpcbridge`](moodle-plugin/local/mtpcbridge) vào thư mục
 `local/` của Moodle, rồi tạo/cập nhật External service để thêm function
-`local_mtpcbridge_create_lecture` cho token đang dùng.
+`local_mtpcbridge_create_lecture` và `local_mtpcbridge_create_file_lecture` cho
+token đang dùng.
+
+Trong Admin, mở mục **Moodle → Đăng bài giảng**, chọn Course, Category/chủ đề,
+chọn file rồi bấm **Đăng bài giảng**. File được tạo thành hoạt động Page trong
+đúng section; hỗ trợ PDF, Word, PowerPoint, TXT/Markdown/HTML và JPG/PNG, tối
+đa 20 MB. Khi nói “đăng bài giảng” với orb Nhi mà chưa cung cấp đủ Course và
+nội dung, dashboard sẽ mở form này để chọn nhanh.
 
 ### Lấy đúng tên người dùng
 

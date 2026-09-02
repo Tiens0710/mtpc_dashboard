@@ -106,4 +106,116 @@ class local_mtpcbridge_external extends external_api {
             'url' => new external_value(PARAM_URL),
         ));
     }
+
+    /**
+     * Create a Page activity and attach one uploaded lecture file to it.
+     * The dashboard sends base64 because Moodle Web Services receives JSON.
+     */
+    public static function create_file_lecture_parameters() {
+        return new external_function_parameters(array(
+            'courseid' => new external_value(PARAM_INT, 'Course ID', VALUE_REQUIRED),
+            'sectionnum' => new external_value(PARAM_INT, 'Course section number', VALUE_DEFAULT, 0),
+            'name' => new external_value(PARAM_TEXT, 'Lecture title', VALUE_REQUIRED),
+            'filename' => new external_value(PARAM_FILE, 'Uploaded filename', VALUE_REQUIRED),
+            'mimetype' => new external_value(PARAM_TEXT, 'Uploaded file MIME type', VALUE_DEFAULT, 'application/octet-stream'),
+            'filecontent' => new external_value(PARAM_RAW, 'Base64 encoded file content', VALUE_REQUIRED),
+            'description' => new external_value(PARAM_RAW, 'Optional description', VALUE_DEFAULT, ''),
+        ));
+    }
+
+    public static function create_file_lecture($courseid, $sectionnum, $name, $filename, $mimetype, $filecontent, $description) {
+        global $DB, $USER;
+
+        $params = self::validate_parameters(self::create_file_lecture_parameters(), array(
+            'courseid' => $courseid,
+            'sectionnum' => $sectionnum,
+            'name' => $name,
+            'filename' => $filename,
+            'mimetype' => $mimetype,
+            'filecontent' => $filecontent,
+            'description' => $description,
+        ));
+
+        $course = get_course($params['courseid']);
+        $context = context_course::instance($course->id);
+        self::validate_context($context);
+        require_capability('moodle/course:manageactivities', $context);
+
+        $name = trim($params['name']);
+        $filename = clean_param(trim($params['filename']), PARAM_FILE);
+        $description = clean_param($params['description'], PARAM_CLEANHTML);
+        if ($name === '' || $filename === '') {
+            throw new invalid_parameter_exception('Lecture title and filename are required.');
+        }
+        if (strlen($params['filecontent']) > 28 * 1024 * 1024) {
+            throw new invalid_parameter_exception('Uploaded file is too large.');
+        }
+        $filecontent = base64_decode($params['filecontent'], true);
+        if ($filecontent === false || $filecontent === '') {
+            throw new invalid_parameter_exception('Uploaded file content is not valid base64.');
+        }
+        if (strlen($filecontent) > 20 * 1024 * 1024) {
+            throw new invalid_parameter_exception('Uploaded file must be 20 MB or smaller.');
+        }
+
+        list($module, $coursecontext, $sectioninfo, $cm, $data) = prepare_new_moduleinfo_data(
+            $course, 'page', (int)$params['sectionnum']
+        );
+        $data->name = clean_param($name, PARAM_TEXT);
+        $data->intro = '';
+        $data->introformat = FORMAT_HTML;
+        $data->display = RESOURCELIB_DISPLAY_EMBED;
+        $data->printintro = 0;
+        $data->printlastmodified = 1;
+        $data->visible = 1;
+        $data->content = '<p>' . ($description !== '' ? $description . '</p><p>' : '') . 'Tài liệu bài giảng: <a href="@@PLUGINFILE@@/' . rawurlencode($filename) . '">' . s($filename) . '</a></p>';
+        $data->contentformat = FORMAT_HTML;
+        $data->revision = 1;
+
+        $created = add_moduleinfo($data, $course, null);
+        $modulecontext = context_module::instance($created->coursemodule);
+        $fs = get_file_storage();
+        $stored = $fs->create_file_from_string(array(
+            'contextid' => $modulecontext->id,
+            'component' => 'mod_page',
+            'filearea' => 'content',
+            'itemid' => 0,
+            'filepath' => '/',
+            'filename' => $filename,
+            'userid' => $USER->id,
+            'author' => fullname($USER),
+            'license' => 'allrightsreserved',
+        ), $filecontent);
+
+        $page = $DB->get_record('page', array('id' => $created->instance), '*', MUST_EXIST);
+        $page->content = '<p>' . ($description !== '' ? $description . '</p><p>' : '') . 'Tài liệu bài giảng: <a href="@@PLUGINFILE@@/' . rawurlencode($stored->get_filename()) . '">' . s($stored->get_filename()) . '</a></p>';
+        $page->revision = 1;
+        $DB->update_record('page', $page);
+
+        return array(
+            'coursemoduleid' => (int)$created->coursemodule,
+            'instanceid' => (int)$created->instance,
+            'courseid' => (int)$course->id,
+            'sectionnum' => (int)$params['sectionnum'],
+            'type' => 'file',
+            'name' => $created->name,
+            'filename' => $stored->get_filename(),
+            'mimetype' => $stored->get_mimetype(),
+            'filesize' => (int)$stored->get_filesize(),
+        );
+    }
+
+    public static function create_file_lecture_returns() {
+        return new external_single_structure(array(
+            'coursemoduleid' => new external_value(PARAM_INT),
+            'instanceid' => new external_value(PARAM_INT),
+            'courseid' => new external_value(PARAM_INT),
+            'sectionnum' => new external_value(PARAM_INT),
+            'type' => new external_value(PARAM_ALPHANUMEXT),
+            'name' => new external_value(PARAM_TEXT),
+            'filename' => new external_value(PARAM_FILE),
+            'mimetype' => new external_value(PARAM_TEXT),
+            'filesize' => new external_value(PARAM_INT),
+        ));
+    }
 }

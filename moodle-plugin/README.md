@@ -12,7 +12,7 @@ course, thay vì ghi trực tiếp vào database.
    Notifications**, hoàn tất nâng cấp plugin.
 3. Mở **Site administration → Server → Web services → External services**,
    chọn service đang cấp cho token MTPC và thêm function:
-   `local_mtpcbridge_create_lecture`.
+   `local_mtpcbridge_create_lecture` và `local_mtpcbridge_create_file_lecture`.
 4. Đảm bảo service account của token có quyền `moodle/course:manageactivities`
    trong các khoá học cần đăng bài.
 5. Giữ nguyên token trong `/home/mtpc/private/moodle-config.php`; không đưa
@@ -27,5 +27,10 @@ Sau khi deploy dashboard và cài plugin Moodle, nói với orb Nhi:
 Đăng video bài giảng tuần 2 vào Course 2: https://example.com/video
 ```
 
-Dashboard sẽ tạo yêu cầu trong **Phê duyệt AI**. Sau khi duyệt, bài giảng sẽ
-xuất hiện trong đúng section của khoá học.
+Hoặc bấm **Moodle → Đăng bài giảng**, chọn Course, Category/chủ đề, chọn file
+từ máy rồi bấm **Đăng bài giảng**. Dashboard sẽ tạo một hoạt động Page trong
+đúng section và đính kèm file để học viên mở trực tiếp trong Moodle. File upload
+hỗ trợ PDF, Word, PowerPoint, TXT/Markdown/HTML và JPG/PNG, tối đa 20 MB.
+
+Các bài Page/URL được tạo bằng orb vẫn đi qua **Phê duyệt AI**; form upload dành
+cho quản trị viên đã đăng nhập và gửi trực tiếp sau khi bấm nút xác nhận.

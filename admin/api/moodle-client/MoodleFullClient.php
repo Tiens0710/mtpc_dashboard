@@ -519,6 +519,22 @@ class MoodleFullClient extends MoodleClient
         ));
     }
 
+    /**
+     * Tạo bài giảng dạng Page và đính kèm file qua plugin local_mtpcbridge.
+     */
+    public function createFileLecture($courseId, $sectionNum, $name, $filename, $mimetype, $fileContent, $description = '')
+    {
+        return $this->call('local_mtpcbridge_create_file_lecture', array(
+            'courseid' => (int)$courseId,
+            'sectionnum' => (int)$sectionNum,
+            'name' => (string)$name,
+            'filename' => (string)$filename,
+            'mimetype' => (string)$mimetype,
+            'filecontent' => base64_encode($fileContent),
+            'description' => (string)$description,
+        ));
+    }
+
     public function addDiscussionPost($discussionId, $subject, $message, $options = array())
     {
         $params = array_merge(array(

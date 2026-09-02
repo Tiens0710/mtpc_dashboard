@@ -9,4 +9,11 @@ $functions = array(
         'type' => 'write',
         'capabilities' => 'moodle/course:manageactivities',
     ),
+    'local_mtpcbridge_create_file_lecture' => array(
+        'classname' => 'local_mtpcbridge_external',
+        'methodname' => 'create_file_lecture',
+        'description' => 'Create a Page lecture with an attached file in a course.',
+        'type' => 'write',
+        'capabilities' => 'moodle/course:manageactivities',
+    ),
 );
