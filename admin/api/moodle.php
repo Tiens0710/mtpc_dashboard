@@ -332,7 +332,10 @@ try {
         $forum = $forumId > 0 ? array('id' => $forumId, 'name' => 'Forum #' . $forumId) : mtpc_moodle_find_announcement_forum($moodle, $courseId);
         if (!$forum || empty($forum['id'])) mtpc_moodle_response(422, array('ok' => false, 'error' => 'Không tìm thấy diễn đàn thông báo của khoá học. Hãy truyền Forum ID hoặc tạo forum Announcements trong Moodle.'));
         $result = $moodle->addForumDiscussion((int)$forum['id'], $subject, $message);
-        $discussionId = isset($result['discussionid']) ? (int)$result['discussionid'] : 0;
+        $discussionId = isset($result['discussionid']) ? (int)$result['discussionid'] : (isset($result['discussion_id']) ? (int)$result['discussion_id'] : (isset($result['id']) ? (int)$result['id'] : 0));
+        if ($discussionId <= 0 && isset($result['data']) && is_array($result['data'])) {
+            $discussionId = isset($result['data']['discussionid']) ? (int)$result['data']['discussionid'] : (isset($result['data']['discussion_id']) ? (int)$result['data']['discussion_id'] : 0);
+        }
         if ($discussionId <= 0) {
             mtpc_moodle_response(502, array('ok' => false, 'error' => 'Moodle không trả về mã bài đăng sau khi gọi API. Bài thông báo chưa được xác nhận là đã tạo.', 'forum' => $forum, 'result' => $result));
         }
