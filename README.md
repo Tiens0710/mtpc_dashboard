@@ -157,6 +157,11 @@ mục **Moodle** trong Admin. Quyền được áp dụng theo role dashboard: `
 toàn quyền, `training` đọc/ghi Moodle và `teacher` chỉ đọc. Chi tiết cấu hình
 Moodle Web Services nằm trong [`admin/README.md`](admin/README.md).
 
+Trong **AI Copilot** và orb Nhi, quản trị viên có thể hỏi trực tiếp về Moodle
+(trạng thái kết nối, khoá học, nội dung, thành viên, tài khoản và bài tập).
+Kết quả được hiển thị thành thẻ trực quan ngay trong cuộc trò chuyện; tạo khoá
+học hoặc ghi danh sẽ được đưa vào **Phê duyệt AI** trước khi ghi dữ liệu.
+
 ### Lấy đúng tên người dùng
 
 Webhook thường chỉ gửi `sender.id`. Backend sẽ gọi API hồ sơ OA và đọc lần

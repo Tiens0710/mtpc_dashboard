@@ -311,6 +311,18 @@ info và các Web Service functions trước khi hiển thị dữ liệu. Các 
 khoá học, ghi danh và xoá dữ liệu chỉ chạy qua API server-side, có kiểm tra role;
 xoá khoá học/tài khoản còn yêu cầu xác nhận `DELETE` ở backend.
 
+### Moodle trong AI Copilot
+
+AI Copilot và orb Nhi dùng tool `moodle_action`. Có thể nói các yêu cầu như:
+
+- “Moodle có những khoá học nào?”
+- “Xem nội dung Course 2” hoặc “xem thành viên khoá học 2”
+- “Tìm tài khoản Moodle Nguyễn Văn A”
+
+Các kết quả đọc được hiển thị thành thẻ trực quan trong khung hội thoại. Lệnh
+tạo khoá học, ghi danh hoặc huỷ ghi danh không chạy ngay mà tạo yêu cầu trong
+mục **Phê duyệt AI** để quản trị viên kiểm tra và duyệt.
+
 ## Triển khai
 
 Từ repository hiện tại, `.cpanel.yml` copy:
