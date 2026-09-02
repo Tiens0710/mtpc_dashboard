@@ -103,9 +103,36 @@ function mtpc_moodle_forums($data)
     return is_array($data) ? $data : array();
 }
 
+function mtpc_moodle_course_forums($moodle, $courseId)
+{
+    try {
+        return mtpc_moodle_forums($moodle->getForumsByCourses(array($courseId)));
+    } catch (Exception $forumError) {
+        // Some Moodle services expose course contents but not the mobile forum listing service.
+        // The forum module's instance ID in course contents is still valid for add_discussion.
+        $contents = $moodle->getCourseContents($courseId);
+        $forums = array();
+        foreach (is_array($contents) ? $contents : array() as $section) {
+            $modules = isset($section['modules']) && is_array($section['modules']) ? $section['modules'] : array();
+            foreach ($modules as $module) {
+                if (strtolower((string)(isset($module['modname']) ? $module['modname'] : '')) !== 'forum') continue;
+                $instanceId = isset($module['instance']) ? (int)$module['instance'] : 0;
+                if ($instanceId <= 0) continue;
+                $forums[] = array(
+                    'id' => $instanceId,
+                    'cmid' => isset($module['id']) ? (int)$module['id'] : 0,
+                    'name' => isset($module['name']) ? (string)$module['name'] : 'Forum',
+                    'type' => isset($module['name']) && stripos((string)$module['name'], 'announcement') !== false ? 'news' : '',
+                );
+            }
+        }
+        return $forums;
+    }
+}
+
 function mtpc_moodle_find_announcement_forum($moodle, $courseId)
 {
-    $forums = mtpc_moodle_forums($moodle->getForumsByCourses(array($courseId)));
+    $forums = mtpc_moodle_course_forums($moodle, $courseId);
     foreach ($forums as $forum) {
         $type = isset($forum['type']) ? strtolower((string)$forum['type']) : '';
         $rawName = isset($forum['name']) ? (string)$forum['name'] : '';
@@ -229,7 +256,7 @@ try {
     if ($_SERVER['REQUEST_METHOD'] === 'GET' && $action === 'forums') {
         $courseId = isset($_GET['courseid']) ? (int)$_GET['courseid'] : 0;
         if ($courseId <= 0) mtpc_moodle_response(422, array('ok' => false, 'error' => 'Course ID không hợp lệ.'));
-        $forums = mtpc_moodle_forums($moodle->getForumsByCourses(array($courseId)));
+        $forums = mtpc_moodle_course_forums($moodle, $courseId);
         mtpc_moodle_response(200, array('ok' => true, 'courseid' => $courseId, 'forums' => $forums, 'total' => count($forums)));
     }
 
