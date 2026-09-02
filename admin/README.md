@@ -260,9 +260,10 @@ thường. Có thể xem tài liệu gửi tin nhóm tại
 Tài khoản Zalo đã được cấp quyền trong **Quản trị qua Zalo OA** dùng chung
 danh sách nhóm này. Các lệnh đọc như `xem nhóm`, `xem thành viên nhóm <tên hoặc
 group_id>` và `xem tin nhắn nhóm <tên hoặc group_id>` được trả lời ngay trên
-Zalo. Các lệnh thay đổi như `gửi tin vào nhóm ...` hoặc `đổi tên nhóm ...`
-được giữ ở trạng thái chờ và chỉ thực hiện sau khi người điều khiển nhắn
-`XÁC NHẬN`. Web Admin vẫn là kênh quản lý trực tiếp tương ứng.
+Zalo. Khi quản trị viên yêu cầu rõ, các lệnh tạo/kết nối/cập nhật nhóm, gửi tin
+nhóm và duyệt thành viên được gọi trực tiếp qua API GMF; hệ thống chỉ báo thành
+công khi Zalo trả về thành công. Web Admin vẫn là kênh quản lý trực tiếp tương
+ứng.
 
 Để gửi tin nhắn riêng tự động, quản trị viên hoặc tài khoản vai trò phòng đào
 tạo có thể nhắn theo mẫu `nhắn riêng đến <Zalo User ID>: <nội dung>`. Tin này
@@ -313,6 +314,31 @@ info và các Web Service functions trước khi hiển thị dữ liệu. Các 
 khoá học, ghi danh và xoá dữ liệu chỉ chạy qua API server-side, có kiểm tra role;
 xoá khoá học/tài khoản còn yêu cầu xác nhận `DELETE` ở backend.
 
+### Tất cả chức năng qua AI Copilot và orb Nhi
+
+AI Copilot dạng văn bản và orb Gemini Live dùng chung bộ tool trong
+`admin/index.html`. Vì vậy AI có thể mở view hoặc biểu mẫu, đọc dữ liệu và
+thực hiện tác vụ ở các khu vực ngành đào tạo, tin tức, hồ sơ tư vấn, sinh viên,
+điểm danh, học phí, phân quyền, phê duyệt, audit, knowledge, SEO, email, Zalo
+OA và Moodle.
+
+Ví dụ:
+
+```text
+mở mục sinh viên
+mở form nhập sinh viên từ Excel
+đọc email hôm nay và tóm tắt việc cần làm
+đọc tin nhắn Zalo OA hôm nay
+liệt kê nhóm Zalo và đọc hội thoại nhóm <Group ID>
+gửi thông báo riêng cho lớp CNTT-K26: ngày mai học bù
+mở form đăng bài giảng Moodle
+```
+
+Với form import Excel/ảnh và upload bài giảng, AI mở đúng biểu mẫu nhưng người
+dùng vẫn phải tự chọn file cục bộ vì trình duyệt không cho AI tự truy cập file
+trên máy. Những thay đổi nhạy cảm về sinh viên, điểm danh, học phí, phân quyền
+và Moodle tiếp tục đi qua **Phê duyệt AI**.
+
 ### Moodle trong AI Copilot
 
 AI Copilot và orb Nhi dùng `moodle_action` cho dữ liệu cơ bản và
@@ -335,8 +361,10 @@ kiểm tra và duyệt. Sau khi duyệt, dashboard tự gọi Moodle và tải l
 Phần “đăng bài” có hai dạng: đăng thông báo vào forum Announcements hoặc đăng
 bài giảng dạng **Page** / **URL** vào đúng chủ đề/tuần của khoá học. Để bật Page
 và URL, cài plugin `moodle-plugin/local/mtpcbridge` vào thư mục `local/` của
-Moodle, hoàn tất nâng cấp plugin, sau đó thêm function
-`local_mtpcbridge_create_lecture` vào External service đang cấp cho token.
+Moodle, hoàn tất nâng cấp plugin, sau đó thêm cả hai function
+`local_mtpcbridge_create_lecture` và `local_mtpcbridge_create_file_lecture` vào
+External service đang cấp cho token. Function thứ hai dùng khi người dùng chọn
+file bài giảng từ máy trong form.
 
 Ví dụ:
 

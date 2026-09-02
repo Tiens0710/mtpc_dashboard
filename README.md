@@ -209,9 +209,40 @@ trong vòng 10 phút. Việc xác nhận diễn ra ngay trong cuộc trò chuy�
 không cần mở website. Tất cả thao tác thay đổi đều ghi vào lịch sử sinh viên
 và audit log.
 
-Quản trị viên cũng có thể yêu cầu orb Nhi tạo nhóm Zalo GMF bằng giọng nói.
-Nhi sẽ hỏi các thông tin còn thiếu như tên nhóm, `asset_id` gói GMF và các Zalo
-User ID muốn thêm ban đầu, sau đó gọi API tạo nhóm và trả về Group ID/link.
+Quản trị viên cũng có thể yêu cầu orb Nhi tạo và quản lý nhóm Zalo GMF bằng
+giọng nói hoặc văn bản. Nhi hỗ trợ liệt kê nhóm, xem thông tin/thành viên/hội
+thoại, tạo hoặc kết nối nhóm có sẵn, cập nhật cài đặt, gửi tin nhóm và duyệt
+thành viên. Nhi sẽ hỏi các thông tin còn thiếu như Group ID, tên nhóm,
+`asset_id` gói GMF và Zalo User ID; không tự đoán mã. Các thao tác gửi/cập nhật
+được thực hiện trực tiếp sau khi yêu cầu đã rõ ràng.
+
+## Điều khiển toàn bộ dashboard bằng AI
+
+Gemini Live trong orb Nhi và **AI Copilot** dùng chung bộ function calling. Vì
+vậy có thể yêu cầu bằng giọng nói hoặc văn bản để mở các khu vực dashboard,
+đọc dữ liệu và thực hiện các tác vụ đã được cấp quyền: ngành đào tạo, tin tức,
+hồ sơ tư vấn, sinh viên, điểm danh, học phí, phân quyền, phê duyệt, nhật ký,
+knowledge, SEO, email, Zalo OA và Moodle.
+
+Ví dụ:
+
+```text
+mở mục sinh viên
+tìm sinh viên Nguyễn Nhật Tiến
+xem email hôm nay và tóm tắt việc cần làm
+đọc tin nhắn Zalo OA hôm nay
+liệt kê nhóm Zalo và đọc hội thoại nhóm <Group ID>
+xem các khoá học Moodle
+đăng bài giảng Moodle
+mở form nhập sinh viên từ Excel
+```
+
+AI có thể mở biểu mẫu để người dùng nhập dữ liệu hoặc chọn file trên máy.
+Trình duyệt không cho AI tự chọn file cục bộ thay người dùng, nên import Excel,
+ảnh sinh viên và upload bài giảng vẫn cần người dùng chọn file trong biểu mẫu.
+Các thay đổi nhạy cảm về sinh viên, điểm danh, học phí, phân quyền và Moodle
+vẫn đi qua hàng chờ **Phê duyệt AI**; gửi tin Zalo OA 1:1, gửi tin nhóm và gửi
+thông báo đã được tách thành thao tác trực tiếp theo đúng yêu cầu.
 
 ## Đồng bộ knowledge/RAG
 
