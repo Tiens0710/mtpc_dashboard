@@ -63,7 +63,7 @@ if($action==='send-direct'){
   $cfg=array('host'=>isset($MTPC_EMAIL_SMTP_HOST)?trim((string)$MTPC_EMAIL_SMTP_HOST):'smtp.gmail.com','port'=>isset($MTPC_EMAIL_SMTP_PORT)?(int)$MTPC_EMAIL_SMTP_PORT:465,'encryption'=>isset($MTPC_EMAIL_SMTP_ENCRYPTION)?strtolower(trim((string)$MTPC_EMAIL_SMTP_ENCRYPTION)):'ssl','username'=>$user,'password'=>$pass);
   if(!filter_var($user,FILTER_VALIDATE_EMAIL)||$pass===''||!in_array($cfg['encryption'],array('ssl','tls','none'),true))out(503,array('ok'=>false,'error'=>'Cấu hình SMTP chưa hợp lệ.'));
   try{smtp_send($mail,$cfg);}catch(Exception $e){out(502,array('ok'=>false,'error'=>$e->getMessage(),'code'=>'SMTP_SEND_FAILED'));}
-  out(200,array('ok'=>true,'message'=>'Email đã được gửi sau khi quản trị viên phê duyệt.','email'=>array('to'=>$mail['to'],'subject'=>$mail['subject'],'status'=>'sent','sent_at'=>date('c'))));
+  out(200,array('ok'=>true,'message'=>'Email đã được gửi.','email'=>array('to'=>$mail['to'],'subject'=>$mail['subject'],'status'=>'sent','sent_at'=>date('c'))));
 }
 
 if($action==='templates'){

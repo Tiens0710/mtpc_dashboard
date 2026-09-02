@@ -237,12 +237,11 @@ xem các khoá học Moodle
 mở form nhập sinh viên từ Excel
 ```
 
-AI có thể mở biểu mẫu để người dùng nhập dữ liệu hoặc chọn file trên máy.
-Trình duyệt không cho AI tự chọn file cục bộ thay người dùng, nên import Excel,
-ảnh sinh viên và upload bài giảng vẫn cần người dùng chọn file trong biểu mẫu.
-Các thay đổi nhạy cảm về sinh viên, điểm danh, học phí, phân quyền và Moodle
-vẫn đi qua hàng chờ **Phê duyệt AI**; gửi tin Zalo OA 1:1, gửi tin nhóm và gửi
-thông báo đã được tách thành thao tác trực tiếp theo đúng yêu cầu.
+Khi câu lệnh đã đủ tham số, orb thực hiện trực tiếp các thay đổi sinh viên,
+điểm danh, học phí, phân quyền, Moodle, email và Zalo; kết quả vẫn được ghi vào
+nhật ký thao tác. Riêng import Excel/ảnh và upload bài giảng từ file cục bộ vẫn
+cần người dùng tự chọn file trong giao diện, vì trình duyệt không cho AI tự đọc
+tệp trên máy.
 
 ## Đồng bộ knowledge/RAG
 

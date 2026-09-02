@@ -317,7 +317,7 @@ xoá khoá học/tài khoản còn yêu cầu xác nhận `DELETE` ở backend.
 ### Tất cả chức năng qua orb Nhi
 
 Orb Gemini Live dùng chung bộ tool trong
-`admin/index.html`. Vì vậy AI có thể mở view hoặc biểu mẫu, đọc dữ liệu và
+`admin/index.html`. Vì vậy orb có thể mở view, đọc dữ liệu và
 thực hiện tác vụ ở các khu vực ngành đào tạo, tin tức, hồ sơ tư vấn, sinh viên,
 điểm danh, học phí, phân quyền, phê duyệt, audit, knowledge, SEO, email, Zalo
 OA và Moodle.
@@ -326,18 +326,17 @@ Ví dụ:
 
 ```text
 mở mục sinh viên
-mở form nhập sinh viên từ Excel
+nhập sinh viên từ file Excel (người dùng tự chọn file)
 đọc email hôm nay và tóm tắt việc cần làm
 đọc tin nhắn Zalo OA hôm nay
 liệt kê nhóm Zalo và đọc hội thoại nhóm <Group ID>
 gửi thông báo riêng cho lớp CNTT-K26: ngày mai học bù
-mở form đăng bài giảng Moodle
+đăng bài giảng Moodle cho Course ID 12, tiêu đề và nội dung cụ thể
 ```
 
-Với form import Excel/ảnh và upload bài giảng, AI mở đúng biểu mẫu nhưng người
-dùng vẫn phải tự chọn file cục bộ vì trình duyệt không cho AI tự truy cập file
-trên máy. Những thay đổi nhạy cảm về sinh viên, điểm danh, học phí, phân quyền
-và Moodle tiếp tục đi qua **Phê duyệt AI**.
+Với import Excel/ảnh và upload bài giảng từ file cục bộ, người dùng vẫn phải tự
+chọn file vì trình duyệt không cho AI tự truy cập file trên máy. Các lệnh đã đủ
+tham số được orb thực hiện trực tiếp và ghi lại trong nhật ký thao tác.
 
 ### Moodle trong orb Nhi
 
