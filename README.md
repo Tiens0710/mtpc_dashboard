@@ -20,6 +20,8 @@ triển khai hai phần ra hai document root khác nhau.
 - Nhận tin nhắn từ Zalo Official Account, tự trả lời 1:1 bằng tiếng Việt với
   tư cách Trường Trung cấp Miền Tây.
 - Cho phép tài khoản Zalo đã được cấp quyền gửi lệnh quản trị trực tiếp cho OA.
+- MTPC Admin kết nối `moodle.mtpc.edu.vn` qua Moodle Web Services để quản lý
+  khoá học, tài khoản và ghi danh.
 
 ## Kiến trúc kỹ thuật
 
@@ -32,6 +34,7 @@ triển khai hai phần ra hai document root khác nhau.
 | Text-to-speech | Gemini `gemini-3.1-flash-tts-preview` |
 | Knowledge/RAG | Crawler PHP, JSON chunks và inverted index |
 | Zalo OA | Zalo OA Webhook + OA Send Message API |
+| Moodle | Moodle Web Services REST API, PHP/cURL và service account token |
 | Hosting | cPanel, Apache/LiteSpeed, PHP 5.6-compatible |
 
 API key Gemini chỉ được đọc từ biến môi trường `GEMINI_API_KEY` hoặc file
@@ -140,6 +143,19 @@ $MTPC_ZALO_OA_PROFILE_FALLBACK_URL = 'https://openapi.zalo.me/v2.0/oa/getprofile
 
 Không commit access token, refresh token, webhook token hoặc Gemini API key.
 Thư mục `private/` trong repository đã được `.gitignore` loại khỏi Git.
+
+## Moodle Admin
+
+Mã tool Moodle ở `D:/moodle` đã được đưa vào `admin/api/moodle-client/`. Dashboard
+không gọi Moodle trực tiếp từ browser: `admin/api/moodle.php` giữ token ở phía
+server và cung cấp các thao tác kiểm tra kết nối, đọc khoá học/nội dung/thành
+viên, tìm tài khoản, tạo khoá học và ghi danh.
+
+Tạo file `/home/mtpc/private/moodle-config.php` theo mẫu
+[`docs/moodle-config.example.php`](docs/moodle-config.example.php), sau đó vào
+mục **Moodle** trong Admin. Quyền được áp dụng theo role dashboard: `admin`
+toàn quyền, `training` đọc/ghi Moodle và `teacher` chỉ đọc. Chi tiết cấu hình
+Moodle Web Services nằm trong [`admin/README.md`](admin/README.md).
 
 ### Lấy đúng tên người dùng
 

@@ -20,6 +20,8 @@ trợ lý giọng nói public nằm ở thư mục gốc của repository; tài 
 - Phê duyệt nội dung AI, audit log và dữ liệu knowledge.
 - Đọc email quản trị qua IMAP và gửi email qua SMTP.
 - Đọc tin nhắn Zalo OA, trả lời trực tiếp và cấp quyền điều khiển OA.
+- Kết nối Moodle tại `moodle.mtpc.edu.vn`: kiểm tra kết nối, xem khoá học,
+  nội dung, thành viên, tìm tài khoản, tạo khoá học và ghi danh.
 - AI Copilot và SEO Studio hỗ trợ tạo nội dung nháp.
 
 ## Kiến trúc kỹ thuật
@@ -32,6 +34,7 @@ trợ lý giọng nói public nằm ở thư mục gốc của repository; tài 
 | Database | MySQL/MariaDB, schema `database/student_management_v2.sql` |
 | Text AI | Gemini `gemini-3.1-flash-lite` qua API backend |
 | Zalo AI | Zalo OA Webhook + Gemini `gemini-3.1-flash-lite` |
+| Moodle | Moodle Web Services REST API qua PHP/cURL, token service account |
 | Storage phụ | JSON private cho message, operator, link request và pending command |
 | Deploy | cPanel Git Version Control + `.cpanel.yml` |
 
@@ -52,6 +55,8 @@ admin/api/operations.php     Hàng chờ/phê duyệt và nhật ký thao tác
 admin/api/email.php           IMAP đọc email + SMTP gửi email
 admin/api/zalo-oa.php        Zalo message log, send, operator và webhook dùng chung
 admin/api/zalo-admin.php     Phân quyền và bộ phân tích lệnh Zalo OA
+admin/api/moodle.php         Cầu nối Moodle, đọc dữ liệu và thao tác quản trị
+admin/api/moodle-client/     MoodleClient và MoodleFullClient từ bộ tool Moodle
 admin/api/chat.php           Wrapper dùng backend api/chat56.php
 admin/api/live-token.php     Wrapper dùng token Gemini Live
 ../database/                  SQL schema và hướng dẫn database
@@ -69,6 +74,9 @@ chiếu với bảng `admin_users`.
 | `admin` | Toàn quyền, gồm user, backup/restore, học phí và cấu hình quyền Zalo |
 | `training` | Hồ sơ, học tập, điểm danh; được xem tài chính; được cập nhật dữ liệu được cấp |
 | `teacher` | Xem dữ liệu học vụ/sinh viên ở phạm vi giới hạn và nhập điểm danh |
+
+Quyền Moodle được gộp vào quyền dashboard: `admin` toàn quyền, `training` được
+đọc và thao tác Moodle, `teacher` chỉ được đọc.
 
 Nếu bảng `admin_users` chưa có bản ghi, lần đăng nhập đầu tiên sau khi chạy
 schema sẽ được bootstrap thành `admin`. Sau đó nên cấp quyền rõ ràng cho từng
@@ -268,6 +276,7 @@ Các file secret cần có trên hosting:
 /home/mtpc/private/gemini-config.php
 /home/mtpc/private/email-config.php
 /home/mtpc/private/zalo-oa-config.php
+/home/mtpc/private/moodle-config.php
 ```
 
 Ví dụ Gemini:
@@ -279,6 +288,28 @@ $GEMINI_API_KEY = 'GEMINI_API_KEY';
 
 Không commit các file trên vào GitHub. Các file mẫu trong `docs/` chỉ chứa
 placeholder.
+
+### Moodle
+
+Trong Moodle, bật **Site administration → Advanced features → Enable web
+services**, bật **REST protocol**, tạo External service có các hàm cần dùng và
+tạo token cho một service account riêng. Không dùng token admin cá nhân.
+
+Tạo `/home/mtpc/private/moodle-config.php` theo mẫu
+[`../docs/moodle-config.example.php`](../docs/moodle-config.example.php):
+
+```php
+<?php
+return array(
+    'moodle_url' => 'https://moodle.mtpc.edu.vn',
+    'moodle_token' => 'MOODLE_WEBSERVICE_TOKEN',
+);
+```
+
+Sau khi deploy, vào mục **Moodle** trong dashboard. Dashboard sẽ kiểm tra site
+info và các Web Service functions trước khi hiển thị dữ liệu. Các thao tác tạo
+khoá học, ghi danh và xoá dữ liệu chỉ chạy qua API server-side, có kiểm tra role;
+xoá khoá học/tài khoản còn yêu cầu xác nhận `DELETE` ở backend.
 
 ## Triển khai
 
@@ -312,6 +343,9 @@ php -l admin/api/student-import.php
 php -l admin/api/email.php
 php -l admin/api/zalo-oa.php
 php -l admin/api/zalo-admin.php
+php -l admin/api/moodle.php
+php -l admin/api/moodle-client/MoodleClient.php
+php -l admin/api/moodle-client/MoodleFullClient.php
 git diff --check
 ```
 
