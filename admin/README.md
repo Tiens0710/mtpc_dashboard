@@ -22,7 +22,7 @@ trợ lý giọng nói public nằm ở thư mục gốc của repository; tài 
 - Đọc tin nhắn Zalo OA, trả lời trực tiếp và cấp quyền điều khiển OA.
 - Kết nối Moodle tại `moodle.mtpc.edu.vn`: kiểm tra kết nối, xem khoá học,
   nội dung, thành viên, tìm tài khoản, đăng bài giảng, tạo khoá học và ghi danh.
-- AI Copilot và SEO Studio hỗ trợ tạo nội dung nháp.
+- Orb Nhi và SEO Studio hỗ trợ tạo nội dung nháp.
 
 ## Kiến trúc kỹ thuật
 
@@ -44,7 +44,7 @@ Không có API key hoặc mật khẩu nào được đặt trong `admin/index.h
 ## Cấu trúc thư mục
 
 ```text
-admin/index.html              Giao diện dashboard và AI Copilot
+admin/index.html              Giao diện dashboard và orb Nhi
 admin/api/_student_bootstrap.php
                                Kết nối DB, xác định user và permission
 admin/api/students.php        CRUD và danh sách hồ sơ sinh viên
@@ -314,9 +314,9 @@ info và các Web Service functions trước khi hiển thị dữ liệu. Các 
 khoá học, ghi danh và xoá dữ liệu chỉ chạy qua API server-side, có kiểm tra role;
 xoá khoá học/tài khoản còn yêu cầu xác nhận `DELETE` ở backend.
 
-### Tất cả chức năng qua AI Copilot và orb Nhi
+### Tất cả chức năng qua orb Nhi
 
-AI Copilot dạng văn bản và orb Gemini Live dùng chung bộ tool trong
+Orb Gemini Live dùng chung bộ tool trong
 `admin/index.html`. Vì vậy AI có thể mở view hoặc biểu mẫu, đọc dữ liệu và
 thực hiện tác vụ ở các khu vực ngành đào tạo, tin tức, hồ sơ tư vấn, sinh viên,
 điểm danh, học phí, phân quyền, phê duyệt, audit, knowledge, SEO, email, Zalo
@@ -339,9 +339,9 @@ dùng vẫn phải tự chọn file cục bộ vì trình duyệt không cho AI 
 trên máy. Những thay đổi nhạy cảm về sinh viên, điểm danh, học phí, phân quyền
 và Moodle tiếp tục đi qua **Phê duyệt AI**.
 
-### Moodle trong AI Copilot
+### Moodle trong orb Nhi
 
-AI Copilot và orb Nhi dùng `moodle_action` cho dữ liệu cơ bản và
+Orb Nhi dùng `moodle_action` cho dữ liệu cơ bản và
 `moodle_teaching_action` cho vận hành giảng dạy. Có thể nói các yêu cầu như:
 
 - “Moodle có những khoá học nào?”

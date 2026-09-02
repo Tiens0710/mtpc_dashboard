@@ -159,7 +159,7 @@ toàn quyền, `training` đọc/ghi Moodle và `teacher` được cấp các qu
 theo nhóm chức năng. Chi tiết cấu hình
 Moodle Web Services nằm trong [`admin/README.md`](admin/README.md).
 
-Trong **AI Copilot** và orb Nhi, quản trị viên có thể hỏi trực tiếp về Moodle
+Trong orb Nhi, quản trị viên có thể hỏi trực tiếp về Moodle
 (trạng thái kết nối, khoá học, nội dung, thành viên, tài khoản và bài tập).
 Orb Nhi còn hỗ trợ đăng thông báo lên forum Announcements, xem bài nộp/điểm,
 quản lý nhóm, tạo lịch, gửi tin Moodle và đăng bài giảng dạng Page hoặc liên kết
@@ -218,7 +218,7 @@ thành viên. Nhi sẽ hỏi các thông tin còn thiếu như Group ID, tên nh
 
 ## Điều khiển toàn bộ dashboard bằng AI
 
-Gemini Live trong orb Nhi và **AI Copilot** dùng chung bộ function calling. Vì
+Gemini Live trong orb Nhi dùng bộ function calling. Vì
 vậy có thể yêu cầu bằng giọng nói hoặc văn bản để mở các khu vực dashboard,
 đọc dữ liệu và thực hiện các tác vụ đã được cấp quyền: ngành đào tạo, tin tức,
 hồ sơ tư vấn, sinh viên, điểm danh, học phí, phân quyền, phê duyệt, nhật ký,
