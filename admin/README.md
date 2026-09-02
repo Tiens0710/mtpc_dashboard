@@ -245,8 +245,9 @@ chỉ áp dụng cho thay đổi dữ liệu quản trị để tránh AI hiểu
 
 Trong **Đăng nhập & phân quyền → Nhóm Zalo OA (GMF)**:
 
-1. Chọn **Tạo nhóm GMF**, nhập tên nhóm, `asset_id` của gói GMF và các Zalo
-   User ID thành viên ban đầu.
+1. Chọn **Tạo nhóm GMF**, nhập tên nhóm và các Zalo User ID thành viên ban
+   đầu. `asset_id` được đọc tự động từ `$MTPC_ZALO_OA_ASSET_ID` trong file
+   private; chỉ truyền `asset_id` riêng khi muốn dùng một gói khác.
 2. Nếu nhóm đã tạo trong OA Manager, chọn **Kết nối nhóm có sẵn** rồi nhập
    `group_id`.
 3. Bấm **Quản lý** để cập nhật tên/mô tả/cài đặt, xem thành viên, đọc hội

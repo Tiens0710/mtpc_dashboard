@@ -32,7 +32,8 @@ $config = array(
     'profile_url' => 'https://openapi.zalo.me/v3.0/oa/user/detail',
     'profile_fallback_url' => 'https://openapi.zalo.me/v2.0/oa/getprofile',
     'oa_id' => '',
-    'auto_reply' => false
+    'auto_reply' => false,
+    'gmf_asset_id' => ''
 );
 if (is_file($configPath)) {
     require $configPath;
@@ -44,6 +45,7 @@ if (is_file($configPath)) {
     if (isset($MTPC_ZALO_OA_PROFILE_FALLBACK_URL) && trim((string)$MTPC_ZALO_OA_PROFILE_FALLBACK_URL) !== '') $config['profile_fallback_url'] = trim((string)$MTPC_ZALO_OA_PROFILE_FALLBACK_URL);
     if (isset($MTPC_ZALO_OA_ID)) $config['oa_id'] = trim((string)$MTPC_ZALO_OA_ID);
     if (isset($MTPC_ZALO_OA_AUTO_REPLY)) $config['auto_reply'] = (bool)$MTPC_ZALO_OA_AUTO_REPLY;
+    if (isset($MTPC_ZALO_OA_ASSET_ID)) $config['gmf_asset_id'] = trim((string)$MTPC_ZALO_OA_ASSET_ID);
 }
 
 $storageDir = '/home/mtpc/private/mtpc-zalo-oa';
@@ -515,10 +517,11 @@ if ($action === 'group-create') {
         $body = mtpc_zalo_body();
         $groupName = mtpc_zalo_cut(isset($body['group_name']) ? $body['group_name'] : '', 100);
         $assetId = mtpc_zalo_cut(isset($body['asset_id']) ? $body['asset_id'] : '', 180);
+        if ($assetId === '' && !empty($config['gmf_asset_id'])) $assetId = mtpc_zalo_cut($config['gmf_asset_id'], 180);
         $description = mtpc_zalo_cut(isset($body['group_description']) ? $body['group_description'] : '', 500);
         $members = mtpc_zalo_group_member_ids(isset($body['member_user_ids']) ? $body['member_user_ids'] : array());
         if ($groupName === '') throw new Exception('Vui lòng nhập tên nhóm.');
-        if ($assetId === '') throw new Exception('Vui lòng nhập asset_id của gói GMF trong Zalo Developers/OA Manager.');
+        if ($assetId === '') throw new Exception('Chưa có asset_id GMF. Hãy đặt $MTPC_ZALO_OA_ASSET_ID trong /home/mtpc/private/zalo-oa-config.php.');
         if (count($members) < 1) throw new Exception('Cần ít nhất một Zalo User ID làm thành viên nhóm.');
         $payload = array('group_name' => $groupName, 'asset_id' => $assetId, 'member_user_ids' => $members);
         if ($description !== '') $payload['group_description'] = $description;
