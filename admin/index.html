@@ -936,6 +936,11 @@
       return result;
     };
     window.MTPC_MOODLE_OPEN_LECTURE_UPLOADER=openMoodleLectureUploader;
+    var mtpcMoodleTeachingTool=ADMIN_TOOL_DECLARATIONS[0].functionDeclarations.find(function(item){return item.name==='moodle_teaching_action'});
+    if(mtpcMoodleTeachingTool){
+      mtpcMoodleTeachingTool.description+=' Với post_announcement, không cần user_id: hãy dùng tài khoản sở hữu Moodle Web Service token để đăng bài. Không hỏi quản trị viên nhập User ID của chính họ.';
+      mtpcMoodleTeachingTool.parameters.properties.user_id.description+=' Chỉ dùng cho chấm điểm hoặc thao tác thành viên; không dùng khi đăng thông báo/bài giảng.';
+    }
    })();
    </script>
    <script>
