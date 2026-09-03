@@ -21,6 +21,6 @@ $functions = array(
         'methodname' => 'create_announcement',
         'description' => 'Create an announcement in a course announcements forum.',
         'type' => 'write',
-        'capabilities' => 'moodle/course:manageactivities',
+        'capabilities' => 'mod/forum:addnews',
     ),
 );

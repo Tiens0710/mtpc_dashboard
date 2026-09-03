@@ -225,7 +225,7 @@ class local_mtpcbridge_external extends external_api {
      * Moodle's built-in mod_forum_add_discussion web service is declared
      * with mod/forum:startdiscussion even for News forums. This bridge uses
      * the same forum library as Moodle's own web UI and authorises the
-     * service account with the course-level manageactivities capability.
+     * service account with the News forum addnews capability.
      */
     public static function create_announcement_parameters() {
         return new external_function_parameters(array(
@@ -249,10 +249,6 @@ class local_mtpcbridge_external extends external_api {
         ));
 
         $course = get_course($params['courseid']);
-        $coursecontext = context_course::instance($course->id);
-        self::validate_context($coursecontext);
-        require_capability('moodle/course:manageactivities', $coursecontext);
-
         $forum = $DB->get_record('forum', array('id' => $params['forumid']), '*', MUST_EXIST);
         if ((int)$forum->course !== (int)$course->id) {
             throw new invalid_parameter_exception('The forum does not belong to the selected course.');
@@ -264,6 +260,7 @@ class local_mtpcbridge_external extends external_api {
         $cm = get_coursemodule_from_instance('forum', $forum->id, $course->id, false, MUST_EXIST);
         $context = context_module::instance($cm->id);
         self::validate_context($context);
+        require_capability('mod/forum:addnews', $context);
 
         $subject = trim(clean_param($params['subject'], PARAM_TEXT));
         $message = clean_param($params['message'], PARAM_CLEANHTML);

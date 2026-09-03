@@ -15,7 +15,8 @@ course, thay vì ghi trực tiếp vào database.
    `local_mtpcbridge_create_lecture`, `local_mtpcbridge_create_file_lecture`
    và `local_mtpcbridge_create_announcement`.
 4. Đảm bảo service account của token có quyền `moodle/course:manageactivities`
-   trong các khoá học cần đăng bài.
+   trong các khoá học cần tạo bài giảng. Với `Announcements`, tài khoản cần
+   quyền `mod/forum:addnews` tại chính forum Announcements.
 5. Giữ nguyên token trong `/home/mtpc/private/moodle-config.php`; không đưa
    token vào frontend hoặc GitHub.
 

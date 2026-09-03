@@ -16,3 +16,5 @@ deployment:
     - /bin/cp -f admin/api/students.php /home/mtpc/public_html/admin/api/students.php
     - /bin/cp -f admin/api/operations.php /home/mtpc/public_html/admin/api/operations.php
     - /bin/cp -f admin/api/email.php /home/mtpc/public_html/admin/api/email.php
+    - /bin/mkdir -p /home/mtpc/public_html/moodle/local/mtpcbridge
+    - /bin/cp -R moodle-plugin/local/mtpcbridge/* /home/mtpc/public_html/moodle/local/mtpcbridge/

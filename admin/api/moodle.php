@@ -360,17 +360,17 @@ try {
         if ($courseId <= 0 || $subject === '' || $message === '') mtpc_moodle_response(422, array('ok' => false, 'error' => 'Cần Course ID, tiêu đề và nội dung bài đăng.'));
         $forum = $forumId > 0 ? array('id' => $forumId, 'name' => 'Forum #' . $forumId) : mtpc_moodle_find_announcement_forum($moodle, $courseId);
         if (!$forum || empty($forum['id'])) mtpc_moodle_response(422, array('ok' => false, 'error' => 'Không tìm thấy diễn đàn thông báo của khoá học. Hãy truyền Forum ID hoặc tạo forum Announcements trong Moodle.'));
-        // Announcements need mod/forum:addnews, while Moodle's built-in
-        // mod_forum_add_discussion service is declared with the stricter
-        // mod/forum:startdiscussion capability. Prefer the bridge function,
-        // which authorises the service account with course manageactivities.
-        if ($moodle->isFunctionAvailable('local_mtpcbridge_create_announcement')) {
-            $result = $moodle->createAnnouncement($courseId, (int)$forum['id'], $subject, $message);
-        } else {
-            // Keep compatibility with sites that have not installed/upgraded
-            // the bridge plugin yet. -1 means all groups when group mode is on.
-            $result = $moodle->addForumDiscussion((int)$forum['id'], $subject, $message, -1);
+        // Announcements need the dedicated bridge function. Falling back to
+        // mod_forum_add_discussion hides a missing plugin/function and causes
+        // Moodle to return the misleading startdiscussion 403 for News forums.
+        if (!$moodle->isFunctionAvailable('local_mtpcbridge_create_announcement')) {
+            mtpc_moodle_response(503, array(
+                'ok' => false,
+                'error' => 'Moodle chưa nhận function local_mtpcbridge_create_announcement. Hãy deploy plugin local/mtpcbridge, nâng cấp Moodle và thêm function này vào External service dashboard.',
+                'required_function' => 'local_mtpcbridge_create_announcement',
+            ));
         }
+        $result = $moodle->createAnnouncement($courseId, (int)$forum['id'], $subject, $message);
         $discussionId = isset($result['discussionid']) ? (int)$result['discussionid'] : (isset($result['discussion_id']) ? (int)$result['discussion_id'] : (isset($result['id']) ? (int)$result['id'] : 0));
         if ($discussionId <= 0 && isset($result['data']) && is_array($result['data'])) {
             $discussionId = isset($result['data']['discussionid']) ? (int)$result['data']['discussionid'] : (isset($result['data']['discussion_id']) ? (int)$result['data']['discussion_id'] : 0);
