@@ -218,4 +218,116 @@ class local_mtpcbridge_external extends external_api {
             'filesize' => new external_value(PARAM_INT),
         ));
     }
+
+    /**
+     * Create a discussion in the course News/Announcements forum.
+     *
+     * Moodle's built-in mod_forum_add_discussion web service is declared
+     * with mod/forum:startdiscussion even for News forums. This bridge uses
+     * the same forum library as Moodle's own web UI and authorises the
+     * service account with the course-level manageactivities capability.
+     */
+    public static function create_announcement_parameters() {
+        return new external_function_parameters(array(
+            'courseid' => new external_value(PARAM_INT, 'Course ID', VALUE_REQUIRED),
+            'forumid' => new external_value(PARAM_INT, 'Announcements forum instance ID', VALUE_REQUIRED),
+            'subject' => new external_value(PARAM_TEXT, 'Announcement subject', VALUE_REQUIRED),
+            'message' => new external_value(PARAM_RAW, 'Announcement HTML message', VALUE_REQUIRED),
+        ));
+    }
+
+    public static function create_announcement($courseid, $forumid, $subject, $message) {
+        global $CFG, $DB;
+
+        require_once($CFG->dirroot . '/mod/forum/lib.php');
+
+        $params = self::validate_parameters(self::create_announcement_parameters(), array(
+            'courseid' => $courseid,
+            'forumid' => $forumid,
+            'subject' => $subject,
+            'message' => $message,
+        ));
+
+        $course = get_course($params['courseid']);
+        $coursecontext = context_course::instance($course->id);
+        self::validate_context($coursecontext);
+        require_capability('moodle/course:manageactivities', $coursecontext);
+
+        $forum = $DB->get_record('forum', array('id' => $params['forumid']), '*', MUST_EXIST);
+        if ((int)$forum->course !== (int)$course->id) {
+            throw new invalid_parameter_exception('The forum does not belong to the selected course.');
+        }
+        if ((string)$forum->type !== 'news') {
+            throw new invalid_parameter_exception('The selected forum is not the course News/Announcements forum.');
+        }
+
+        $cm = get_coursemodule_from_instance('forum', $forum->id, $course->id, false, MUST_EXIST);
+        $context = context_module::instance($cm->id);
+        self::validate_context($context);
+
+        $subject = trim(clean_param($params['subject'], PARAM_TEXT));
+        $message = clean_param($params['message'], PARAM_CLEANHTML);
+        if ($subject === '' || $message === '') {
+            throw new invalid_parameter_exception('Announcement subject and message are required.');
+        }
+        if (function_exists('mb_strlen') ? mb_strlen($message, 'UTF-8') > 12000 : strlen($message) > 48000) {
+            throw new invalid_parameter_exception('Announcement message is too long.');
+        }
+
+        $discussion = new stdClass();
+        $discussion->course = $course->id;
+        $discussion->forum = $forum->id;
+        $discussion->message = $message;
+        $discussion->messageformat = FORMAT_HTML;
+        $discussion->messagetrust = trusttext_trusted($context);
+        $discussion->itemid = 0;
+        $discussion->groupid = -1;
+        $discussion->mailnow = 0;
+        $discussion->subject = $subject;
+        $discussion->name = $subject;
+        $discussion->timestart = 0;
+        $discussion->timeend = 0;
+        $discussion->timelocked = 0;
+        $discussion->attachments = null;
+        $discussion->pinned = FORUM_DISCUSSION_UNPINNED;
+
+        $discussionid = forum_add_discussion($discussion, null);
+        if (!$discussionid) {
+            throw new moodle_exception('couldnotadd', 'forum');
+        }
+
+        $discussion->id = $discussionid;
+        $event = \mod_forum\event\discussion_created::create(array(
+            'context' => $context,
+            'objectid' => $discussion->id,
+            'other' => array('forumid' => $forum->id),
+        ));
+        $event->add_record_snapshot('forum_discussions', $discussion);
+        $event->trigger();
+
+        $completion = new completion_info($course);
+        if ($completion->is_enabled($cm) && ($forum->completiondiscussions || $forum->completionposts)) {
+            $completion->update_state($cm, COMPLETION_COMPLETE);
+        }
+
+        $settings = new stdClass();
+        $settings->discussionsubscribe = true;
+        forum_post_subscription($settings, $forum, $discussion);
+
+        return array(
+            'discussionid' => (int)$discussionid,
+            'courseid' => (int)$course->id,
+            'forumid' => (int)$forum->id,
+            'url' => $CFG->wwwroot . '/mod/forum/view.php?f=' . (int)$forum->id,
+        );
+    }
+
+    public static function create_announcement_returns() {
+        return new external_single_structure(array(
+            'discussionid' => new external_value(PARAM_INT),
+            'courseid' => new external_value(PARAM_INT),
+            'forumid' => new external_value(PARAM_INT),
+            'url' => new external_value(PARAM_URL),
+        ));
+    }
 }

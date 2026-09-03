@@ -16,4 +16,11 @@ $functions = array(
         'type' => 'write',
         'capabilities' => 'moodle/course:manageactivities',
     ),
+    'local_mtpcbridge_create_announcement' => array(
+        'classname' => 'local_mtpcbridge_external',
+        'methodname' => 'create_announcement',
+        'description' => 'Create an announcement in a course announcements forum.',
+        'type' => 'write',
+        'capabilities' => 'moodle/course:manageactivities',
+    ),
 );

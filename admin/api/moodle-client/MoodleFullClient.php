@@ -503,6 +503,21 @@ class MoodleFullClient extends MoodleClient
     }
 
     /**
+     * Đăng thông báo qua local_mtpcbridge khi Moodle đã cài plugin bridge.
+     * Hàm này dùng quyền moodle/course:manageactivities của service account,
+     * tránh lệ thuộc vào capability startdiscussion của API forum mặc định.
+     */
+    public function createAnnouncement($courseId, $forumId, $subject, $message)
+    {
+        return $this->call('local_mtpcbridge_create_announcement', array(
+            'courseid' => (int)$courseId,
+            'forumid' => (int)$forumId,
+            'subject' => (string)$subject,
+            'message' => (string)$message,
+        ));
+    }
+
+    /**
      * Tạo bài giảng Page hoặc URL thông qua plugin local_mtpcbridge trên Moodle.
      * Plugin dùng add_moduleinfo() phía Moodle để tạo đúng course module.
      */

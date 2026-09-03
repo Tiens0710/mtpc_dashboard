@@ -11,8 +11,9 @@ course, thay vì ghi trực tiếp vào database.
 2. Đăng nhập Moodle bằng tài khoản quản trị và mở **Site administration →
    Notifications**, hoàn tất nâng cấp plugin.
 3. Mở **Site administration → Server → Web services → External services**,
-   chọn service đang cấp cho token MTPC và thêm function:
-   `local_mtpcbridge_create_lecture` và `local_mtpcbridge_create_file_lecture`.
+   chọn service đang cấp cho token MTPC và thêm các function:
+   `local_mtpcbridge_create_lecture`, `local_mtpcbridge_create_file_lecture`
+   và `local_mtpcbridge_create_announcement`.
 4. Đảm bảo service account của token có quyền `moodle/course:manageactivities`
    trong các khoá học cần đăng bài.
 5. Giữ nguyên token trong `/home/mtpc/private/moodle-config.php`; không đưa
