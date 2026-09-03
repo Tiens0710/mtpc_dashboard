@@ -10,11 +10,12 @@ register_shutdown_function(function(){
   $e=error_get_last();
   if(!$e||!in_array($e['type'],array(E_ERROR,E_PARSE,E_CORE_ERROR,E_COMPILE_ERROR,E_USER_ERROR),true))return;
   error_log('[MTPC_EMAIL_FATAL] '.$e['message'].' in '.$e['file'].':'.$e['line']);
+  $detail=basename($e['file']).':'.$e['line'].' - '.preg_replace('/[\r\n]+/',' ',(string)$e['message']);
   if(!headers_sent()){
     http_response_code(500);
     header('Content-Type: application/json; charset=utf-8');
   }
-  echo json_encode(array('ok'=>false,'error'=>'PHP gặp lỗi khi xử lý hộp thư. Hãy kiểm tra error_log trên cPanel.','code'=>'EMAIL_PHP_FATAL'),JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
+  echo json_encode(array('ok'=>false,'error'=>'PHP gặp lỗi khi xử lý hộp thư.','detail'=>$detail,'code'=>'EMAIL_PHP_FATAL'),JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
 });
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
@@ -121,6 +122,18 @@ function date_range($b){
 }
 function priority_hint($s){foreach(array('khẩn','gấp','hạn chót','xét tuyển','khiếu nại','thanh toán','xác nhận','hồ sơ')as$w)if(has_text($s,$w))return'high';return'normal';}
 function header_value($raw,$name){$raw=preg_replace("/\r?\n[ \t]+/",' ',(string)$raw);$m=array();return preg_match('/^'.preg_quote($name,'/').':\s*(.+)$/mi',$raw,$m)?mail_utf8(trim($m[1])):'';}
+function imap_error_text(){
+  $errors=array();
+  if(function_exists('imap_last_error')){$last=@imap_last_error();if($last)$errors[]=(string)$last;}
+  if(function_exists('imap_errors')){$all=@imap_errors();if(is_array($all))foreach($all as$one)if($one&&!in_array((string)$one,$errors,true))$errors[]=(string)$one;}
+  return trim(implode(' | ',$errors));
+}
+function imap_close_safe($imap){if($imap)@imap_close($imap);}
+function mail_row_value($row,$key,$fallback=''){
+  if(is_object($row))return isset($row->$key)?$row->$key:$fallback;
+  if(is_array($row))return isset($row[$key])?$row[$key]:$fallback;
+  return$fallback;
+}
 
 if($action==='manage'){
   $uid=isset($body['uid'])?trim((string)$body['uid']):'';$operation=isset($body['operation'])?trim((string)$body['operation']):'';
@@ -140,5 +153,30 @@ if($action==='list'){
   foreach($uids as$uid){$o=@imap_fetch_overview($imap,(string)$uid,FT_UID);if(!is_array($o)||!isset($o[0]))continue;$row=$o[0];$from=mail_utf8(isset($row->from)?$row->from:'');$sub=mail_utf8(isset($row->subject)?$row->subject:'(Không có tiêu đề)');if(!has_text($from,$sender)||!has_text($sub,$sf))continue;$ts=isset($row->udate)?(int)$row->udate:(isset($row->date)?strtotime($row->date):0);$items[]=array('uid'=>(string)$uid,'from'=>$from,'from_email'=>address_only($from),'subject'=>$sub,'date'=>$ts?date('c',$ts):'','unread'=>empty($row->seen),'flagged'=>!empty($row->flagged),'_ts'=>$ts);}
   usort($items,function($a,$b){return$a['_ts']===$b['_ts']?0:($a['_ts']<$b['_ts']?1:-1);});$result=array();foreach($items as$x){$preview=cut(preg_replace('/\s+/',' ',extract_text($imap,$x['uid'])),500);if($q!==''&&!has_text($x['from'].' '.$x['subject'].' '.$preview,$q))continue;$x['preview']=$preview;$x['priority']=priority_hint($x['subject'].' '.$preview);unset($x['_ts']);$result[]=$x;if(count($result)>=$limit)break;}imap_close($imap);out(200,array('ok'=>true,'range_label'=>$range[2],'count'=>count($result),'emails'=>$result,'filters'=>array('sender'=>$sender,'subject'=>$sf,'query'=>$q)));
 }
-if($action==='read'){$uid=isset($body['uid'])?trim((string)$body['uid']):'';if(!preg_match('/^\d+$/',$uid)){imap_close($imap);out(422,array('ok'=>false,'error'=>'UID không hợp lệ.'));}$o=@imap_fetch_overview($imap,$uid,FT_UID);if(!is_array($o)||!isset($o[0])){imap_close($imap);out(404,array('ok'=>false,'error'=>'Không tìm thấy email.'));}$r=$o[0];$rawHeader=@imap_fetchheader($imap,$uid,FT_UID|FT_PEEK);$from=mail_utf8(isset($r->from)?$r->from:'');$replyTo=header_value($rawHeader,'Reply-To');$messageId=clean_line(isset($r->message_id)?$r->message_id:header_value($rawHeader,'Message-ID'));$references=clean_line(header_value($rawHeader,'References'));$ts=isset($r->udate)?(int)$r->udate:(isset($r->date)?strtotime($r->date):0);$e=array('uid'=>$uid,'from'=>$from,'from_email'=>address_only($from),'reply_to'=>address_only($replyTo!==''?$replyTo:$from),'to'=>mail_utf8(isset($r->to)?$r->to:''),'subject'=>mail_utf8(isset($r->subject)?$r->subject:'(Không có tiêu đề)'),'date'=>$ts?date('c',$ts):'','unread'=>empty($r->seen),'flagged'=>!empty($r->flagged),'message_id'=>$messageId,'references'=>$references,'body'=>cut(extract_text($imap,$uid),16000));imap_close($imap);out(200,array('ok'=>true,'email'=>$e));}
+/* Read one message defensively. Some PHP 5.6 IMAP builds return an array
+ * instead of an object for overview fields, and older builds can emit a
+ * warning while decoding a malformed MIME message. Neither case should turn
+ * the whole endpoint into an unexplained HTTP 500. */
+if($action==='read'){
+  $uid=isset($body['uid'])?trim((string)$body['uid']):'';
+  if(!preg_match('/^\d+$/',$uid)){imap_close_safe($imap);out(422,array('ok'=>false,'error'=>'UID không hợp lệ.','code'=>'EMAIL_UID_INVALID'));}
+  $readError='';
+  set_error_handler(function($severity,$message,$file,$line)use(&$readError){if(!(error_reporting()&$severity))return false;$readError=$message.' tại dòng '.$line;throw new Exception($message);});
+  try{
+    $overview=@imap_fetch_overview($imap,$uid,FT_UID);
+    if(!is_array($overview)||!isset($overview[0])){restore_error_handler();imap_close_safe($imap);out(404,array('ok'=>false,'error'=>'Không tìm thấy email với UID '.$uid.'.','code'=>'EMAIL_NOT_FOUND'));}
+    $row=$overview[0];
+    $rawHeader=@imap_fetchheader($imap,$uid,FT_UID|FT_PEEK);if($rawHeader===false)$rawHeader='';
+    $from=mail_utf8(mail_row_value($row,'from',''));
+    $replyTo=header_value($rawHeader,'Reply-To');
+    $messageId=clean_line(mail_row_value($row,'message_id',header_value($rawHeader,'Message-ID')));
+    $references=clean_line(header_value($rawHeader,'References'));
+    $dateValue=mail_row_value($row,'udate',0);$dateFallback=mail_row_value($row,'date','');$ts=(int)$dateValue;if(!$ts&&$dateFallback)$ts=(int)strtotime((string)$dateFallback);
+    $bodyText=extract_text($imap,$uid);
+    $email=array('uid'=>$uid,'from'=>$from,'from_email'=>address_only($from),'reply_to'=>address_only($replyTo!==''?$replyTo:$from),'to'=>mail_utf8(mail_row_value($row,'to','')),'subject'=>mail_utf8(mail_row_value($row,'subject','(Không có tiêu đề)')),'date'=>$ts?date('c',$ts):'','unread'=>empty(mail_row_value($row,'seen',false)),'flagged'=>!empty(mail_row_value($row,'flagged',false)),'message_id'=>$messageId,'references'=>$references,'body'=>cut($bodyText,16000));
+    restore_error_handler();imap_close_safe($imap);out(200,array('ok'=>true,'email'=>$email));
+  }catch(Exception $exception){
+    restore_error_handler();$detail=$readError!==''?$readError:$exception->getMessage();error_log('[MTPC_EMAIL_READ] '.$detail);imap_close_safe($imap);out(502,array('ok'=>false,'error'=>'Không đọc được nội dung email. Hộp thư đã kết nối nhưng email này có header hoặc nội dung không tương thích.','detail'=>$detail,'code'=>'EMAIL_MESSAGE_READ_FAILED'));
+  }
+}
 imap_close($imap);out(400,array('ok'=>false,'error'=>'Thao tác email không hợp lệ.'));
