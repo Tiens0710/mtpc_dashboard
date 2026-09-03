@@ -522,5 +522,6 @@ try {
 
     mtpc_moodle_response(400, array('ok' => false, 'error' => 'Action Moodle không hợp lệ.'));
 } catch (Exception $e) {
-    mtpc_moodle_response(502, array('ok' => false, 'error' => 'Moodle không xử lý được yêu cầu.', 'detail' => mtpc_moodle_text($e->getMessage(), 500)));
+    $detail = mtpc_moodle_text($e->getMessage(), 500);
+    mtpc_moodle_response(502, array('ok' => false, 'error' => 'Moodle không xử lý được yêu cầu.' . ($detail !== '' ? ' Chi tiết: ' . $detail : ''), 'detail' => $detail));
 }
