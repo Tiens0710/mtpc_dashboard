@@ -167,7 +167,10 @@ if($action==='read'){
     $overview=@imap_fetch_overview($imap,$uid,FT_UID);
     if(!is_array($overview)||!isset($overview[0])){restore_error_handler();imap_close_safe($imap);out(404,array('ok'=>false,'error'=>'Không tìm thấy email với UID '.$uid.'.','code'=>'EMAIL_NOT_FOUND'));}
     $row=$overview[0];
-    $rawHeader=@imap_fetchheader($imap,$uid,FT_UID|FT_PEEK);if($rawHeader===false)$rawHeader='';
+    /* imap_fetchheader() only accepts FT_UID/FT_PREFETCHTEXT/FT_INTERNAL;
+     * FT_PEEK belongs to body-fetch functions and causes PHP 5.6 IMAP builds
+     * to throw a ValueError instead of returning a readable error response. */
+    $rawHeader=@imap_fetchheader($imap,$uid,FT_UID);if($rawHeader===false)$rawHeader='';
     $from=mail_utf8(mail_row_value($row,'from',''));
     $replyTo=header_value($rawHeader,'Reply-To');
     $messageId=clean_line(mail_row_value($row,'message_id',header_value($rawHeader,'Message-ID')));
