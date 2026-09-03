@@ -6,6 +6,7 @@ use DateTime;
 use DateTimeZone;
 
 ini_set('display_errors','0');
+header('X-MTPC-Email-Api-Version: 2026-09-03.2');
 register_shutdown_function(function(){
   $e=error_get_last();
   if(!$e||!in_array($e['type'],array(E_ERROR,E_PARSE,E_CORE_ERROR,E_COMPILE_ERROR,E_USER_ERROR),true))return;
@@ -173,7 +174,11 @@ if($action==='read'){
     $references=clean_line(header_value($rawHeader,'References'));
     $dateValue=mail_row_value($row,'udate',0);$dateFallback=mail_row_value($row,'date','');$ts=(int)$dateValue;if(!$ts&&$dateFallback)$ts=(int)strtotime((string)$dateFallback);
     $bodyText=extract_text($imap,$uid);
-    $email=array('uid'=>$uid,'from'=>$from,'from_email'=>address_only($from),'reply_to'=>address_only($replyTo!==''?$replyTo:$from),'to'=>mail_utf8(mail_row_value($row,'to','')),'subject'=>mail_utf8(mail_row_value($row,'subject','(Không có tiêu đề)')),'date'=>$ts?date('c',$ts):'','unread'=>empty(mail_row_value($row,'seen',false)),'flagged'=>!empty(mail_row_value($row,'flagged',false)),'message_id'=>$messageId,'references'=>$references,'body'=>cut($bodyText,16000));
+    /* Keep this compatible with PHP 5.6: empty() should receive a variable,
+     * not the return value of a function on older IMAP/PHP combinations. */
+    $seenValue=mail_row_value($row,'seen',false);
+    $flaggedValue=mail_row_value($row,'flagged',false);
+    $email=array('uid'=>$uid,'from'=>$from,'from_email'=>address_only($from),'reply_to'=>address_only($replyTo!==''?$replyTo:$from),'to'=>mail_utf8(mail_row_value($row,'to','')),'subject'=>mail_utf8(mail_row_value($row,'subject','(Không có tiêu đề)')),'date'=>$ts?date('c',$ts):'','unread'=>empty($seenValue),'flagged'=>!empty($flaggedValue),'message_id'=>$messageId,'references'=>$references,'body'=>cut($bodyText,16000));
     restore_error_handler();imap_close_safe($imap);out(200,array('ok'=>true,'email'=>$email));
   }catch(Exception $exception){
     restore_error_handler();$detail=$readError!==''?$readError:$exception->getMessage();error_log('[MTPC_EMAIL_READ] '.$detail);imap_close_safe($imap);out(502,array('ok'=>false,'error'=>'Không đọc được nội dung email. Hộp thư đã kết nối nhưng email này có header hoặc nội dung không tương thích.','detail'=>$detail,'code'=>'EMAIL_MESSAGE_READ_FAILED'));
