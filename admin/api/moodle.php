@@ -7,6 +7,7 @@
  * PHP 5.6 compatible.
  */
 header('Content-Type: application/json; charset=utf-8');
+header('X-MTPC-Moodle-Api-Version: 2026-09-03.1');
 header('Cache-Control: no-store');
 header('X-Content-Type-Options: nosniff');
 header('Access-Control-Allow-Headers: Content-Type');
@@ -523,5 +524,18 @@ try {
     mtpc_moodle_response(400, array('ok' => false, 'error' => 'Action Moodle không hợp lệ.'));
 } catch (Exception $e) {
     $detail = mtpc_moodle_text($e->getMessage(), 500);
-    mtpc_moodle_response(502, array('ok' => false, 'error' => 'Moodle không xử lý được yêu cầu.' . ($detail !== '' ? ' Chi tiết: ' . $detail : ''), 'detail' => $detail));
+    $lower = strtolower($detail);
+    $status = 502;
+    $code = 'MOODLE_REQUEST_FAILED';
+    $message = 'Moodle không xử lý được yêu cầu.';
+    if (strpos($lower, 'nopermissions') !== false || strpos($lower, 'permission') !== false || strpos($lower, 'accessexception') !== false || strpos($lower, 'access control') !== false) {
+        $status = 403;
+        $code = 'MOODLE_PERMISSION_DENIED';
+        $message = 'Tài khoản Web Service Moodle chưa có quyền thực hiện thao tác này.';
+    } elseif (strpos($lower, 'invalid parameter') !== false || strpos($lower, 'invalid_parameter') !== false) {
+        $status = 422;
+        $code = 'MOODLE_INVALID_PARAMETER';
+        $message = 'Moodle từ chối tham số của yêu cầu.';
+    }
+    mtpc_moodle_response($status, array('ok' => false, 'error' => $message . ($detail !== '' ? ' Chi tiết: ' . $detail : ''), 'detail' => $detail, 'code' => $code));
 }
