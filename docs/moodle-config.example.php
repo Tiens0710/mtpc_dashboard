@@ -5,7 +5,7 @@
  */
 return array(
     // Không có dấu / ở cuối.
-    'moodle_url' => 'https://moodle.mtpc.edu.vn',
+    'moodle_url' => 'https://blearning.mtpc.edu.vn',
 
     // Tạo trong Moodle: Site administration > Server > Web services > Manage tokens.
     // Nên dùng một service account riêng, không dùng mật khẩu/token admin cá nhân.

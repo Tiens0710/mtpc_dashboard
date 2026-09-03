@@ -20,7 +20,7 @@ triển khai hai phần ra hai document root khác nhau.
 - Nhận tin nhắn từ Zalo Official Account, tự trả lời 1:1 bằng tiếng Việt với
   tư cách Trường Trung cấp Miền Tây.
 - Cho phép tài khoản Zalo đã được cấp quyền gửi lệnh quản trị trực tiếp cho OA.
-- MTPC Admin kết nối `moodle.mtpc.edu.vn` qua Moodle Web Services để quản lý
+- MTPC Admin kết nối `blearning.mtpc.edu.vn` qua Moodle Web Services để quản lý
   khoá học, tài khoản và ghi danh.
 
 ## Kiến trúc kỹ thuật

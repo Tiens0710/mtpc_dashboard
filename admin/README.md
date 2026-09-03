@@ -20,7 +20,7 @@ trợ lý giọng nói public nằm ở thư mục gốc của repository; tài 
 - Phê duyệt nội dung AI, audit log và dữ liệu knowledge.
 - Đọc email quản trị qua IMAP và gửi email qua SMTP.
 - Đọc tin nhắn Zalo OA, trả lời trực tiếp và cấp quyền điều khiển OA.
-- Kết nối Moodle tại `moodle.mtpc.edu.vn`: kiểm tra kết nối, xem khoá học,
+- Kết nối Moodle tại `blearning.mtpc.edu.vn`: kiểm tra kết nối, xem khoá học,
   nội dung, thành viên, tìm tài khoản, đăng bài giảng, tạo khoá học và ghi danh.
 - Orb Nhi và SEO Studio hỗ trợ tạo nội dung nháp.
 
@@ -305,7 +305,7 @@ Tạo `/home/mtpc/private/moodle-config.php` theo mẫu
 ```php
 <?php
 return array(
-    'moodle_url' => 'https://moodle.mtpc.edu.vn',
+    'moodle_url' => 'https://blearning.mtpc.edu.vn',
     'moodle_token' => 'MOODLE_WEBSERVICE_TOKEN',
 );
 ```
