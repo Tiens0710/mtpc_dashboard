@@ -936,19 +936,39 @@
       }
       return result;
     };
-    const ADMIN_MOODLE_TOOL_POLICY=' Khi dùng moodle_teaching_action với post_announcement, nếu người dùng đã nêu tên khoá học hoặc nội dung thông báo thì tự trích xuất subject và message từ câu nói. Nếu chưa có Course ID, trước tiên gọi moodle_action với action courses, chọn đúng khoá học theo tên rồi mới gọi post_announcement với course_id, subject và message đầy đủ; không gọi post_announcement chỉ với action. Nếu người dùng chưa nêu nội dung thông báo thì chỉ hỏi lại nội dung còn thiếu.';
+    const ADMIN_MOODLE_TOOL_POLICY=' Khi dùng các công cụ Moodle, người quản trị có thể nói tên khoá học thay cho Course ID. Nếu đã có tên khoá học, hãy truyền course_name; nếu chưa có Course ID thì tự gọi moodle_action với action courses để khớp đúng tên rồi mới thực hiện thao tác. Nếu có nhiều khoá học trùng tên hoặc không tìm thấy, hãy hỏi lại tên đầy đủ; không bắt người quản trị phải nhớ ID. Với post_announcement, tự trích xuất subject và message từ câu nói. Nếu người dùng chưa nêu nội dung thông báo thì chỉ hỏi lại nội dung còn thiếu.';
     window.MTPC_MOODLE_OPEN_LECTURE_UPLOADER=openMoodleLectureUploader;
     var mtpcMoodleTeachingTool=ADMIN_TOOL_DECLARATIONS[0].functionDeclarations.find(function(item){return item.name==='moodle_teaching_action'});
+    var mtpcMoodleReadTool=ADMIN_TOOL_DECLARATIONS[0].functionDeclarations.find(function(item){return item.name==='moodle_action'});
     if(mtpcMoodleTeachingTool){
-      mtpcMoodleTeachingTool.description+=' Với post_announcement, không cần user_id: hãy dùng tài khoản sở hữu Moodle Web Service token để đăng bài. Không hỏi quản trị viên nhập User ID của chính họ. Luôn truyền đủ course_id, subject và message sau khi đã tra khoá học.';
+      mtpcMoodleTeachingTool.description+=' Có thể truyền course_name thay cho course_id; không yêu cầu quản trị viên nhớ mã khoá học. Nếu tên không duy nhất, hãy hỏi lại. Với post_announcement, không cần user_id: hãy dùng tài khoản sở hữu Moodle Web Service token để đăng bài. Không hỏi quản trị viên nhập User ID của chính họ.';
       mtpcMoodleTeachingTool.parameters.properties.user_id.description+=' Chỉ dùng cho chấm điểm hoặc thao tác thành viên; không dùng khi đăng thông báo/bài giảng.';
       mtpcMoodleTeachingTool.parameters.properties.course_name={type:'STRING',description:'Tên khoá học nếu chưa biết Course ID; hệ thống sẽ tự tra cứu.'};
       mtpcMoodleTeachingTool.parameters.properties.title={type:'STRING',description:'Tên thay thế cho subject khi đăng thông báo.'};
       mtpcMoodleTeachingTool.parameters.properties.content={type:'STRING',description:'Nội dung thay thế cho message khi đăng thông báo.'};
     }
+    if(mtpcMoodleReadTool)mtpcMoodleReadTool.parameters.properties.course_name={type:'STRING',description:'Tên khoá học; có thể dùng thay cho Course ID, hệ thống sẽ tự tra cứu.'};
     var mtpcMoodleCourses=[];
+    function mtpcMoodleNormalizeCourseName(value){return String(value||'').toLocaleLowerCase('vi-VN').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').replace(/[^a-z0-9]+/g,' ').trim()}
+    async function mtpcResolveMoodleCourse(args){
+      args=Object.assign({},args||{});
+      if(!args.course_id&&args.courseid)args.course_id=args.courseid;
+      if(args.course_id)return{args:args};
+      var courseName=String(args.course_name||'').trim();
+      if(!courseName)return{args:args};
+      var courses=mtpcMoodleCourses;
+      if(!courses.length){try{var courseData=await moodleRequest('courses');courses=courseData.courses||[];mtpcMoodleCourses=courses}catch(error){return{error:'Không tải được danh sách khoá học Moodle để tìm theo tên.'}}}
+      var wanted=mtpcMoodleNormalizeCourseName(courseName);
+      var exact=courses.filter(function(course){return mtpcMoodleNormalizeCourseName(course.fullname)===wanted||mtpcMoodleNormalizeCourseName(course.shortname)===wanted});
+      var matches=exact.length?exact:courses.filter(function(course){var fullname=mtpcMoodleNormalizeCourseName(course.fullname),shortname=mtpcMoodleNormalizeCourseName(course.shortname);return fullname.indexOf(wanted)!==-1||wanted.indexOf(fullname)!==-1||shortname.indexOf(wanted)!==-1||wanted.indexOf(shortname)!==-1});
+      if(matches.length===1){args.course_id=Number(matches[0].id);args.courseid=args.course_id;return{args:args,course:matches[0]}}
+      if(!matches.length)return{error:'Không tìm thấy khoá học Moodle có tên "'+courseName+'". Hãy nói lại tên đầy đủ hoặc xem danh sách trong mục Moodle.'};
+      return{error:'Có nhiều khoá học khớp với tên "'+courseName+'": '+matches.slice(0,5).map(function(course){return course.fullname}).join(', ')+'. Hãy nói rõ tên đầy đủ.'};
+    }
     var mtpcOriginalAdminMoodleAction=adminMoodleAction;
     adminMoodleAction=async function(action,args){
+      args=Object.assign({},args||{});
+      if(['course_contents','course_members','assignments','enrol_user','unenrol_user'].indexOf(action)!==-1&&(!args.course_id||Number(args.course_id)<=0)&&args.course_name){var resolved=await mtpcResolveMoodleCourse(args);if(resolved.error)return{ok:false,error:resolved.error};args=resolved.args}
       var result=await mtpcOriginalAdminMoodleAction(action,args);
       if(action==='courses'&&result&&Array.isArray(result.courses))mtpcMoodleCourses=result.courses;
       return result;
@@ -956,20 +976,14 @@
     var mtpcOriginalAdminTeachingAction=adminTeachingAction;
     adminTeachingAction=async function(action,args){
       args=Object.assign({},args||{});
+      if(['forums','post_lecture','post_announcement','groups','create_group','calendar_events','create_calendar_event'].indexOf(action)!==-1){
+        var resolvedTeaching=await mtpcResolveMoodleCourse(args);
+        if(resolvedTeaching.error)return{ok:false,error:resolvedTeaching.error};
+        args=resolvedTeaching.args;
+      }
       if(action==='post_announcement'){
-        if(!args.course_id&&args.courseid)args.course_id=args.courseid;
         if(!args.subject)args.subject=args.title||'';
         if(!args.message)args.message=args.content||'';
-        if(!args.course_id&&args.course_name&&mtpcMoodleCourses.length){
-          var wanted=String(args.course_name).toLowerCase();
-          var matches=mtpcMoodleCourses.filter(function(course){return String(course.fullname||'').toLowerCase().indexOf(wanted)!==-1||wanted.indexOf(String(course.fullname||'').toLowerCase())!==-1});
-          if(matches.length===1)args.course_id=Number(matches[0].id);
-        }
-        if(!args.course_id&&mtpcMoodleCourses.length===1)args.course_id=Number(mtpcMoodleCourses[0].id);
-        if(!args.course_id){
-          try{var courseData=await moodleRequest('courses');var courses=courseData.courses||[];if(courses.length===1)args.course_id=Number(courses[0].id);}
-          catch(ignore){}
-        }
         if(!args.subject&&args.message)args.subject='Thông báo Moodle';
       }
       return mtpcOriginalAdminTeachingAction(action,args);
