@@ -1,76 +1,43 @@
-/* Chat-first layout. IDs intentionally take precedence over legacy orb themes. */
-#adminAiWelcome { background:#eef1f5; backdrop-filter:none; }
-#adminAiWelcome .admin-ai-welcome-close { top:23px; right:24px; width:40px; height:40px; background:#fff; color:#475569; border:1px solid #dce2ea; }
-#adminAiWelcome:not(.hidden) ~ #adminOrbWidget { --chat-width:1040px; }
+/* Preserve the original glass theme; adjust only space used by the orb and chat. */
+#adminAiWelcome:not(.hidden) ~ #adminOrbWidget {
+  --chat-orb-center:clamp(90px,15vh,126px);
+}
 #adminAiWelcome:not(.hidden) ~ #adminOrbWidget #adminOrbLaunch {
-  top:16px; left:max(20px,calc((100vw - 1040px)/2)); width:58px; height:58px;
-  transform:none; filter:none;
+  top:var(--chat-orb-center);
+  width:200px;
+  height:200px;
 }
-#adminAiWelcome:not(.hidden) ~ #adminOrbWidget #adminOrbLaunch:hover { transform:scale(1.04); }
-#adminAiWelcome:not(.hidden) ~ #adminOrbWidget #adminOrbLaunch .ai-orb { width:48px; height:48px; filter:none; }
-#adminAiWelcome:not(.hidden) ~ #adminOrbWidget #adminOrbChatToggle { top:26px; left:auto; right:80px; bottom:auto; transform:none; background:#fff; color:#475569; border-color:#dce2ea; box-shadow:none; }
-#adminAiWelcome:not(.hidden) ~ #adminOrbWidget #adminOrbChatToggle:hover { transform:none; background:#e2e8f0; }
+#adminAiWelcome:not(.hidden) ~ #adminOrbWidget #adminOrbLaunch .ai-orb {
+  width:160px;
+  height:160px;
+}
+#adminAiWelcome:not(.hidden) ~ #adminOrbWidget #adminOrbChatToggle {
+  top:calc(var(--chat-orb-center) + 112px);
+}
 #adminAiWelcome:not(.hidden) ~ #adminOrbWidget.is-chat-open #adminOrbPanel {
-  top:88px!important; bottom:20px!important; left:50%!important; right:auto!important;
-  width:min(1040px,calc(100vw - 40px))!important; height:auto!important; max-height:none!important;
-  border:1px solid #dce2ea!important; border-radius:20px!important; background:#fff!important;
-  box-shadow:0 12px 40px #182b4510!important; backdrop-filter:none!important;
+  top:calc(var(--chat-orb-center) + 156px)!important;
+  height:auto!important;
+  max-height:none!important;
 }
-#adminOrbPanel .admin-orb-panel-head { display:flex!important; flex:none; gap:12px; padding:18px 24px; background:#fff; border-bottom:1px solid #e8edf2; color:#1e293b; }
-#adminOrbPanel .admin-orb-panel-head b { font-size:16px; }
-#adminOrbPanel .admin-orb-panel-head small { color:#64748b; font-size:12px; margin-top:4px; }
-#adminOrbPanel .admin-orb-panel-head button { background:#f1f5f9; color:#475569; width:32px; height:32px; }
-#adminAiWelcome:not(.hidden) ~ #adminOrbWidget.is-chat-open #adminOrbPanel #adminOrbTranscript,
-#adminOrbPanel #adminOrbTranscript {
-  padding:24px!important; background:#f8fafc!important; mask-image:none!important;
-  scrollbar-width:thin!important; scrollbar-color:#cbd5e1 transparent; overscroll-behavior:contain;
+#adminOrbTranscript > * {
+  flex-shrink:0;
 }
-#adminAiWelcome:not(.hidden) ~ #adminOrbWidget.is-chat-open #adminOrbPanel #adminOrbTranscript::-webkit-scrollbar { display:block; width:6px; }
-#adminOrbTranscript::-webkit-scrollbar-thumb { background:#cbd5e1; border-radius:8px; }
-#adminOrbPanel #adminOrbTranscript > * { flex-shrink:0; }
-#adminOrbPanel #adminOrbTranscript .admin-orb-message {
-  max-width:85%!important; margin:0 0 18px; padding:14px 18px; background:#fff; color:#253247;
-  border:1px solid #e2e8f0; border-radius:16px 16px 16px 4px; font-size:15px; font-weight:400;
-  line-height:1.7; text-shadow:none; box-shadow:0 2px 5px #182b4503; backdrop-filter:none;
+@media(max-width:760px), (max-height:650px) {
+  #adminAiWelcome:not(.hidden) ~ #adminOrbWidget {
+    --chat-orb-center:82px;
+  }
+  #adminAiWelcome:not(.hidden) ~ #adminOrbWidget #adminOrbLaunch {
+    width:144px;
+    height:144px;
+  }
+  #adminAiWelcome:not(.hidden) ~ #adminOrbWidget #adminOrbLaunch .ai-orb {
+    width:112px;
+    height:112px;
+  }
+  #adminAiWelcome:not(.hidden) ~ #adminOrbWidget #adminOrbChatToggle {
+    top:164px;
+  }
+  #adminAiWelcome:not(.hidden) ~ #adminOrbWidget.is-chat-open #adminOrbPanel {
+    top:208px!important;
+  }
 }
-#adminOrbPanel #adminOrbTranscript .admin-orb-message.user { background:#e8f3ee; color:#174c39; border-color:#d3e8dd; border-radius:16px 16px 4px 16px; text-align:left; }
-#adminOrbPanel .admin-orb-role { color:#64748b; font-size:10px; font-weight:700; letter-spacing:.06em; }
-#adminOrbPanel .admin-orb-message.user .admin-orb-role { color:#39765c; }
-#adminOrbPanel .admin-orb-empty { display:block; margin:auto; padding:24px; border:0; background:none; color:#64748b; font-size:14px; text-align:center; }
-#adminAiWelcome:not(.hidden) ~ #adminOrbWidget.is-chat-open #adminOrbPanel #adminOrbForm,
-#adminOrbPanel #adminOrbForm {
-  flex:none; width:100%; min-height:76px!important; padding:12px 16px!important; margin:0;
-  border:0!important; border-top:1px solid #e2e8f0!important; border-radius:0!important;
-  background:#fff!important; box-shadow:none!important; backdrop-filter:none; flex-wrap:wrap; align-items:center;
-}
-#adminOrbForm #adminOrbInput { height:46px; color:#253247; font-size:15px; background:#f1f5f9; border-radius:12px; padding:0 14px; }
-#adminOrbForm #adminOrbInput::placeholder { color:#64748b; }
-#adminOrbForm #adminOrbSend { width:44px; height:44px; flex:none; border-radius:12px; background:#177453; color:#fff; box-shadow:none; }
-#adminOrbForm #adminOrbAttach { width:40px; height:44px; flex:none; border-radius:12px; background:#f1f5f9; color:#475569; box-shadow:none; }
-#adminOrbForm #adminOrbAttachment { order:-1; flex-basis:100%; max-width:100%; color:#176144; background:#e8f3ee; border-color:#cce3d7; }
-#adminOrbPanel .admin-orb-file-prompt { flex:none; margin:12px 16px; font-size:13px; }
-#adminOrbPanel .admin-orb-tool-card { background:#fff; color:#253247; border-color:#dce2ea; box-shadow:none; backdrop-filter:none; }
-#adminOrbPanel .admin-orb-tool-card.is-error { background:#fff5f4; border-color:#fecaca; }
-#adminOrbPanel .admin-orb-tool-card.is-pending { background:#fffbeb; border-color:#f4dfaa; }
-#adminOrbPanel .admin-tool-title small, #adminOrbPanel .admin-tool-row small, #adminOrbPanel .admin-tool-more { color:#64748b; }
-#adminOrbPanel .admin-tool-summary { color:#334155; }
-#adminOrbPanel .admin-tool-row, #adminOrbPanel .admin-tool-list-item { background:#f1f5f9; border-color:#e2e8f0; }
-#adminOrbPanel .admin-tool-status, #adminOrbPanel .admin-tool-list-item span:last-child { color:#176144; }
-#adminOrbPanel .admin-tool-action, #adminOrbPanel .admin-tool-icon { background:#e8f3ee; color:#176144; border-color:#cce3d7; }
-#adminOrbPanel button:focus-visible, #adminOrbPanel input:focus-visible, #adminAiWelcomeClose:focus-visible { outline:2px solid #177453; outline-offset:3px; }
-#adminAiWelcome.hidden ~ #adminOrbWidget.is-chat-open #adminOrbPanel { width:min(520px,calc(100vw - 32px)); height:min(680px,calc(100dvh - 130px)); background:#fff; border:1px solid #dce2ea; border-radius:20px; gap:0; }
-@media(max-width:600px) {
-  #adminAiWelcome .admin-ai-welcome-close { right:12px; top:15px; }
-  #adminAiWelcome:not(.hidden) ~ #adminOrbWidget #adminOrbLaunch { left:14px; top:8px; }
-  #adminAiWelcome:not(.hidden) ~ #adminOrbWidget #adminOrbChatToggle { top:18px; right:68px; }
-  #adminAiWelcome:not(.hidden) ~ #adminOrbWidget.is-chat-open #adminOrbPanel { top:72px!important; bottom:0!important; width:100%!important; border-radius:18px 18px 0 0!important; }
-  #adminOrbPanel .admin-orb-panel-head { padding:14px 16px; }
-  #adminAiWelcome:not(.hidden) ~ #adminOrbWidget.is-chat-open #adminOrbPanel #adminOrbTranscript,
-  #adminOrbPanel #adminOrbTranscript { padding:16px 12px!important; }
-  #adminAiWelcome:not(.hidden) ~ #adminOrbWidget.is-chat-open #adminOrbPanel #adminOrbTranscript .admin-orb-message,
-  #adminOrbPanel #adminOrbTranscript .admin-orb-message { max-width:92%!important; padding:12px 14px!important; font-size:15px!important; }
-  #adminAiWelcome:not(.hidden) ~ #adminOrbWidget.is-chat-open #adminOrbPanel #adminOrbForm,
-  #adminOrbPanel #adminOrbForm { padding:10px 8px calc(10px + env(safe-area-inset-bottom))!important; gap:6px; }
-  #adminOrbForm #adminOrbInput { font-size:16px; padding:0 10px; }
-}
-@media(prefers-reduced-motion:reduce) { #adminOrbWidget .ai-orb, #adminOrbWidget .ai-orb * { animation:none!important; } }
