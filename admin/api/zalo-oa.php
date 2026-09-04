@@ -31,6 +31,7 @@ $config = array(
     'group_api_base' => 'https://openapi.zalo.me/v3.0/oa/group',
     'profile_url' => 'https://openapi.zalo.me/v3.0/oa/user/detail',
     'profile_fallback_url' => 'https://openapi.zalo.me/v2.0/oa/getprofile',
+    'conversation_url' => 'https://openapi.zalo.me/v2.0/oa/conversation',
     'oa_id' => '',
     'auto_reply' => false,
     'gmf_asset_id' => ''
@@ -43,6 +44,7 @@ if (is_file($configPath)) {
     if (isset($MTPC_ZALO_OA_GROUP_API_BASE) && trim((string)$MTPC_ZALO_OA_GROUP_API_BASE) !== '') $config['group_api_base'] = rtrim(trim((string)$MTPC_ZALO_OA_GROUP_API_BASE), '/');
     if (isset($MTPC_ZALO_OA_PROFILE_URL) && trim((string)$MTPC_ZALO_OA_PROFILE_URL) !== '') $config['profile_url'] = trim((string)$MTPC_ZALO_OA_PROFILE_URL);
     if (isset($MTPC_ZALO_OA_PROFILE_FALLBACK_URL) && trim((string)$MTPC_ZALO_OA_PROFILE_FALLBACK_URL) !== '') $config['profile_fallback_url'] = trim((string)$MTPC_ZALO_OA_PROFILE_FALLBACK_URL);
+    if (isset($MTPC_ZALO_OA_CONVERSATION_URL) && trim((string)$MTPC_ZALO_OA_CONVERSATION_URL) !== '') $config['conversation_url'] = trim((string)$MTPC_ZALO_OA_CONVERSATION_URL);
     if (isset($MTPC_ZALO_OA_ID)) $config['oa_id'] = trim((string)$MTPC_ZALO_OA_ID);
     if (isset($MTPC_ZALO_OA_AUTO_REPLY)) $config['auto_reply'] = (bool)$MTPC_ZALO_OA_AUTO_REPLY;
     if (isset($MTPC_ZALO_OA_ASSET_ID)) $config['gmf_asset_id'] = trim((string)$MTPC_ZALO_OA_ASSET_ID);
@@ -181,20 +183,151 @@ function mtpc_zalo_event_first($event, $paths, $fallback) {
 function mtpc_zalo_user_name_from_event($event) {
     return mtpc_zalo_event_first($event, array(
         array('sender', 'display_name'),
+        array('sender', 'displayName'),
         array('sender', 'name'),
+        array('sender', 'user_display_name'),
+        array('sender', 'user_displayName'),
         array('user', 'display_name'),
+        array('user', 'displayName'),
         array('user', 'name'),
         array('user_profile', 'display_name'),
+        array('user_profile', 'displayName'),
         array('user_profile', 'name'),
         array('from', 'display_name'),
+        array('from', 'displayName'),
         array('from', 'name'),
         array('message', 'sender_name'),
+        array('message', 'sender', 'display_name'),
+        array('message', 'sender', 'displayName'),
         array('message', 'from', 'display_name'),
-        array('message', 'from', 'name')
+        array('message', 'from', 'displayName'),
+        array('message', 'from', 'name'),
+        array('profile', 'display_name'),
+        array('profile', 'displayName'),
+        array('profile', 'name')
     ), '');
 }
+function mtpc_zalo_user_id_from_event($event) {
+    return mtpc_zalo_event_first($event, array(
+        array('sender', 'id'),
+        array('sender', 'user_id'),
+        array('sender', 'userId'),
+        array('user_id'),
+        array('from', 'id'),
+        array('from', 'user_id'),
+        array('from', 'userId'),
+        array('user', 'id'),
+        array('user', 'user_id'),
+        array('follower', 'id'),
+        array('follower', 'user_id'),
+        array('follower', 'userId')
+    ), '');
+}
+function mtpc_zalo_message_id_from_event($event) {
+    return mtpc_zalo_event_first($event, array(
+        array('message', 'msg_id'),
+        array('message', 'message_id'),
+        array('message_id'),
+        array('msg_id')
+    ), '');
+}
+function mtpc_zalo_message_type_from_event($eventName, $event, $text) {
+    $eventName = strtolower(trim((string)$eventName));
+    if ($eventName === 'follow' || $eventName === 'unfollow') return $eventName;
+    if ($eventName === 'user_seen_message' || $eventName === 'user_received_message') return 'system_event';
+    if (strpos($eventName, 'image') !== false || strpos($eventName, 'photo') !== false) return 'image';
+    if (strpos($eventName, 'file') !== false) return 'file';
+    if (strpos($eventName, 'sticker') !== false) return 'sticker';
+    if (strpos($eventName, 'audio') !== false || strpos($eventName, 'voice') !== false) return 'audio';
+    if (strpos($eventName, 'video') !== false) return 'video';
+    if ($text !== '') return 'text';
+    $attachments = mtpc_zalo_event_value($event, array('message', 'attachments'), array());
+    if (is_array($attachments) && count($attachments)) {
+        $first = reset($attachments);
+        if (is_array($first) && isset($first['type']) && trim((string)$first['type']) !== '') return strtolower((string)$first['type']);
+        return 'attachment';
+    }
+    return 'unknown';
+}
+function mtpc_zalo_is_inbound_message($row) {
+    if (!is_array($row) || (isset($row['direction']) && $row['direction'] !== 'inbound')) return false;
+    $eventName = strtolower(trim(isset($row['event_name']) ? (string)$row['event_name'] : ''));
+    if (in_array($eventName, array('follow', 'unfollow', 'user_seen_message', 'user_received_message'), true)) return false;
+    if (strpos($eventName, 'user_send_') === 0) return true;
+    $type = strtolower(trim(isset($row['message_type']) ? (string)$row['message_type'] : ''));
+    if (in_array($type, array('text', 'image', 'file', 'sticker', 'audio', 'video', 'photo', 'gif', 'link', 'links', 'attachment'), true)) return true;
+    if (trim(isset($row['text']) ? (string)$row['text'] : '') !== '') return true;
+    if (isset($row['payload']['message']['attachments']) && is_array($row['payload']['message']['attachments']) && count($row['payload']['message']['attachments'])) return true;
+    return false;
+}
+function mtpc_zalo_message_id_from_row($row) {
+    if (!is_array($row)) return '';
+    if (isset($row['message_id']) && trim((string)$row['message_id']) !== '') return trim((string)$row['message_id']);
+    if (isset($row['payload']) && is_array($row['payload'])) return mtpc_zalo_message_id_from_event($row['payload']);
+    return '';
+}
+function mtpc_zalo_conversation_rows($config, $userId, $count) {
+    if (empty($config['access_token']) || trim((string)$userId) === '') return array();
+    $data = json_encode(array('user_id' => (string)$userId, 'offset' => 0, 'count' => max(1, min(10, (int)$count))), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    $baseUrl = !empty($config['conversation_url']) ? $config['conversation_url'] : 'https://openapi.zalo.me/v2.0/oa/conversation';
+    $url = $baseUrl . (strpos($baseUrl, '?') === false ? '?' : '&') . 'data=' . rawurlencode($data);
+    $curl = curl_init($url);
+    curl_setopt_array($curl, array(CURLOPT_HTTPGET => true, CURLOPT_RETURNTRANSFER => true, CURLOPT_CONNECTTIMEOUT => 3, CURLOPT_TIMEOUT => 7, CURLOPT_HTTPHEADER => array('access_token: ' . $config['access_token'])));
+    $raw = curl_exec($curl); $status = (int)curl_getinfo($curl, CURLINFO_HTTP_CODE); curl_close($curl);
+    if ($raw === false || $status < 200 || $status >= 300) return array();
+    $response = json_decode($raw, true);
+    if (!is_array($response) || (isset($response['error']) && (int)$response['error'] !== 0)) return array();
+    $rows = isset($response['data']) && is_array($response['data']) ? $response['data'] : array();
+    if (isset($rows['messages']) && is_array($rows['messages'])) $rows = $rows['messages'];
+    return array_values(array_filter($rows, function ($row) { return is_array($row); }));
+}
+function mtpc_zalo_conversation_name($rows, $userId) {
+    foreach ($rows as $row) {
+        $name = isset($row['from_display_name']) ? trim((string)$row['from_display_name']) : '';
+        $fromId = isset($row['from_id']) ? trim((string)$row['from_id']) : '';
+        if ($name !== '' && ($fromId === '' || $fromId === (string)$userId || (isset($row['src']) && (int)$row['src'] === 1))) return $name;
+    }
+    return '';
+}
+function mtpc_zalo_conversation_text($row) {
+    if (!is_array($row)) return '';
+    if (isset($row['message']) && is_scalar($row['message'])) return trim((string)$row['message']);
+    if (isset($row['text']) && is_scalar($row['text'])) return trim((string)$row['text']);
+    return '';
+}
+function mtpc_zalo_conversation_time($row) {
+    if (!is_array($row) || !isset($row['time'])) return '';
+    $milliseconds = (int)$row['time'];
+    if ($milliseconds <= 0) return '';
+    return gmdate('c', (int)floor($milliseconds / 1000));
+}
+function mtpc_zalo_conversation_is_user_message($row, $userId) {
+    if (!is_array($row)) return false;
+    if (isset($row['src'])) return (int)$row['src'] === 1;
+    return isset($row['from_id']) && trim((string)$row['from_id']) === (string)$userId;
+}
+function mtpc_zalo_conversation_normalize($row, $userId) {
+    $type = isset($row['type']) ? strtolower(trim((string)$row['type'])) : 'text';
+    $text = mtpc_zalo_conversation_text($row);
+    if ($text === '' && $type !== '' && $type !== 'text') $text = '[Tin nhắn ' . $type . ' không có nội dung văn bản]';
+    return array(
+        'id' => 'zalo-conversation-' . (isset($row['message_id']) ? (string)$row['message_id'] : sha1(json_encode($row))),
+        'direction' => 'inbound',
+        'event_name' => 'zalo_conversation',
+        'user_id' => (string)$userId,
+        'user_name' => isset($row['from_display_name']) ? trim((string)$row['from_display_name']) : '',
+        'text' => mtpc_zalo_cut($text, 5000),
+        'message_id' => isset($row['message_id']) ? trim((string)$row['message_id']) : '',
+        'message_type' => $type !== '' ? $type : 'unknown',
+        'received_at' => mtpc_zalo_conversation_time($row),
+        'source' => 'zalo_conversation_api',
+        'read' => true
+    );
+}
 function mtpc_zalo_profile_name($config, $userId) {
+    static $cache = array();
     if ($config['access_token'] === '' || $userId === '') return '';
+    if (isset($cache[$userId])) return $cache[$userId];
     $data = json_encode(array('user_id' => $userId), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     $urls = array();
     if (!empty($config['profile_url'])) $urls[] = $config['profile_url'];
@@ -223,8 +356,9 @@ function mtpc_zalo_profile_name($config, $userId) {
             array('user_alias'),
             array('shared_info', 'name')
         ), '');
-        if ($name !== '') return $name;
+        if ($name !== '') { $cache[$userId] = $name; return $name; }
     }
+    $cache[$userId] = '';
     return '';
 }
 function mtpc_zalo_normalize($text) {
@@ -449,14 +583,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             $todayKey = $today->format('Y-m-d'); $filtered = array();
             foreach ($rows as $row) {
                 $at = isset($row['received_at']) ? strtotime($row['received_at']) : false;
-                if ($at !== false && date('Y-m-d', $at + 7 * 3600) === $todayKey) $filtered[] = $row;
+                if ($at !== false) {
+                    $localTime = new DateTime('@' . $at);
+                    $localTime->setTimezone(new DateTimeZone('Asia/Ho_Chi_Minh'));
+                    if ($localTime->format('Y-m-d') === $todayKey) $filtered[] = $row;
+                }
             }
             $rows = $filtered;
         }
+        // A webhook also receives follow, unfollow and seen events. Those are
+        // useful for audit, but they are not messages and must not be sent to
+        // the assistant as if they had text content.
+        $rows = array_values(array_filter($rows, 'mtpc_zalo_is_inbound_message'));
         $profileLookups = 0;
+        $conversationLookups = 0;
+        $conversationByMessage = array();
+        $liveMessagesByUser = array();
+        $userIds = array();
         foreach ($rows as $rowIndex => $row) {
-            if ($profileLookups >= 10) break;
-            if (isset($row['direction']) && $row['direction'] === 'inbound' && (!isset($row['user_name']) || trim((string)$row['user_name']) === '') && !empty($row['user_id'])) {
+            $userId = isset($row['user_id']) ? trim((string)$row['user_id']) : '';
+            if ($userId !== '' && !in_array($userId, $userIds, true)) $userIds[] = $userId;
+            if ($profileLookups >= 10) continue;
+            if ((!isset($row['user_name']) || trim((string)$row['user_name']) === '') && $userId !== '') {
                 $resolvedName = mtpc_zalo_profile_name($config, (string)$row['user_id']);
                 $profileLookups++;
                 if ($resolvedName !== '') {
@@ -465,8 +613,80 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
                 }
             }
         }
+        // The conversation API returns both the exact message text and
+        // from_display_name. It is a reliable fallback when the webhook did
+        // not include a profile name, and also prevents the assistant from
+        // summarising an empty webhook payload as a dash or as a text message.
+        foreach (array_slice($userIds, 0, 10) as $userId) {
+            $conversationRows = mtpc_zalo_conversation_rows($config, $userId, 10);
+            $conversationLookups++;
+            if (!$conversationRows) continue;
+            foreach ($conversationRows as $conversationRow) {
+                if (mtpc_zalo_conversation_is_user_message($conversationRow, $userId)) {
+                    $normalizedMessage = mtpc_zalo_conversation_normalize($conversationRow, $userId);
+                    if ($normalizedMessage['message_type'] !== 'text' || $normalizedMessage['text'] !== '') {
+                        if ($dateMode !== 'today' || $normalizedMessage['received_at'] === '') {
+                            $liveMessagesByUser[$userId][] = $normalizedMessage;
+                        } else {
+                            $liveTime = strtotime($normalizedMessage['received_at']);
+                            $localLiveTime = new DateTime('@' . $liveTime);
+                            $localLiveTime->setTimezone(new DateTimeZone('Asia/Ho_Chi_Minh'));
+                            if ($localLiveTime->format('Y-m-d') === $todayKey) $liveMessagesByUser[$userId][] = $normalizedMessage;
+                        }
+                    }
+                }
+            }
+            foreach ($conversationRows as $conversationRow) {
+                $conversationMessageId = isset($conversationRow['message_id']) ? trim((string)$conversationRow['message_id']) : '';
+                if ($conversationMessageId !== '') $conversationByMessage[$conversationMessageId] = $conversationRow;
+            }
+            $conversationName = mtpc_zalo_conversation_name($conversationRows, $userId);
+            if ($conversationName === '') continue;
+            foreach ($rows as $rowIndex => $row) {
+                if ((string)(isset($row['user_id']) ? $row['user_id'] : '') !== $userId) continue;
+                if (!isset($row['user_name']) || trim((string)$row['user_name']) === '') {
+                    $rows[$rowIndex]['user_name'] = $conversationName;
+                    if (isset($row['id'])) mtpc_zalo_update_user_name($messagesPath, (string)$row['id'], $conversationName);
+                }
+            }
+        }
+        // Prefer Zalo's conversation records for users for whom the API
+        // returned data. This replaces incomplete webhook records with the
+        // exact text, sender name and message type shown by Zalo Manager.
+        if ($liveMessagesByUser) {
+            $refreshedRows = array();
+            foreach ($rows as $row) {
+                $rowUserId = isset($row['user_id']) ? trim((string)$row['user_id']) : '';
+                if ($rowUserId !== '' && isset($liveMessagesByUser[$rowUserId])) continue;
+                $refreshedRows[] = $row;
+            }
+            foreach ($liveMessagesByUser as $userMessages) foreach ($userMessages as $userMessage) $refreshedRows[] = $userMessage;
+            usort($refreshedRows, function ($left, $right) {
+                return strcmp((string)(isset($right['received_at']) ? $right['received_at'] : ''), (string)(isset($left['received_at']) ? $left['received_at'] : ''));
+            });
+            $rows = $refreshedRows;
+        }
+        foreach ($rows as $rowIndex => $row) {
+            $messageId = mtpc_zalo_message_id_from_row($row);
+            if ($messageId === '' || !isset($conversationByMessage[$messageId])) continue;
+            $live = $conversationByMessage[$messageId];
+            if ((!isset($row['user_name']) || trim((string)$row['user_name']) === '') && !empty($live['from_display_name'])) $rows[$rowIndex]['user_name'] = trim((string)$live['from_display_name']);
+            if (trim(isset($row['text']) ? (string)$row['text'] : '') === '') {
+                $liveText = mtpc_zalo_conversation_text($live);
+                if ($liveText !== '') $rows[$rowIndex]['text'] = $liveText;
+            }
+            if (!isset($rows[$rowIndex]['message_type']) || $rows[$rowIndex]['message_type'] === '' || $rows[$rowIndex]['message_type'] === 'unknown') {
+                $rows[$rowIndex]['message_type'] = isset($live['type']) ? (string)$live['type'] : 'text';
+            }
+            if (empty($rows[$rowIndex]['received_at'])) $rows[$rowIndex]['received_at'] = mtpc_zalo_conversation_time($live);
+            $rows[$rowIndex]['source'] = 'zalo_conversation_api';
+        }
         $rows = array_slice($rows, 0, $limit);
-        mtpc_zalo_out(200, array('ok' => true, 'count' => count($rows), 'messages' => $rows));
+        $missingNames = 0;
+        foreach ($rows as $row) if (trim(isset($row['user_name']) ? (string)$row['user_name'] : '') === '') $missingNames++;
+        $warnings = array();
+        if ($missingNames > 0) $warnings[] = 'Zalo chưa trả tên hiển thị cho ' . $missingNames . ' tin. Kiểm tra quyền quản lý thông tin người dùng hoặc quyền quản lý tin nhắn người quan tâm của ứng dụng.';
+        mtpc_zalo_out(200, array('ok' => true, 'count' => count($rows), 'messages' => $rows, 'filters' => array('date_mode' => $dateMode, 'inbound_messages_only' => true), 'lookups' => array('profile' => $profileLookups, 'conversation' => $conversationLookups), 'warnings' => $warnings));
     }
     if ($action === 'groups') {
         if (!mtpc_zalo_same_origin()) mtpc_zalo_out(403, array('ok' => false, 'error' => 'Nguồn yêu cầu không hợp lệ.'));
@@ -590,19 +810,15 @@ if ($action === 'webhook') {
     }
     $event = mtpc_zalo_body();
     $eventName = mtpc_zalo_event_first($event, array(array('event_name'), array('event'), array('eventName')), 'unknown');
-    $userId = mtpc_zalo_event_first($event, array(
-        array('sender', 'id'),
-        array('sender', 'user_id'),
-        array('user_id'),
-        array('from', 'id'),
-        array('user', 'id')
-    ), '');
+    $userId = mtpc_zalo_user_id_from_event($event);
     $text = mtpc_zalo_event_first($event, array(
         array('message', 'text'),
         array('message', 'content'),
         array('text')
     ), '');
     $userName = mtpc_zalo_user_name_from_event($event);
+    $messageId = mtpc_zalo_message_id_from_event($event);
+    $messageType = mtpc_zalo_message_type_from_event($eventName, $event, $text);
     $linkResult = mtpc_zalo_admin_consume_link_request($linkRequestsPath, $operatorsPath, $userId, $userName, $text);
     $operator = mtpc_zalo_admin_find_operator($operatorsPath, $userId);
     if ($linkResult && $operator === null && isset($linkResult['operator']) && $linkResult['operator']['status'] === 'active') $operator = $linkResult['operator'];
@@ -614,6 +830,8 @@ if ($action === 'webhook') {
         'user_id' => mtpc_zalo_cut($userId, 160),
         'user_name' => mtpc_zalo_cut($userName, 180),
         'text' => mtpc_zalo_cut($text, 5000),
+        'message_id' => mtpc_zalo_cut($messageId, 180),
+        'message_type' => mtpc_zalo_cut($messageType, 40),
         'payload' => $event,
         'received_at' => gmdate('c'),
         'read' => false
