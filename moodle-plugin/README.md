@@ -7,7 +7,8 @@ course, thay vì ghi trực tiếp vào database.
 
 ## Cài trên Moodle
 
-1. Copy thư mục `local/mtpcbridge` vào thư mục Moodle `local/`.
+1. Với Moodle 5.1+, copy thư mục `local/mtpcbridge` vào thư mục code Moodle
+   `public/local/` (Document Root của website là thư mục `public/`).
 2. Đăng nhập Moodle bằng tài khoản quản trị và mở **Site administration →
    Notifications**, hoàn tất nâng cấp plugin.
 3. Mở **Site administration → Server → Web services → External services**,

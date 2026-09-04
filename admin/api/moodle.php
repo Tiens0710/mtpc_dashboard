@@ -366,7 +366,7 @@ try {
         if (!$moodle->isFunctionAvailable('local_mtpcbridge_create_announcement')) {
             mtpc_moodle_response(503, array(
                 'ok' => false,
-                'error' => 'Moodle chưa nhận function local_mtpcbridge_create_announcement. Hãy deploy plugin local/mtpcbridge, nâng cấp Moodle và thêm function này vào External service dashboard.',
+                'error' => 'Moodle chưa nhận function local_mtpcbridge_create_announcement. Hãy deploy plugin public/local/mtpcbridge, nâng cấp Moodle và thêm function này vào External service dashboard.',
                 'required_function' => 'local_mtpcbridge_create_announcement',
             ));
         }
