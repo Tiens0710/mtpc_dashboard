@@ -985,13 +985,14 @@
     var mtpcMoodleTeachingTool=ADMIN_TOOL_DECLARATIONS[0].functionDeclarations.find(function(item){return item.name==='moodle_teaching_action'});
     var mtpcMoodleReadTool=ADMIN_TOOL_DECLARATIONS[0].functionDeclarations.find(function(item){return item.name==='moodle_action'});
     if(mtpcMoodleTeachingTool){
+      mtpcMoodleTeachingTool.parameters.properties.action.enum=Array.from(new Set(mtpcMoodleTeachingTool.parameters.properties.action.enum.concat(['status','courses','course_contents','course_members','search_users','assignments'])));
       mtpcMoodleTeachingTool.description+=' Có thể truyền course_name thay cho course_id; không yêu cầu quản trị viên nhớ mã khoá học. Nếu tên không duy nhất, hãy hỏi lại. Nếu người dùng đã đính kèm file và yêu cầu đăng file, dùng post_lecture_file; không cần mở Dashboard. Với post_announcement, không cần user_id: hãy dùng tài khoản sở hữu Moodle Web Service token để đăng bài. Không hỏi quản trị viên nhập User ID của chính họ.';
       mtpcMoodleTeachingTool.parameters.properties.user_id.description+=' Chỉ dùng cho chấm điểm hoặc thao tác thành viên; không dùng khi đăng thông báo/bài giảng.';
       mtpcMoodleTeachingTool.parameters.properties.course_name={type:'STRING',description:'Tên khoá học nếu chưa biết Course ID; hệ thống sẽ tự tra cứu.'};
       mtpcMoodleTeachingTool.parameters.properties.title={type:'STRING',description:'Tên thay thế cho subject khi đăng thông báo.'};
       mtpcMoodleTeachingTool.parameters.properties.content={type:'STRING',description:'Nội dung thay thế cho message khi đăng thông báo.'};
     }
-    if(mtpcMoodleReadTool)mtpcMoodleReadTool.parameters.properties.course_name={type:'STRING',description:'Tên khoá học; có thể dùng thay cho Course ID, hệ thống sẽ tự tra cứu.'};
+    if(mtpcMoodleReadTool){mtpcMoodleReadTool.parameters.properties.course_name={type:'STRING',description:'Tên khoá học; có thể dùng thay cho Course ID, hệ thống sẽ tự tra cứu.'};mtpcMoodleReadTool.description+=' Khi chỉ xem danh sách khoá học, nội dung khoá học, thành viên hoặc bài tập thì luôn dùng công cụ này; moodle_teaching_action dành cho forum, bài giảng, thông báo và thao tác giảng dạy.';}
     var mtpcMoodleCourses=[];
     function mtpcMoodleNormalizeCourseName(value){return String(value||'').toLocaleLowerCase('vi-VN').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').replace(/[^a-z0-9]+/g,' ').trim()}
     async function mtpcResolveMoodleCourse(args){
@@ -1012,6 +1013,7 @@
     var mtpcOriginalAdminMoodleAction=adminMoodleAction;
     adminMoodleAction=async function(action,args){
       args=Object.assign({},args||{});
+      var moodleActionAliases={course:'course_contents',course_detail:'course_contents',course_details:'course_contents',view_course:'course_contents',view_course_contents:'course_contents',get_course_contents:'course_contents',list_courses:'courses',get_courses:'courses',members:'course_members',enrolled_users:'course_members',course_users:'course_members',find_users:'search_users',users:'search_users',list_assignments:'assignments',course_assignments:'assignments'};action=moodleActionAliases[action]||action;
       if(['course_contents','course_members','assignments','enrol_user','unenrol_user'].indexOf(action)!==-1&&(!args.course_id||Number(args.course_id)<=0)&&args.course_name){var resolved=await mtpcResolveMoodleCourse(args);if(resolved.error)return{ok:false,error:resolved.error};args=resolved.args}
       var result=await mtpcOriginalAdminMoodleAction(action,args);
       if(action==='courses'&&result&&Array.isArray(result.courses))mtpcMoodleCourses=result.courses;
@@ -1020,6 +1022,8 @@
     var mtpcOriginalAdminTeachingAction=adminTeachingAction;
     adminTeachingAction=async function(action,args){
       args=Object.assign({},args||{});
+      var teachingActionAliases={course:'course_contents',course_detail:'course_contents',course_details:'course_contents',view_course:'course_contents',view_course_contents:'course_contents',get_course_contents:'course_contents',list_courses:'courses',get_courses:'courses',members:'course_members',enrolled_users:'course_members',course_users:'course_members',find_users:'search_users',users:'search_users',list_assignments:'assignments',course_assignments:'assignments'};action=teachingActionAliases[action]||action;
+      if(['status','courses','course_contents','course_members','search_users','assignments'].indexOf(action)!==-1)return adminMoodleAction(action,args);
       if(['forums','post_lecture','post_lecture_file','post_announcement','groups','create_group','calendar_events','create_calendar_event'].indexOf(action)!==-1){
         var resolvedTeaching=await mtpcResolveMoodleCourse(args);
         if(resolvedTeaching.error)return{ok:false,error:resolvedTeaching.error};
