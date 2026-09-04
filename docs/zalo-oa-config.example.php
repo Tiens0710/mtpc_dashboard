@@ -1,5 +1,14 @@
 <?php
 /* Copy to /home/mtpc/private/zalo-oa-config.php on the hosting server. */
+/* Non-empty PHP environment values override this file:
+ * MTPC_ZALO_OA_ACCESS_TOKEN / ZALO_OA_ACCESS_TOKEN / ZALO_ACCESS_TOKEN
+ * MTPC_ZALO_OA_WEBHOOK_TOKEN / ZALO_OA_WEBHOOK_TOKEN / ZALO_WEBHOOK_TOKEN
+ * MTPC_ZALO_OA_ID / ZALO_OA_ID
+ * MTPC_ZALO_OA_ASSET_ID / ZALO_OA_ASSET_ID / ZALO_GMF_ASSET_ID
+ * MTPC_ZALO_OA_AUTO_REPLY / ZALO_OA_AUTO_REPLY (true/false or 1/0).
+ * These must be exposed to PHP on admin.mtpc.edu.vn; a .env file alone is not loaded.
+ * This does not refresh expired access tokens automatically.
+ */
 $MTPC_ZALO_OA_ACCESS_TOKEN = 'PASTE_ZALO_OA_ACCESS_TOKEN_HERE';
 $MTPC_ZALO_OA_WEBHOOK_TOKEN = 'CREATE_A_LONG_RANDOM_WEBHOOK_TOKEN_HERE';
 $MTPC_ZALO_OA_ID = 'YOUR_ZALO_OA_ID';
