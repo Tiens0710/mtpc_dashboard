@@ -125,8 +125,8 @@ function mtpc_zalo_admin_consume_link_request($requestsPath, $operatorsPath, $us
 function mtpc_zalo_admin_permission($role, $permission) {
     $map = array(
         'admin' => array('*'),
-        'training' => array('students.read', 'students.write', 'academic.read', 'academic.write', 'attendance.read', 'attendance.write', 'finance.read', 'audit.read', 'groups.read', 'groups.write', 'email.read', 'zalo.send', 'zalo.broadcast'),
-        'teacher' => array('students.read', 'academic.read', 'attendance.read', 'attendance.write', 'groups.read')
+        'training' => array('students.read', 'students.write', 'academic.read', 'academic.write', 'attendance.read', 'attendance.write', 'finance.read', 'audit.read', 'groups.read', 'groups.write', 'email.read', 'zalo.send', 'zalo.broadcast', 'moodle.read', 'moodle.write'),
+        'teacher' => array('students.read', 'academic.read', 'attendance.read', 'attendance.write', 'groups.read', 'moodle.read')
     );
     $allowed = isset($map[$role]) ? $map[$role] : array();
     return in_array('*', $allowed, true) || in_array($permission, $allowed, true);
@@ -664,6 +664,9 @@ function mtpc_zalo_admin_pending_summary($pdo, $operator, $intent) {
 }
 
 function mtpc_zalo_admin_execute_pending($pdo, $operator, $intent, $config, $groupsPath, $messagesPath) {
+    if (isset($intent['intent']) && $intent['intent'] === 'orb_tool' && function_exists('mtpc_orb_agent_execute_pending')) {
+        return mtpc_orb_agent_execute_pending($operator, $intent, $config, $groupsPath, $messagesPath);
+    }
     if ($intent['intent'] === 'group_send' || $intent['intent'] === 'group_update') return mtpc_zalo_admin_execute_group_pending($config, $groupsPath, $pdo, $operator, $intent);
     if ($intent['intent'] === 'zalo_student_broadcast') return mtpc_zalo_admin_execute_broadcast($pdo, $operator, $intent, $config, $messagesPath);
     $row = mtpc_zalo_admin_find_student($pdo, isset($intent['student_id']) ? $intent['student_id'] : '');
@@ -711,8 +714,12 @@ function mtpc_zalo_admin_handle_message($operator, $text, $pendingPath, $config,
             mtpc_zalo_admin_write_json($pendingPath, $pending);
         } elseif (in_array($normalized, array('xac nhan', 'xac nhan thuc hien', 'thuc hien', 'dong y', 'ok'), true)) {
             try {
-                $pdo = mtpc_zalo_admin_db();
-                $reply = mtpc_zalo_admin_execute_pending($pdo, $operator, $item['intent'], $config, $groupsPath, $messagesPath);
+                if (isset($item['intent']['intent']) && $item['intent']['intent'] === 'orb_tool' && function_exists('mtpc_orb_agent_execute_pending')) {
+                    $reply = mtpc_orb_agent_execute_pending($operator, $item['intent'], $config, $groupsPath, $messagesPath);
+                } else {
+                    $pdo = mtpc_zalo_admin_db();
+                    $reply = mtpc_zalo_admin_execute_pending($pdo, $operator, $item['intent'], $config, $groupsPath, $messagesPath);
+                }
                 unset($pending[$userId]);
                 mtpc_zalo_admin_write_json($pendingPath, $pending);
                 return array('reply' => $reply, 'event_name' => 'zalo_admin_command_executed');
@@ -725,6 +732,16 @@ function mtpc_zalo_admin_handle_message($operator, $text, $pendingPath, $config,
             return array('reply' => 'Đã hủy thao tác đang chờ.', 'event_name' => 'zalo_admin_command_cancelled');
         } else {
             return array('reply' => 'Em đang chờ xác nhận thao tác: ' . $item['intent']['summary'] . "\nNhắn “XÁC NHẬN” để thực hiện hoặc “HỦY” để bỏ qua.", 'event_name' => 'zalo_admin_command_waiting_confirmation');
+        }
+    }
+    /* Route normal language through the same semantic tool layer as the Orb.
+     * The legacy intent parser below remains as a safe fallback while all
+     * browser-local data is migrated to server storage. */
+    if (function_exists('mtpc_orb_agent_handle_message')) {
+        try {
+            return mtpc_orb_agent_handle_message($operator, $text, $pendingPath, $config, $groupsPath, $messagesPath);
+        } catch (Exception $agentError) {
+            // Continue with the proven fixed-intent implementation below.
         }
     }
     try {

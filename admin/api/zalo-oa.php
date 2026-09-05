@@ -63,6 +63,7 @@ if (!is_dir($storageDir) && !@mkdir($storageDir, 0750, true)) {
     mtpc_zalo_out(500, array('ok' => false, 'error' => 'Không thể tạo vùng lưu tin nhắn Zalo.'));
 }
 require_once __DIR__ . '/zalo-admin.php';
+require_once __DIR__ . '/orb-agent.php';
 
 function mtpc_zalo_body() {
     $body = json_decode(file_get_contents('php://input'), true);
