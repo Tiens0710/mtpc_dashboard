@@ -347,6 +347,13 @@ try {
             mtpc_moodle_response(422, array('ok' => false, 'error' => 'Định dạng file chưa được hỗ trợ.'));
         }
         $mime = isset($allowed[$extension]) ? $allowed[$extension] : $mimetype;
+        if (!$moodle->isFunctionAvailable('local_mtpcbridge_create_file_lecture')) {
+            mtpc_moodle_response(503, array(
+                'ok' => false,
+                'error' => 'Moodle chưa cấp function local_mtpcbridge_create_file_lecture cho External service đang dùng. Hãy nâng cấp plugin mtpcbridge và thêm function này vào service dashboard.',
+                'required_function' => 'local_mtpcbridge_create_file_lecture'
+            ));
+        }
         $result = $moodle->createFileLecture($courseId, $sectionNum, $name, $filename, $mime, $decoded);
         mtpc_audit('moodle.lecture.file.create', 'moodle_course', $courseId, null, array('name' => $name, 'filename' => $filename, 'sectionnum' => $sectionNum, 'bytes' => strlen($decoded)));
         mtpc_moodle_response(201, array('ok' => true, 'message' => 'Đã đăng file bài giảng vào Moodle.', 'courseid' => $courseId, 'lecture' => $result));
