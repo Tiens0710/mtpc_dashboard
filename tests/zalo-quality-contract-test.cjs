@@ -15,5 +15,9 @@ assert.ok(oa.includes("$messageType === 'sticker'"), 'Sticker webhook events do 
 assert.ok(oa.includes('chỉ 1 đến 3 câu'), 'Zalo response prompt is not concise');
 assert.ok(oa.includes('maxOutputTokens\' => 220'), 'Zalo response token budget is too high');
 assert.ok(index.includes('rel="icon"'), 'Admin favicon is missing');
+assert.ok(admin.includes("'email_briefing'"), 'Zalo admin email briefing intent is missing');
+assert.ok(admin.includes('đọc mail hôm nay'), 'Zalo admin must support the common read-mail command path');
+assert.ok(admin.includes("'/home/mtpc/private/email-config.php'"), 'Zalo admin email gateway config path is missing');
+assert.ok(admin.includes("'email.read'"), 'Zalo admin email permission is missing');
 
-console.log('Zalo quality contract OK: group limit, concise replies, sticker handling, favicon.');
+console.log('Zalo quality contract OK: group limit, concise replies, sticker handling, favicon, email command path.');

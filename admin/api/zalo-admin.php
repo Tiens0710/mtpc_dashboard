@@ -125,7 +125,7 @@ function mtpc_zalo_admin_consume_link_request($requestsPath, $operatorsPath, $us
 function mtpc_zalo_admin_permission($role, $permission) {
     $map = array(
         'admin' => array('*'),
-        'training' => array('students.read', 'students.write', 'academic.read', 'academic.write', 'attendance.read', 'attendance.write', 'finance.read', 'audit.read', 'groups.read', 'groups.write', 'zalo.send', 'zalo.broadcast'),
+        'training' => array('students.read', 'students.write', 'academic.read', 'academic.write', 'attendance.read', 'attendance.write', 'finance.read', 'audit.read', 'groups.read', 'groups.write', 'email.read', 'zalo.send', 'zalo.broadcast'),
         'teacher' => array('students.read', 'academic.read', 'attendance.read', 'attendance.write', 'groups.read')
     );
     $allowed = isset($map[$role]) ? $map[$role] : array();
@@ -227,7 +227,7 @@ function mtpc_zalo_admin_generate_intent($question, $operator) {
     }
     if (!$apiKey) throw new Exception('Chưa cấu hình GEMINI_API_KEY cho lệnh quản trị Zalo.');
     $role = isset($operator['role']) ? $operator['role'] : 'teacher';
-    $prompt = 'Bạn là bộ phân tích lệnh cho trợ lý quản trị Trường Trung cấp Miền Tây. Người gửi đã được xác thực qua Zalo User ID và có vai trò ' . $role . '. Hãy hiểu câu tiếng Việt và chỉ trả về một JSON hợp lệ, không markdown, theo schema: {"intent":"...","student_identifier":"","query":"","new_status":"","new_class_name":"","group_identifier":"","group_message":"","group_name":"","group_description":"","recipient_user_id":"","recipient_name":"","private_message":"","broadcast_query":"","broadcast_class_name":"","broadcast_status":"","broadcast_message":""}. Intent hợp lệ: students_summary (tổng quan số lượng sinh viên), student_search (tìm nhiều sinh viên theo tên/mã/lớp), student_profile (xem một hồ sơ theo mã hoặc ID), attendance_alerts (cảnh báo điểm danh), finance_summary (tổng quan học phí/công nợ), student_status_update (đổi trạng thái sinh viên), student_class_update (đổi lớp sinh viên), zalo_private_send (gửi ngay một tin nhắn riêng qua OA đến Zalo User ID), zalo_student_broadcast (soạn thông báo riêng đến từng học viên theo mã/tên/lớp/trạng thái), groups_list (liệt kê nhóm GMF đang quản lý), group_info (xem thông tin nhóm), group_members (xem thành viên nhóm), group_conversation (xem tin nhắn nhóm), group_send (gửi tin vào nhóm), group_update (đổi tên hoặc mô tả nhóm), unknown. Với recipient_user_id lấy đúng Zalo User ID số do người dùng cung cấp, với recipient_name lấy tên ghi chú nếu có, với private_message lấy nguyên nội dung cần gửi. Với broadcast_query/broadcast_class_name/broadcast_status lấy đúng điều kiện lọc; với broadcast_message lấy nguyên nội dung thông báo. Với group_identifier lấy group_id hoặc tên nhóm đã được nêu; với group_message lấy nguyên nội dung cần gửi; với group_name/group_description chỉ lấy giá trị mới. Với student_status_update chỉ dùng trạng thái Đang học, Bảo lưu, Đã tốt nghiệp hoặc Thôi học. Với student_class_update lấy tên lớp mới. Không tự bịa mã sinh viên, group_id hoặc recipient_user_id; nếu thiếu tham số để thực hiện thì vẫn chọn intent phù hợp và để chuỗi rỗng. Không thực hiện thao tác, không trả lời giải thích. Câu người dùng: ' . mtpc_zalo_admin_text($question, 2000);
+    $prompt = 'Bạn là bộ phân tích lệnh cho trợ lý quản trị Trường Trung cấp Miền Tây. Người gửi đã được xác thực qua Zalo User ID và có vai trò ' . $role . '. Hãy hiểu câu tiếng Việt và chỉ trả về một JSON hợp lệ, không markdown, theo schema: {"intent":"...","student_identifier":"","query":"","new_status":"","new_class_name":"","group_identifier":"","group_message":"","group_name":"","group_description":"","recipient_user_id":"","recipient_name":"","private_message":"","broadcast_query":"","broadcast_class_name":"","broadcast_status":"","broadcast_message":"","email_date_mode":"today","email_query":"","email_sender":"","email_subject":"","email_unread_only":false,"email_uid":""}. Intent hợp lệ: students_summary (tổng quan số lượng sinh viên), student_search (tìm nhiều sinh viên theo tên/mã/lớp), student_profile (xem một hồ sơ theo mã hoặc ID), attendance_alerts (cảnh báo điểm danh), finance_summary (tổng quan học phí/công nợ), email_briefing (liệt kê và tóm tắt email theo ngày), email_search (tìm email theo nội dung/người gửi/tiêu đề), email_read (đọc chi tiết email khi có UID rõ ràng), student_status_update (đổi trạng thái sinh viên), student_class_update (đổi lớp sinh viên), zalo_private_send (gửi ngay một tin nhắn riêng qua OA đến Zalo User ID), zalo_student_broadcast (soạn thông báo riêng đến từng học viên theo mã/tên/lớp/trạng thái), groups_list (liệt kê nhóm GMF đang quản lý), group_info (xem thông tin nhóm), group_members (xem thành viên nhóm), group_conversation (xem tin nhắn nhóm), group_send (gửi tin vào nhóm), group_update (đổi tên hoặc mô tả nhóm), unknown. Với email_briefing/email_search, email_date_mode chỉ được là today, yesterday, recent hoặc date; email_query/email_sender/email_subject lấy đúng điều kiện người dùng nêu; email_unread_only chỉ bật khi người dùng nói chưa đọc; email_uid chỉ lấy số UID nếu người dùng nêu rõ. Không tự bịa UID. Các thao tác gửi, trả lời, xóa hoặc thay đổi email chưa được hỗ trợ qua Zalo. Với recipient_user_id lấy đúng Zalo User ID số do người dùng cung cấp, với recipient_name lấy tên ghi chú nếu có, với private_message lấy nguyên nội dung cần gửi. Với broadcast_query/broadcast_class_name/broadcast_status lấy đúng điều kiện lọc; với broadcast_message lấy nguyên nội dung thông báo. Với group_identifier lấy group_id hoặc tên nhóm đã được nêu; với group_message lấy nguyên nội dung cần gửi; với group_name/group_description chỉ lấy giá trị mới. Với student_status_update chỉ dùng trạng thái Đang học, Bảo lưu, Đã tốt nghiệp hoặc Thôi học. Với student_class_update lấy tên lớp mới. Không tự bịa mã sinh viên, group_id hoặc recipient_user_id; nếu thiếu tham số để thực hiện thì vẫn chọn intent phù hợp và để chuỗi rỗng. Không thực hiện thao tác, không trả lời giải thích. Câu người dùng: ' . mtpc_zalo_admin_text($question, 2000);
     $payload = json_encode(array(
         'systemInstruction' => array('parts' => array(array('text' => $prompt))),
         'contents' => array(array('role' => 'user', 'parts' => array(array('text' => mtpc_zalo_admin_text($question, 2000))))),
@@ -262,6 +262,12 @@ function mtpc_zalo_admin_generate_intent($question, $operator) {
     $intent['broadcast_class_name'] = isset($intent['broadcast_class_name']) ? mtpc_zalo_admin_text($intent['broadcast_class_name'], 100) : '';
     $intent['broadcast_status'] = isset($intent['broadcast_status']) ? mtpc_zalo_admin_status_label(mtpc_zalo_admin_text($intent['broadcast_status'], 50)) : '';
     $intent['broadcast_message'] = isset($intent['broadcast_message']) ? mtpc_zalo_admin_text($intent['broadcast_message'], 2000) : '';
+    $intent['email_date_mode'] = isset($intent['email_date_mode']) && in_array($intent['email_date_mode'], array('today', 'yesterday', 'recent', 'date'), true) ? $intent['email_date_mode'] : 'today';
+    $intent['email_query'] = isset($intent['email_query']) ? mtpc_zalo_admin_text($intent['email_query'], 180) : '';
+    $intent['email_sender'] = isset($intent['email_sender']) ? mtpc_zalo_admin_text($intent['email_sender'], 180) : '';
+    $intent['email_subject'] = isset($intent['email_subject']) ? mtpc_zalo_admin_text($intent['email_subject'], 180) : '';
+    $intent['email_unread_only'] = !empty($intent['email_unread_only']);
+    $intent['email_uid'] = isset($intent['email_uid']) ? mtpc_zalo_admin_text($intent['email_uid'], 30) : '';
     return $intent;
 }
 
@@ -309,6 +315,151 @@ function mtpc_zalo_admin_read_finance_summary($pdo) {
     $paid = (float)$pdo->query('SELECT COALESCE(SUM(amount),0) FROM fee_payments')->fetchColumn();
     $debt = max(0, $due - $paid);
     return 'Tổng phải thu: ' . number_format($due, 0, ',', '.') . ' đồng. Đã thu: ' . number_format($paid, 0, ',', '.') . ' đồng. Còn nợ khoảng: ' . number_format($debt, 0, ',', '.') . ' đồng.';
+}
+
+/* Read-only email access for authenticated Zalo operators. This intentionally
+ * returns a short digest instead of forwarding an entire mailbox message. */
+function mtpc_zalo_admin_email_decode_header($value) {
+    $parts = function_exists('imap_mime_header_decode') ? @imap_mime_header_decode((string)$value) : false;
+    if (!is_array($parts)) return trim((string)$value);
+    $result = '';
+    foreach ($parts as $part) {
+        $charset = isset($part->charset) ? strtoupper((string)$part->charset) : 'DEFAULT';
+        $text = isset($part->text) ? (string)$part->text : '';
+        if ($charset !== 'DEFAULT' && $charset !== 'UTF-8' && function_exists('iconv')) {
+            $converted = @iconv($charset, 'UTF-8//IGNORE', $text);
+            if ($converted !== false) $text = $converted;
+        }
+        $result .= $text;
+    }
+    return trim($result);
+}
+
+function mtpc_zalo_admin_email_clean_preview($value, $limit) {
+    $value = preg_replace('/<script\b[^>]*>.*?<\/script>/is', ' ', (string)$value);
+    $value = preg_replace('/<style\b[^>]*>.*?<\/style>/is', ' ', $value);
+    $value = html_entity_decode(strip_tags($value), ENT_QUOTES, 'UTF-8');
+    $value = trim(preg_replace('/\s+/', ' ', $value));
+    return mtpc_zalo_admin_text($value, $limit);
+}
+
+function mtpc_zalo_admin_email_part_list($structure, $prefix, &$plain, &$html) {
+    if (isset($structure->parts) && is_array($structure->parts)) {
+        foreach ($structure->parts as $index => $part) {
+            $partPrefix = $prefix === '' ? (string)($index + 1) : $prefix . '.' . ($index + 1);
+            mtpc_zalo_admin_email_part_list($part, $partPrefix, $plain, $html);
+        }
+        return;
+    }
+    if (!isset($structure->type) || (int)$structure->type !== 0) return;
+    $subtype = isset($structure->subtype) ? strtoupper((string)$structure->subtype) : 'PLAIN';
+    $charset = 'UTF-8';
+    $parameters = array();
+    if (isset($structure->parameters) && is_array($structure->parameters)) $parameters[] = $structure->parameters;
+    if (isset($structure->dparameters) && is_array($structure->dparameters)) $parameters[] = $structure->dparameters;
+    foreach ($parameters as $rows) foreach ($rows as $parameter) {
+        if (isset($parameter->attribute, $parameter->value) && strtoupper((string)$parameter->attribute) === 'CHARSET') $charset = (string)$parameter->value;
+    }
+    $part = array('part' => $prefix, 'encoding' => isset($structure->encoding) ? (int)$structure->encoding : 0, 'charset' => $charset);
+    if ($subtype === 'PLAIN') $plain[] = $part;
+    if ($subtype === 'HTML') $html[] = $part;
+}
+
+function mtpc_zalo_admin_email_body($imap, $uid) {
+    $structure = @imap_fetchstructure($imap, $uid, FT_UID);
+    if (!$structure) return '';
+    $plain = array(); $html = array();
+    mtpc_zalo_admin_email_part_list($structure, '', $plain, $html);
+    $parts = count($plain) ? $plain : $html;
+    foreach ($parts as $part) {
+        $raw = $part['part'] === '' ? @imap_body($imap, $uid, FT_UID | FT_PEEK) : @imap_fetchbody($imap, $uid, $part['part'], FT_UID | FT_PEEK);
+        if ($raw === false || $raw === '') continue;
+        if ((int)$part['encoding'] === 3) $raw = base64_decode($raw);
+        elseif ((int)$part['encoding'] === 4) $raw = quoted_printable_decode($raw);
+        if ($part['charset'] && strtoupper($part['charset']) !== 'UTF-8' && strtoupper($part['charset']) !== 'US-ASCII' && function_exists('iconv')) {
+            $converted = @iconv($part['charset'], 'UTF-8//IGNORE', $raw);
+            if ($converted !== false) $raw = $converted;
+        }
+        return mtpc_zalo_admin_email_clean_preview($raw, 420);
+    }
+    return '';
+}
+
+function mtpc_zalo_admin_email_range($mode) {
+    $zone = new DateTimeZone('Asia/Ho_Chi_Minh');
+    $today = new DateTime('today', $zone);
+    if ($mode === 'yesterday') { $from = clone $today; $from->modify('-1 day'); $to = clone $today; return array($from, $to, 'hôm qua'); }
+    if ($mode === 'recent') { $from = clone $today; $from->modify('-6 days'); $to = clone $today; $to->modify('+1 day'); return array($from, $to, '7 ngày gần đây'); }
+    $to = clone $today; $to->modify('+1 day');
+    return array($today, $to, 'hôm nay');
+}
+
+function mtpc_zalo_admin_email_digest($operator, $intent) {
+    if (!mtpc_zalo_admin_permission(isset($operator['role']) ? $operator['role'] : '', 'email.read')) return 'Vai trò Zalo hiện tại không được xem hộp thư.';
+    if (!function_exists('imap_open')) return 'PHP IMAP chưa được bật nên em chưa thể đọc hộp thư.';
+    $configPath = '/home/mtpc/private/email-config.php';
+    if (!is_file($configPath)) return 'Chưa cấu hình hộp thư tại /home/mtpc/private/email-config.php.';
+    require $configPath;
+    $host = isset($MTPC_EMAIL_IMAP_HOST) ? trim((string)$MTPC_EMAIL_IMAP_HOST) : '';
+    $port = isset($MTPC_EMAIL_IMAP_PORT) ? (int)$MTPC_EMAIL_IMAP_PORT : 993;
+    $encryption = isset($MTPC_EMAIL_IMAP_ENCRYPTION) ? strtolower(trim((string)$MTPC_EMAIL_IMAP_ENCRYPTION)) : 'ssl';
+    $folder = isset($MTPC_EMAIL_FOLDER) ? trim((string)$MTPC_EMAIL_FOLDER) : 'INBOX';
+    $user = isset($MTPC_EMAIL_USERNAME) ? trim((string)$MTPC_EMAIL_USERNAME) : '';
+    $password = isset($MTPC_EMAIL_PASSWORD) ? (string)$MTPC_EMAIL_PASSWORD : '';
+    if (stripos($user, '@gmail.com') !== false) $password = preg_replace('/\s+/', '', $password);
+    if ($host === '' || $user === '' || $password === '') return 'Cấu hình IMAP còn thiếu nên em chưa thể đọc hộp thư.';
+    if (!preg_match('/^[a-z0-9.-]+$/i', $host) || $port < 1 || $port > 65535 || !in_array($encryption, array('ssl', 'tls', 'none'), true)) return 'Cấu hình IMAP không hợp lệ.';
+    $validateCert = isset($MTPC_EMAIL_VALIDATE_CERT) ? (bool)$MTPC_EMAIL_VALIDATE_CERT : true;
+    $flags = '/imap' . ($encryption === 'ssl' ? '/ssl' : '') . ($encryption === 'tls' ? '/tls' : '') . ($validateCert ? '' : '/novalidate-cert');
+    $imap = @imap_open('{' . $host . ':' . $port . $flags . '}' . $folder, $user, $password, OP_READONLY, 1);
+    if (!$imap) return 'Không kết nối được hộp thư. Hãy kiểm tra IMAP Gmail và mật khẩu ứng dụng.';
+    $requestedUid = trim(isset($intent['email_uid']) ? (string)$intent['email_uid'] : '');
+    if ($requestedUid !== '') {
+        if (!preg_match('/^\d+$/', $requestedUid)) { imap_close($imap); return 'UID email không hợp lệ.'; }
+        $overview = @imap_fetch_overview($imap, $requestedUid, FT_UID);
+        if (!is_array($overview) || !isset($overview[0])) { imap_close($imap); return 'Không tìm thấy email có UID ' . $requestedUid . '.'; }
+        $row = $overview[0];
+        $from = mtpc_zalo_admin_email_decode_header(isset($row->from) ? $row->from : '');
+        $title = mtpc_zalo_admin_email_decode_header(isset($row->subject) && trim((string)$row->subject) !== '' ? $row->subject : '(Không có tiêu đề)');
+        $body = mtpc_zalo_admin_email_body($imap, $requestedUid);
+        imap_close($imap);
+        return mtpc_zalo_admin_text('📧 ' . $title . "\nTừ: " . $from . "\n\n" . ($body !== '' ? $body : '(Email không có nội dung văn bản đọc được.)'), 1900);
+    }
+    $mode = isset($intent['email_date_mode']) ? (string)$intent['email_date_mode'] : 'today';
+    $range = mtpc_zalo_admin_email_range(in_array($mode, array('today', 'yesterday', 'recent'), true) ? $mode : 'today');
+    $criteria = 'SINCE "' . $range[0]->format('d-M-Y') . '" BEFORE "' . $range[1]->format('d-M-Y') . '"' . (!empty($intent['email_unread_only']) ? ' UNSEEN' : '');
+    $uids = @imap_search($imap, $criteria, SE_UID, 'UTF-8');
+    if (!is_array($uids)) $uids = array();
+    rsort($uids, SORT_NUMERIC);
+    $query = trim(isset($intent['email_query']) ? (string)$intent['email_query'] : '');
+    $sender = trim(isset($intent['email_sender']) ? (string)$intent['email_sender'] : '');
+    $subject = trim(isset($intent['email_subject']) ? (string)$intent['email_subject'] : '');
+    $rows = array();
+    foreach ($uids as $uid) {
+        $overview = @imap_fetch_overview($imap, (string)$uid, FT_UID);
+        if (!is_array($overview) || !isset($overview[0])) continue;
+        $row = $overview[0];
+        $from = mtpc_zalo_admin_email_decode_header(isset($row->from) ? $row->from : '');
+        $title = mtpc_zalo_admin_email_decode_header(isset($row->subject) && trim((string)$row->subject) !== '' ? $row->subject : '(Không có tiêu đề)');
+        if ($sender !== '' && stripos($from, $sender) === false) continue;
+        if ($subject !== '' && stripos($title, $subject) === false) continue;
+        $preview = mtpc_zalo_admin_email_body($imap, (string)$uid);
+        if ($query !== '' && stripos($from . ' ' . $title . ' ' . $preview, $query) === false) continue;
+        $timestamp = isset($row->udate) ? (int)$row->udate : (isset($row->date) ? (int)strtotime($row->date) : 0);
+        $rows[] = array('uid' => (string)$uid, 'from' => $from, 'subject' => $title, 'preview' => $preview, 'unread' => empty($row->seen), 'timestamp' => $timestamp);
+        if (count($rows) >= 8) break;
+    }
+    imap_close($imap);
+    if (!$rows) return '📭 Không có email ' . $range[2] . ($query !== '' ? ' phù hợp với “' . $query . '”' : '') . '.';
+    $lines = array('📬 Email ' . $range[2] . ': ' . count($rows) . ' thư');
+    foreach ($rows as $index => $row) {
+        $time = $row['timestamp'] ? date('H:i', $row['timestamp']) : '--:--';
+        $status = $row['unread'] ? ' · chưa đọc' : '';
+        $line = ($index + 1) . '. [' . $time . '] ' . mtpc_zalo_admin_text($row['from'], 90) . $status . "\n   " . mtpc_zalo_admin_text($row['subject'], 150) . ' · UID ' . $row['uid'];
+        if ($row['preview'] !== '') $line .= "\n   " . $row['preview'];
+        $lines[] = $line;
+    }
+    return mtpc_zalo_admin_text(implode("\n", $lines), 1900);
 }
 
 function mtpc_zalo_admin_find_group($groupsPath, $identifier) {
@@ -577,9 +728,25 @@ function mtpc_zalo_admin_handle_message($operator, $text, $pendingPath, $config,
         }
     }
     try {
-        $intent = mtpc_zalo_admin_generate_intent($text, $operator);
-        $pdo = mtpc_zalo_admin_db();
+        /* Common read-mail commands are deterministic. This prevents a
+         * harmless phrase such as “đọc mail hôm nay” from being mistaken for
+         * an unsupported Moodle command when Gemini is uncertain. */
+        $hasEmailWord = strpos($normalized, 'mail') !== false || strpos($normalized, 'email') !== false;
+        $isEmailRead = preg_match('/\b(doc|xem|kiem tra|co|hom nay|hom qua|moi|chua doc|unread)\b/', $normalized) && !preg_match('/\b(gui|send|tra loi|xoa|archive|luu tru)\b/', $normalized);
+        if ($hasEmailWord && $isEmailRead) {
+            $intent = array('intent' => (strpos($normalized, 'tim ') !== false || strpos($normalized, 'search ') !== false) ? 'email_search' : 'email_briefing', 'email_date_mode' => strpos($normalized, 'hom qua') !== false ? 'yesterday' : (strpos($normalized, '7 ngay') !== false ? 'recent' : 'today'), 'email_query' => '', 'email_sender' => '', 'email_subject' => '', 'email_unread_only' => strpos($normalized, 'chua doc') !== false || strpos($normalized, 'unread') !== false, 'email_uid' => '');
+        } else {
+            $intent = mtpc_zalo_admin_generate_intent($text, $operator);
+        }
         $name = $intent['intent'];
+        if ($name === 'email_briefing' || $name === 'email_search') {
+            return array('reply' => mtpc_zalo_admin_email_digest($operator, $intent), 'event_name' => 'zalo_email_command');
+        }
+        if ($name === 'email_read') {
+            if (empty($intent['email_uid']) || !preg_match('/^\d+$/', $intent['email_uid'])) return array('reply' => 'Anh cần gửi UID của email cần đọc. Trước hết nhắn “đọc mail hôm nay” để em liệt kê email và UID.', 'event_name' => 'zalo_email_command');
+            return array('reply' => mtpc_zalo_admin_email_digest($operator, $intent), 'event_name' => 'zalo_email_command');
+        }
+        $pdo = mtpc_zalo_admin_db();
         if ($name === 'students_summary') {
             if (!mtpc_zalo_admin_permission($operator['role'], 'students.read')) return array('reply' => 'Vai trò Zalo hiện tại không được xem dữ liệu sinh viên.', 'event_name' => 'zalo_admin_permission_denied');
             return array('reply' => mtpc_zalo_admin_read_summary($pdo), 'event_name' => 'zalo_admin_command');
