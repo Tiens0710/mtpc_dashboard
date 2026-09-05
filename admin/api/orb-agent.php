@@ -140,6 +140,31 @@ function mtpc_orb_agent_pending($tool, $args, $summary) {
     return array('pending' => true, 'intent' => array('intent' => 'orb_tool', 'tool' => $tool, 'args' => $args, 'summary' => $summary));
 }
 
+function mtpc_orb_agent_plain_text($value) {
+    $value = (string)$value;
+    $value = preg_replace('/```[a-z0-9_-]*\s*/i', '', $value);
+    $value = str_replace('```', '', $value);
+    $value = preg_replace('/\*\*([^*]+)\*\*/u', '$1', $value);
+    $value = preg_replace('/__([^_]+)__/u', '$1', $value);
+    $value = preg_replace('/(?<!\*)\*([^*\n]+)\*(?!\*)/u', '$1', $value);
+    $value = preg_replace('/(?<!_)_([^_\n]+)_(?!_)/u', '$1', $value);
+    $value = preg_replace('/^#{1,6}\s+/m', '', $value);
+    return trim($value);
+}
+
+function mtpc_orb_agent_group_identifier($groupsPath, $identifier) {
+    $identifier = trim((string)$identifier);
+    if ($identifier !== '') return $identifier;
+    $groups = array();
+    foreach ((array)mtpc_zalo_group_read($groupsPath) as $row) {
+        if (is_array($row) && !empty($row['group_id'])) $groups[] = $row;
+    }
+    if (count($groups) !== 1) return '';
+    if (!empty($groups[0]['name'])) return (string)$groups[0]['name'];
+    if (!empty($groups[0]['group_name'])) return (string)$groups[0]['group_name'];
+    return (string)$groups[0]['group_id'];
+}
+
 function mtpc_orb_agent_zalo_recipient($messagesPath, $pdo, $nameOrId) {
     $value = trim((string)$nameOrId);
     if (preg_match('/^[0-9]{6,160}$/', $value)) return array('user_id'=>$value,'user_name'=>'');
@@ -195,6 +220,10 @@ function mtpc_orb_agent_execute_tool($name, $args, $operator, $config, $groupsPa
     if ($name === 'zalo_action') {
         $action = isset($args['action']) ? $args['action'] : '';
         $identifier = isset($args['group_identifier']) ? $args['group_identifier'] : '';
+        if (in_array($action, array('group_info','group_members','group_conversation','send_group_message','update_group'), true)) {
+            $identifier = mtpc_orb_agent_group_identifier($groupsPath, $identifier);
+            if ($identifier !== '') $args['group_identifier'] = $identifier;
+        }
         if ($action === 'list_groups') return mtpc_zalo_admin_group_list($groupsPath, $operator);
         if ($action === 'group_info') return mtpc_zalo_admin_group_info($config, $groupsPath, $operator, $identifier);
         if ($action === 'group_members') return mtpc_zalo_admin_group_members($config, $groupsPath, $operator, $identifier);
@@ -325,7 +354,7 @@ function mtpc_orb_agent_handle_message($operator, $text, $pendingPath, $config, 
         $content = mtpc_orb_agent_call_gemini($contents, $operator); $contents[] = $content;
         $calls = array(); $reply = '';
         foreach ($content['parts'] as $part) { if (isset($part['functionCall'])) $calls[] = $part['functionCall']; if (isset($part['text'])) $reply .= $part['text']; }
-        if (!$calls) return array('reply'=>trim($reply)!==''?trim($reply):'Em chưa có đủ thông tin để trả lời chính xác.','event_name'=>'zalo_orb_agent');
+        if (!$calls) return array('reply'=>trim($reply)!==''?mtpc_orb_agent_plain_text($reply):'Em chưa có đủ thông tin để trả lời chính xác.','event_name'=>'zalo_orb_agent');
         $responses = array();
         foreach ($calls as $call) {
             $name = isset($call['name']) ? $call['name'] : ''; $args = isset($call['args'])&&is_array($call['args'])?$call['args']:array();

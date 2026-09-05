@@ -30,5 +30,7 @@ assert.ok(agent.includes("'intent' => 'orb_tool'"), 'Shared agent writes are not
 assert.ok(agent.includes('course_name'), 'Shared agent does not support Moodle course names');
 assert.ok(agent.includes('mtpc_orb_agent_history'), 'Shared Zalo agent does not preserve short conversation context');
 assert.ok(agent.includes("$write && !$confirmed"), 'Moodle writes can bypass Zalo confirmation');
+assert.ok(agent.includes('mtpc_orb_agent_group_identifier'), 'Follow-up Zalo group commands cannot resolve the only managed group');
+assert.ok(agent.includes('mtpc_orb_agent_plain_text'), 'Agent replies are not cleaned for Zalo plain-text rendering');
 
 console.log('Zalo quality contract OK: shared Orb agent, confirmation, Moodle names, email, groups, concise replies and stickers.');
