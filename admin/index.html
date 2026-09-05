@@ -275,21 +275,50 @@
     @media(max-width:600px){.ai-moodle-stat{grid-template-columns:1fr}.ai-moodle-row{align-items:flex-start;flex-direction:column}.ai-moodle-row button{width:100%}}
   </style>
   <link rel="stylesheet" href="chat-workspace.css?v=20260904-2">
-  <style id="admin-chat-mint-theme">
-    #adminAiWelcome~#adminOrbWidget #adminOrbPanel.admin-orb-panel:not(.hidden){background:rgba(213,239,222,.94)!important;border-color:#a3cfb4!important}
-    #adminAiWelcome~#adminOrbWidget #adminOrbPanel #adminOrbTranscript{background:linear-gradient(180deg,rgba(228,245,234,.9),rgba(207,233,218,.94))!important}
-    #adminAiWelcome~#adminOrbWidget #adminOrbPanel .admin-orb-message{background:#f1faf4!important;border-color:#b9dbc6!important;color:#174e34!important;text-shadow:none!important;font-weight:500}
-    #adminAiWelcome~#adminOrbWidget #adminOrbPanel .admin-orb-message.user{background:#bee4ce!important;border-color:#95c9ac!important;color:#124b31!important}
-    #adminAiWelcome~#adminOrbWidget #adminOrbPanel .admin-orb-role{color:#267147!important;text-shadow:none!important}
-    #adminAiWelcome~#adminOrbWidget #adminOrbPanel #adminOrbForm{background:#def1e5!important;border-top-color:#aed5bd!important;gap:8px;flex-wrap:wrap;padding:8px 10px!important}
-    #adminAiWelcome~#adminOrbWidget #adminOrbPanel #adminOrbInput{flex:1 1 120px;min-width:0;color:#174e34!important;background:transparent!important;text-shadow:none!important}
-    #adminAiWelcome~#adminOrbWidget #adminOrbPanel #adminOrbInput::placeholder{color:#527b62!important;opacity:1}
-    #adminOrbAttach:focus-visible{outline:3px solid #238854;outline-offset:2px}
-    #adminAiWelcome~#adminOrbWidget #adminOrbPanel #adminOrbAttachment{order:-1;flex:1 0 100%;color:#195d3d;padding:3px 4px}
-    #adminAiWelcome~#adminOrbWidget #adminOrbPanel #adminOrbFilePrompt{background:#e6f5ec;color:#215b3d;border-color:#aed5bd}
-    #adminAiWelcome~#adminOrbWidget #adminOrbPanel .admin-file-result{background:#eef9f2;color:#174e34;border-color:#a3cfb4}
+  <style id="admin-chat-glass-theme">
+    #adminAiWelcome~#adminOrbWidget #adminOrbPanel.admin-orb-panel:not(.hidden){
+      background:linear-gradient(145deg,rgba(9,103,58,.48),rgba(2,62,34,.58))!important;
+      border:1px solid rgba(193,255,214,.4)!important;
+      box-shadow:0 24px 70px rgba(0,48,24,.28),inset 0 1px 0 rgba(255,255,255,.24)!important;
+      backdrop-filter:blur(24px) saturate(135%)!important;
+      -webkit-backdrop-filter:blur(24px) saturate(135%)!important;
+    }
+    #adminAiWelcome~#adminOrbWidget #adminOrbPanel #adminOrbTranscript{
+      background:linear-gradient(180deg,rgba(116,219,151,.09),rgba(0,50,27,.14))!important;
+    }
+    #adminAiWelcome~#adminOrbWidget #adminOrbPanel .admin-orb-message{
+      background:rgba(239,255,245,.18)!important;
+      border:1px solid rgba(224,255,235,.28)!important;
+      color:#f3fff7!important;
+      box-shadow:0 10px 28px rgba(0,38,20,.13),inset 0 1px 0 rgba(255,255,255,.14)!important;
+      text-shadow:0 1px 5px rgba(0,37,20,.28)!important;
+      backdrop-filter:blur(14px)!important;
+      -webkit-backdrop-filter:blur(14px)!important;
+      font-weight:550;
+    }
+    #adminAiWelcome~#adminOrbWidget #adminOrbPanel .admin-orb-message.user{
+      background:linear-gradient(135deg,rgba(85,224,128,.34),rgba(29,151,78,.4))!important;
+      border-color:rgba(180,255,202,.4)!important;
+      color:#f5fff8!important;
+    }
+    #adminAiWelcome~#adminOrbWidget #adminOrbPanel .admin-orb-role{color:#baffca!important;text-shadow:0 1px 5px rgba(0,37,20,.35)!important}
+    #adminAiWelcome~#adminOrbWidget #adminOrbPanel #adminOrbForm{
+      background:rgba(2,55,30,.5)!important;
+      border-top:1px solid rgba(204,255,221,.25)!important;
+      gap:8px;flex-wrap:wrap;padding:8px 10px!important;
+      backdrop-filter:blur(18px)!important;
+      -webkit-backdrop-filter:blur(18px)!important;
+    }
+    #adminAiWelcome~#adminOrbWidget #adminOrbPanel #adminOrbInput{flex:1 1 120px;min-width:0;color:#f3fff7!important;background:transparent!important;text-shadow:none!important}
+    #adminAiWelcome~#adminOrbWidget #adminOrbPanel #adminOrbInput::placeholder{color:rgba(225,255,235,.72)!important;opacity:1}
+    #adminOrbAttach{background:rgba(226,255,235,.14)!important;border-color:rgba(205,255,220,.38)!important;color:#effff4!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.14)!important;backdrop-filter:blur(12px)}
+    #adminOrbAttach:hover{background:rgba(226,255,235,.24)!important}
+    #adminOrbAttach:focus-visible{outline:3px solid #83f49a;outline-offset:2px}
+    #adminAiWelcome~#adminOrbWidget #adminOrbPanel #adminOrbAttachment{order:-1;flex:1 0 100%;color:#dcffe7;padding:3px 4px}
+    #adminAiWelcome~#adminOrbWidget #adminOrbPanel #adminOrbFilePrompt{background:rgba(229,255,237,.16);color:#effff4;border-color:rgba(205,255,220,.34);backdrop-filter:blur(14px)}
+    #adminAiWelcome~#adminOrbWidget #adminOrbPanel .admin-file-result{background:rgba(232,255,239,.18);color:#f3fff7;border-color:rgba(205,255,220,.34);backdrop-filter:blur(14px)}
     #adminAiWelcome~#adminOrbWidget #adminOrbPanel .admin-file-result a,
-    #adminAiWelcome~#adminOrbWidget #adminOrbPanel .admin-file-result button{background:#d0ecda;color:#155b3b;border-color:#8bc6a5}
+    #adminAiWelcome~#adminOrbWidget #adminOrbPanel .admin-file-result button{background:rgba(82,218,124,.28);color:#f4fff7;border-color:rgba(193,255,212,.42)}
   </style>
 </head>
 <body>
