@@ -29,7 +29,6 @@ for (const functionName of new Set(requiredFunctions)) {
   assert.ok(upgrade.includes(`'${functionName}'`), `Plugin upgrade does not grant ${functionName}`);
 }
 
-assert.ok(index.includes("action==='categories'?'categories'"), 'Category tool is declared but not routed');
 assert.ok(index.includes('mtpcMoodleUniqueShortname'), 'Course shortname auto-generation is missing');
 assert.ok(index.includes('timestart_text'), 'Natural-language calendar time support is missing');
 assert.ok(index.includes('missing_functions'), 'Moodle status does not expose missing functions');

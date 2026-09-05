@@ -362,7 +362,7 @@ function mtpc_zalo_admin_group_members($config, $groupsPath, $operator, $identif
     $group = mtpc_zalo_admin_find_group($groupsPath, $identifier);
     if (!$group) return 'Không tìm thấy nhóm GMF.';
     try {
-        $response = mtpc_zalo_group_api($config, 'GET', 'listmember', null, array('group_id' => $group['group_id'], 'offset' => 0, 'count' => 100));
+        $response = mtpc_zalo_group_api($config, 'GET', 'listmember', null, array('group_id' => $group['group_id'], 'offset' => 0, 'count' => 50));
         $data = isset($response['data']) && is_array($response['data']) ? $response['data'] : array();
         $members = isset($data['members']) && is_array($data['members']) ? $data['members'] : array();
         if (!$members) return 'Nhóm chưa có dữ liệu thành viên.';

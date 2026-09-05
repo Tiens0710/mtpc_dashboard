@@ -202,7 +202,7 @@ try {
         'add-group-member' => array('core_group_add_group_members'),
         'create-calendar-event' => array('core_calendar_create_calendar_events'),
         'send-message' => array('core_message_send_instant_messages'),
-        'create-course' => array('core_course_get_courses', 'core_course_get_categories', 'core_course_create_courses'),
+        'create-course' => array('core_course_get_courses', 'core_course_create_courses'),
         'update-course' => array('core_course_update_courses'),
         'delete-course' => array('core_course_delete_courses'),
         'enrol-user' => array('enrol_manual_enrol_users'),
@@ -223,7 +223,10 @@ try {
             }
         }
         $required = array();
-        foreach ($functionRequirements as $names) foreach ($names as $name) $required[$name] = $name;
+        foreach ($functionRequirements as $requirementAction => $names) {
+            if ($requirementAction === 'categories') continue; // Optional dashboard lookup, not required by an AI action.
+            foreach ($names as $name) $required[$name] = $name;
+        }
         $required = array_values($required);
         $available = array();
         $missing = array();
@@ -519,19 +522,10 @@ try {
     if ($action === 'create-course') {
         $fullname = mtpc_moodle_text(isset($body['fullname']) ? $body['fullname'] : '', 254);
         $shortname = mtpc_moodle_text(isset($body['shortname']) ? $body['shortname'] : '', 100);
-        $categoryId = isset($body['categoryid']) ? (int)$body['categoryid'] : 0;
+        $categoryId = isset($body['categoryid']) ? (int)$body['categoryid'] : 1;
         if ($fullname === '') mtpc_moodle_response(422, array('ok' => false, 'error' => 'Cần tên khoá học.'));
         if ($shortname === '') $shortname = mtpc_moodle_shortname($fullname, $moodle->getCourses());
-        if ($categoryId <= 0) {
-            $categories = $moodle->getCategories();
-            foreach ($categories as $category) {
-                if (is_array($category) && !empty($category['id'])) {
-                    $categoryId = (int)$category['id'];
-                    break;
-                }
-            }
-        }
-        if ($categoryId <= 0) mtpc_moodle_response(422, array('ok' => false, 'error' => 'Moodle chưa có danh mục để tạo khoá học.'));
+        if ($categoryId <= 0) $categoryId = 1;
         $created = $moodle->createCourses(array(array('fullname' => $fullname, 'shortname' => $shortname, 'categoryid' => $categoryId, 'summary' => mtpc_moodle_text(isset($body['summary']) ? $body['summary'] : '', 4000), 'visible' => isset($body['visible']) ? (int)(bool)$body['visible'] : 1)));
         mtpc_audit('moodle.course.create', 'moodle_course', $shortname, null, array('fullname' => $fullname, 'shortname' => $shortname, 'categoryid' => $categoryId));
         mtpc_moodle_response(201, array('ok' => true, 'message' => 'Đã tạo khoá học trên Moodle.', 'courses' => $created));
