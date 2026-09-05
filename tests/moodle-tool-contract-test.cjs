@@ -32,6 +32,13 @@ for (const functionName of new Set(requiredFunctions)) {
 assert.ok(index.includes('mtpcMoodleUniqueShortname'), 'Course shortname auto-generation is missing');
 assert.ok(index.includes('timestart_text'), 'Natural-language calendar time support is missing');
 assert.ok(index.includes('missing_functions'), 'Moodle status does not expose missing functions');
+assert.ok(api.includes("'tool_status' => $toolStatus"), 'Moodle status should expose readiness per tool');
+assert.ok(api.includes("'ready_tools' => $readyTools"), 'Moodle status should count ready tools');
+assert.ok(index.includes('mtpcResolveMoodleUser'), 'Natural Moodle user lookup is missing');
+assert.ok(index.includes('mtpcResolveMoodleAssignment'), 'Natural assignment lookup is missing');
+assert.ok(index.includes('mtpcResolveMoodleGroup'), 'Natural Moodle group lookup is missing');
+assert.ok(index.includes('assignment_name'), 'Moodle schema should accept assignment names');
+assert.ok(index.includes('user_query'), 'Moodle schema should accept natural user queries');
 assert.ok(index.includes('ai-file-chat.js?v=20260905-3'), 'AI file adapter cache version is stale');
 assert.ok(version.includes('$plugin->version = 2026090502;'), 'Plugin version was not bumped');
 

@@ -15,5 +15,9 @@ orb_assert(mtpc_orb_agent_group_identifier('one', '') === 'MTPC', 'single group 
 orb_assert(mtpc_orb_agent_group_identifier('many', '') === '', 'ambiguous groups must not be guessed');
 orb_assert(mtpc_orb_agent_group_identifier('many', 'MTPC') === 'MTPC', 'explicit group changed');
 orb_assert(mtpc_orb_agent_plain_text('Hiện có **MTPC** và _2 thành viên_.') === 'Hiện có MTPC và 2 thành viên.', 'Markdown was not removed');
+orb_assert(strpos(file_get_contents(__DIR__ . '/../admin/api/orb-agent.php'), "'assignment_submissions','assignment_grades'") !== false, 'Zalo Agent Core is missing Moodle assignment reads');
+orb_assert(strpos(file_get_contents(__DIR__ . '/../admin/api/orb-agent.php'), 'mtpc_orb_agent_user') !== false, 'Zalo Agent Core is missing natural Moodle user lookup');
+orb_assert(strpos(file_get_contents(__DIR__ . '/../admin/api/orb-agent.php'), 'mtpc_orb_agent_assignment') !== false, 'Zalo Agent Core is missing natural assignment lookup');
+orb_assert(strpos(file_get_contents(__DIR__ . '/../admin/api/orb-agent.php'), 'mtpc_orb_agent_group') !== false, 'Zalo Agent Core is missing natural Moodle group lookup');
 
 echo "PASS: Zalo follow-up group selection and plain-text replies\n";

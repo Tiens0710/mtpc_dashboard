@@ -234,12 +234,21 @@ try {
             $available[$name] = in_array($name, $functions, true);
             if (!$available[$name]) $missing[] = $name;
         }
+        $toolStatus = array();
+        $readyTools = 0;
+        foreach ($functionRequirements as $toolAction => $names) {
+            if ($toolAction === 'categories') continue;
+            $toolMissing = array();
+            foreach ($names as $name) if (!in_array($name, $functions, true)) $toolMissing[] = $name;
+            $toolStatus[$toolAction] = array('ready' => count($toolMissing) === 0, 'missing_functions' => $toolMissing);
+            if (!$toolMissing) $readyTools++;
+        }
         mtpc_moodle_response(200, array('ok' => true, 'connected' => true, 'site' => array(
             'name' => isset($site['sitename']) ? (string)$site['sitename'] : '',
             'url' => isset($site['siteurl']) ? (string)$site['siteurl'] : $moodleUrl,
             'username' => isset($site['username']) ? (string)$site['username'] : '',
             'user_id' => isset($site['userid']) ? (int)$site['userid'] : 0,
-        ), 'function_count' => count($functions), 'required_functions' => $available, 'missing_functions' => $missing, 'ready' => count($missing) === 0));
+        ), 'function_count' => count($functions), 'required_functions' => $available, 'missing_functions' => $missing, 'tool_status' => $toolStatus, 'ready_tools' => $readyTools, 'total_tools' => count($toolStatus), 'ready' => count($missing) === 0));
     }
 
     if (isset($functionRequirements[$action])) {
