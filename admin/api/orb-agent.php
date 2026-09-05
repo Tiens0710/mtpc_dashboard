@@ -47,20 +47,32 @@ function mtpc_orb_agent_tools() {
             'status' => array('type' => 'STRING')
         ), array('action')),
         mtpc_orb_agent_tool('moodle_action', 'Đọc và vận hành Moodle bằng tên khóa học hoặc tên người dùng. Không yêu cầu ID nếu có thể tự tra tên.', array(
-            'action' => array('type' => 'STRING', 'enum' => array('status','courses','course_contents','course_members','search_users','assignments','assignment_submissions','assignment_grades','forums','groups','calendar_events','create_course','enrol_user','unenrol_user','post_announcement','post_lecture','save_grade','create_group','add_group_member','create_calendar_event','send_message')),
+            'action' => array('type' => 'STRING', 'enum' => array('status','courses','course_contents','course_members','search_users','assignments','assignment_submissions','assignment_grades','quizzes','quiz_attempts','quiz_grades','grade_items','course_completion','activity_completion','forums','groups','calendar_events','create_course','update_course','delete_course','create_user','update_user','delete_user','enrol_user','bulk_enrol','unenrol_user','post_announcement','post_lecture','create_assignment','create_quiz','manage_activity','save_grade','bulk_save_grades','create_group','add_group_member','remove_group_member','delete_group','create_calendar_event','delete_calendar_event','send_message')),
             'course_name' => array('type' => 'STRING'), 'course_id' => array('type' => 'INTEGER'),
             'query' => array('type' => 'STRING'), 'user_query' => array('type' => 'STRING'), 'user_id' => array('type' => 'INTEGER'),
             'assignment_name' => array('type' => 'STRING'), 'assignment_id' => array('type' => 'INTEGER'),
+            'quiz_name' => array('type' => 'STRING'), 'quiz_id' => array('type' => 'INTEGER'),
+            'activity_name' => array('type' => 'STRING'), 'course_module_id' => array('type' => 'INTEGER'),
             'grade' => array('type' => 'NUMBER'), 'feedback' => array('type' => 'STRING'),
+            'grades' => array('type' => 'ARRAY', 'items' => array('type' => 'OBJECT', 'properties' => array('user_id'=>array('type'=>'INTEGER'),'user_query'=>array('type'=>'STRING'),'grade'=>array('type'=>'NUMBER'),'feedback'=>array('type'=>'STRING')))),
             'role_id' => array('type' => 'INTEGER'), 'subject' => array('type' => 'STRING'),
             'message' => array('type' => 'STRING'), 'lecture_title' => array('type' => 'STRING'),
             'lecture_content' => array('type' => 'STRING'), 'lecture_url' => array('type' => 'STRING'),
             'lecture_type' => array('type' => 'STRING', 'enum' => array('page','url')),
             'section_num' => array('type' => 'INTEGER'), 'group_name' => array('type' => 'STRING'),
-            'group_id' => array('type' => 'INTEGER'), 'event_name' => array('type' => 'STRING'),
+            'group_id' => array('type' => 'INTEGER'), 'event_name' => array('type' => 'STRING'), 'event_id' => array('type' => 'INTEGER'),
             'description' => array('type' => 'STRING'), 'timestart' => array('type' => 'INTEGER'),
             'timeduration' => array('type' => 'INTEGER'), 'fullname' => array('type' => 'STRING'),
-            'shortname' => array('type' => 'STRING'), 'category_id' => array('type' => 'INTEGER')
+            'shortname' => array('type' => 'STRING'), 'category_id' => array('type' => 'INTEGER'),
+            'visible' => array('type' => 'BOOLEAN'), 'username' => array('type' => 'STRING'),
+            'email' => array('type' => 'STRING'), 'password' => array('type' => 'STRING'),
+            'firstname' => array('type' => 'STRING'), 'lastname' => array('type' => 'STRING'),
+            'suspended' => array('type' => 'BOOLEAN'), 'user_names' => array('type' => 'ARRAY', 'items' => array('type' => 'STRING')),
+            'operation' => array('type' => 'STRING', 'enum' => array('rename','show','hide','move','delete')),
+            'due_date' => array('type' => 'INTEGER'), 'allow_from' => array('type' => 'INTEGER'), 'cutoff_date' => array('type' => 'INTEGER'),
+            'time_open' => array('type' => 'INTEGER'), 'time_close' => array('type' => 'INTEGER'),
+            'time_limit' => array('type' => 'INTEGER'), 'attempts' => array('type' => 'INTEGER'),
+            'max_files' => array('type' => 'INTEGER'), 'new_name' => array('type' => 'STRING')
         ), array('action'))
     );
 }
@@ -176,6 +188,57 @@ function mtpc_orb_agent_group($moodle, $courseId, $args) {
     if (!$matches) throw new Exception('Không tìm thấy nhóm Moodle “' . $name . '”.');
     $labels = array(); foreach (array_slice($matches, 0, 5) as $row) $labels[] = isset($row['name']) ? $row['name'] : ('ID ' . $row['id']);
     throw new Exception('Có nhiều nhóm Moodle phù hợp: ' . implode('; ', $labels) . '. Hãy nói tên đầy đủ hơn.');
+}
+
+function mtpc_orb_agent_quiz($moodle, $courseId, $args) {
+    $id = isset($args['quiz_id']) ? (int)$args['quiz_id'] : 0;
+    if ($id > 0) return array('id' => $id);
+    $name = trim(isset($args['quiz_name']) ? (string)$args['quiz_name'] : '');
+    if ($name === '') throw new Exception('Cần tên bài kiểm tra.');
+    $needle = mtpc_orb_agent_normalize($name); $matches = array();
+    foreach ((array)$moodle->getQuizzesByCourses(array($courseId)) as $quiz) {
+        $value = mtpc_orb_agent_normalize(isset($quiz['name']) ? $quiz['name'] : '');
+        if ($value === $needle || ($needle !== '' && strpos($value, $needle) !== false)) $matches[] = $quiz;
+    }
+    if (count($matches) === 1) return $matches[0];
+    if (!$matches) throw new Exception('Không tìm thấy bài kiểm tra “' . $name . '” trong khóa học.');
+    $labels = array(); foreach (array_slice($matches, 0, 5) as $row) $labels[] = isset($row['name']) ? $row['name'] : ('ID ' . $row['id']);
+    throw new Exception('Có nhiều bài kiểm tra phù hợp: ' . implode('; ', $labels) . '. Hãy nói tên đầy đủ hơn.');
+}
+
+function mtpc_orb_agent_activity($moodle, $courseId, $args) {
+    $id = isset($args['course_module_id']) ? (int)$args['course_module_id'] : 0;
+    if ($id > 0) return array('id' => $id);
+    $name = trim(isset($args['activity_name']) ? (string)$args['activity_name'] : '');
+    if ($name === '') throw new Exception('Cần tên hoạt động hoặc tài nguyên Moodle.');
+    $needle = mtpc_orb_agent_normalize($name); $matches = array();
+    foreach ((array)$moodle->getCourseContents($courseId) as $section) {
+        foreach ((array)(isset($section['modules']) ? $section['modules'] : array()) as $module) {
+            $value = mtpc_orb_agent_normalize(isset($module['name']) ? $module['name'] : '');
+            if ($value === $needle || ($needle !== '' && strpos($value, $needle) !== false)) $matches[] = $module;
+        }
+    }
+    if (count($matches) === 1) return $matches[0];
+    if (!$matches) throw new Exception('Không tìm thấy hoạt động “' . $name . '” trong khóa học.');
+    $labels = array(); foreach (array_slice($matches, 0, 5) as $row) $labels[] = isset($row['name']) ? $row['name'] : ('ID ' . $row['id']);
+    throw new Exception('Có nhiều hoạt động phù hợp: ' . implode('; ', $labels) . '. Hãy nói tên đầy đủ hơn.');
+}
+
+function mtpc_orb_agent_event($moodle, $courseId, $args) {
+    $id = isset($args['event_id']) ? (int)$args['event_id'] : 0;
+    if ($id > 0) return array('id' => $id);
+    $name = trim(isset($args['event_name']) ? (string)$args['event_name'] : '');
+    if ($name === '') throw new Exception('Cần tên sự kiện Moodle.');
+    $response = $moodle->getCalendarEvents(array($courseId), false);
+    $events = isset($response['events']) && is_array($response['events']) ? $response['events'] : array();
+    $needle = mtpc_orb_agent_normalize($name); $matches = array();
+    foreach ($events as $event) {
+        $value = mtpc_orb_agent_normalize(isset($event['name']) ? $event['name'] : '');
+        if ($value === $needle || ($needle !== '' && strpos($value, $needle) !== false)) $matches[] = $event;
+    }
+    if (count($matches) === 1) return $matches[0];
+    if (!$matches) throw new Exception('Không tìm thấy sự kiện “' . $name . '” trong khóa học.');
+    throw new Exception('Có nhiều sự kiện trùng tên “' . $name . '”. Hãy nói tên cụ thể hơn.');
 }
 
 function mtpc_orb_agent_forums($moodle, $courseId) {
@@ -320,29 +383,70 @@ function mtpc_orb_agent_moodle_tool($args, $operator, $confirmed) {
     if (!mtpc_zalo_admin_permission(isset($operator['role']) ? $operator['role'] : '', 'moodle.read')) throw new Exception('Vai trò Zalo hiện tại không được dùng Moodle.');
     list($moodle, $moodleUrl) = mtpc_orb_agent_moodle();
     $action = isset($args['action']) ? (string)$args['action'] : 'status';
-    $write = in_array($action, array('create_course','enrol_user','unenrol_user','post_announcement','post_lecture','save_grade','create_group','add_group_member','create_calendar_event','send_message'), true);
+    $write = in_array($action, array('create_course','update_course','delete_course','create_user','update_user','delete_user','enrol_user','bulk_enrol','unenrol_user','post_announcement','post_lecture','create_assignment','create_quiz','manage_activity','save_grade','bulk_save_grades','create_group','add_group_member','remove_group_member','delete_group','create_calendar_event','delete_calendar_event','send_message'), true);
     if ($write && !mtpc_zalo_admin_permission(isset($operator['role']) ? $operator['role'] : '', 'moodle.write')) throw new Exception('Vai trò Zalo hiện tại chỉ được xem Moodle.');
     if ($write && $action === 'create_course' && trim(isset($args['fullname']) ? $args['fullname'] : (isset($args['course_name']) ? $args['course_name'] : '')) === '') throw new Exception('Cần tên khóa học.');
-    $needsCourse = in_array($action, array('course_contents','course_members','assignments','assignment_submissions','assignment_grades','forums','groups','calendar_events','enrol_user','unenrol_user','post_announcement','post_lecture','save_grade','create_group','add_group_member','create_calendar_event'), true);
+    $needsCourse = in_array($action, array('course_contents','course_members','assignments','assignment_submissions','assignment_grades','quizzes','quiz_attempts','quiz_grades','grade_items','course_completion','activity_completion','forums','groups','calendar_events','update_course','delete_course','enrol_user','bulk_enrol','unenrol_user','post_announcement','post_lecture','create_assignment','create_quiz','manage_activity','save_grade','bulk_save_grades','create_group','add_group_member','remove_group_member','delete_group','create_calendar_event','delete_calendar_event'), true);
     if ($needsCourse) {
         $targetCourse = mtpc_orb_agent_course($moodle, $args);
         $args['course_id'] = (int)$targetCourse['id'];
         $args['course_name'] = isset($targetCourse['fullname']) ? $targetCourse['fullname'] : (isset($args['course_name']) ? $args['course_name'] : '');
     }
-    if (in_array($action,array('enrol_user','unenrol_user','save_grade','add_group_member','send_message'),true) && empty($args['user_id'])) {
+    if (in_array($action,array('update_user','delete_user','enrol_user','unenrol_user','save_grade','add_group_member','remove_group_member','send_message','course_completion','activity_completion'),true) && empty($args['user_id'])) {
         $targetUser = mtpc_orb_agent_user($moodle, $args);
         $args['user_id'] = (int)$targetUser['id'];
     }
-    if (in_array($action,array('assignment_submissions','assignment_grades','save_grade'),true) && empty($args['assignment_id'])) {
+    if (in_array($action,array('quiz_attempts','quiz_grades','grade_items'),true) && empty($args['user_id']) && (!empty($args['user_query']) || !empty($args['query']))) {
+        $targetUser = mtpc_orb_agent_user($moodle, $args);
+        $args['user_id'] = (int)$targetUser['id'];
+    }
+    if (in_array($action,array('assignment_submissions','assignment_grades','save_grade','bulk_save_grades'),true) && empty($args['assignment_id'])) {
         $targetAssignment = mtpc_orb_agent_assignment($moodle, (int)$args['course_id'], $args);
         $args['assignment_id'] = (int)$targetAssignment['id'];
     }
-    if ($action === 'add_group_member' && empty($args['group_id'])) {
+    if (in_array($action,array('add_group_member','remove_group_member','delete_group'),true) && empty($args['group_id'])) {
         $targetGroup = mtpc_orb_agent_group($moodle, (int)$args['course_id'], $args);
         $args['group_id'] = (int)$targetGroup['id'];
     }
+    if (in_array($action,array('quiz_attempts','quiz_grades'),true) && empty($args['quiz_id'])) {
+        $targetQuiz = mtpc_orb_agent_quiz($moodle, (int)$args['course_id'], $args);
+        $args['quiz_id'] = (int)$targetQuiz['id'];
+    }
+    if ($action === 'manage_activity' && empty($args['course_module_id'])) {
+        $targetActivity = mtpc_orb_agent_activity($moodle, (int)$args['course_id'], $args);
+        $args['course_module_id'] = (int)$targetActivity['id'];
+    }
+    if ($action === 'delete_calendar_event' && empty($args['event_id'])) {
+        $targetEvent = mtpc_orb_agent_event($moodle, (int)$args['course_id'], $args);
+        $args['event_id'] = (int)$targetEvent['id'];
+    }
+    if ($action === 'bulk_enrol') {
+        $resolved = array();
+        foreach ((array)(isset($args['user_names']) ? $args['user_names'] : array()) as $name) {
+            $user = mtpc_orb_agent_user($moodle, array('user_query' => $name));
+            $resolved[] = (int)$user['id'];
+        }
+        if (!$resolved) throw new Exception('Cần danh sách tên người dùng để ghi danh.');
+        $args['user_ids'] = $resolved;
+    }
+    if ($action === 'bulk_save_grades') {
+        $rows = array();
+        foreach ((array)(isset($args['grades']) ? $args['grades'] : array()) as $row) {
+            if (empty($row['user_id'])) {
+                $user = mtpc_orb_agent_user($moodle, array('user_query' => isset($row['user_query']) ? $row['user_query'] : ''));
+                $row['user_id'] = (int)$user['id'];
+            }
+            if (!isset($row['grade'])) throw new Exception('Mỗi học viên cần có điểm.');
+            $rows[] = $row;
+        }
+        if (!$rows) throw new Exception('Cần danh sách điểm cần lưu.');
+        $args['grades'] = $rows;
+    }
     if ($write && $action === 'post_announcement' && (empty($args['subject']) || empty($args['message']))) throw new Exception('Cần tiêu đề và nội dung thông báo.');
     if ($write && $action === 'post_lecture' && empty($args['lecture_title'])) throw new Exception('Cần tiêu đề bài giảng.');
+    if ($write && $action === 'create_assignment' && empty($args['assignment_name'])) throw new Exception('Cần tên bài tập.');
+    if ($write && $action === 'create_quiz' && empty($args['quiz_name'])) throw new Exception('Cần tên bài kiểm tra.');
+    if ($write && $action === 'manage_activity' && empty($args['operation'])) throw new Exception('Cần thao tác đổi tên, hiện, ẩn, chuyển mục hoặc xóa.');
     if ($write && $action === 'create_group' && empty($args['group_name'])) throw new Exception('Cần tên nhóm Moodle.');
     if ($write && $action === 'save_grade' && !isset($args['grade'])) throw new Exception('Cần điểm cần chấm.');
     if ($write && $action === 'create_calendar_event' && (empty($args['event_name']) || empty($args['timestart']))) throw new Exception('Cần tên sự kiện và thời gian bắt đầu.');
@@ -359,8 +463,19 @@ function mtpc_orb_agent_moodle_tool($args, $operator, $confirmed) {
         if ($full === '') throw new Exception('Cần tên khóa học.');
         $short = trim(isset($args['shortname']) ? $args['shortname'] : '');
         if ($short === '') $short = strtoupper(substr(md5($full . microtime(true)), 0, 8));
-        return array('message'=>'Đã tạo khóa học.','courses'=>$moodle->createCourses(array(array('fullname'=>$full,'shortname'=>$short,'categoryid'=>max(1,isset($args['category_id'])?(int)$args['category_id']:1),'summary'=>isset($args['description'])?$args['description']:'','visible'=>1))));
+        $categoryId = isset($args['category_id']) ? (int)$args['category_id'] : 0;
+        if ($categoryId <= 0) { $categories = $moodle->getCategories(); if (!$categories) throw new Exception('Moodle chưa có danh mục khóa học phù hợp.'); $categoryId = (int)$categories[0]['id']; }
+        return array('message'=>'Đã tạo khóa học.','courses'=>$moodle->createCourses(array(array('fullname'=>$full,'shortname'=>$short,'categoryid'=>$categoryId,'summary'=>isset($args['description'])?$args['description']:'','visible'=>isset($args['visible'])?($args['visible']?1:0):1))));
     }
+    if ($action === 'create_user') {
+        foreach (array('username','password','firstname','lastname','email') as $field) if (empty($args[$field])) throw new Exception('Tạo tài khoản cần username, mật khẩu, họ, tên và email.');
+        return array('message'=>'Đã tạo tài khoản Moodle.','users'=>$moodle->createUsers(array(array('username'=>$args['username'],'password'=>$args['password'],'firstname'=>$args['firstname'],'lastname'=>$args['lastname'],'email'=>$args['email'],'auth'=>'manual'))));
+    }
+    if ($action === 'update_user') {
+        $row = array('id'=>(int)$args['user_id']); foreach (array('username','firstname','lastname','email') as $field) if (isset($args[$field]) && $args[$field] !== '') $row[$field]=$args[$field]; if (isset($args['suspended'])) $row['suspended']=$args['suspended']?1:0;
+        return array('message'=>'Đã cập nhật tài khoản Moodle.','result'=>$moodle->updateUsers(array($row)));
+    }
+    if ($action === 'delete_user') { $moodle->deleteUsers(array((int)$args['user_id'])); return array('message'=>'Đã xóa tài khoản Moodle.'); }
     if ($action === 'send_message') return array('message'=>'Đã gửi tin Moodle.','result'=>$moodle->sendMessages(array(array('touserid'=>(int)$args['user_id'],'text'=>isset($args['message'])?$args['message']:'','textformat'=>0))));
     $course = mtpc_orb_agent_course($moodle, $args); $courseId = (int)$course['id'];
     if ($action === 'course_contents') return array('course'=>$course,'sections'=>$moodle->getCourseContents($courseId));
@@ -368,15 +483,32 @@ function mtpc_orb_agent_moodle_tool($args, $operator, $confirmed) {
     if ($action === 'assignments') return array('course'=>$course,'assignments'=>$moodle->getAssignments(array($courseId)));
     if ($action === 'assignment_submissions') return array('course'=>$course,'assignment_id'=>(int)$args['assignment_id'],'submissions'=>$moodle->getSubmissions((int)$args['assignment_id']));
     if ($action === 'assignment_grades') return array('course'=>$course,'assignment_id'=>(int)$args['assignment_id'],'grades'=>$moodle->getAssignmentGrades(array((int)$args['assignment_id'])));
+    if ($action === 'quizzes') return array('course'=>$course,'quizzes'=>$moodle->getQuizzesByCourses(array($courseId)));
+    if ($action === 'quiz_attempts') {
+        $rows = array();
+        if (!empty($args['user_id'])) $rows[] = array('userid'=>(int)$args['user_id'], 'result'=>$moodle->getUserQuizAttempts((int)$args['quiz_id'],(int)$args['user_id']));
+        else foreach (array_slice((array)$moodle->getEnrolledUsers($courseId), 0, 200) as $user) $rows[] = array('userid'=>(int)$user['id'], 'fullname'=>isset($user['fullname'])?$user['fullname']:'', 'result'=>$moodle->getUserQuizAttempts((int)$args['quiz_id'],(int)$user['id']));
+        return array('course'=>$course,'quiz_id'=>(int)$args['quiz_id'],'attempts'=>$rows);
+    }
+    if ($action === 'quiz_grades') {
+        $userIds=!empty($args['user_id'])?array((int)$args['user_id']):array(); if(!$userIds)foreach(array_slice((array)$moodle->getEnrolledUsers($courseId),0,200) as $user)$userIds[]=(int)$user['id'];
+        return array('course'=>$course,'quiz_id'=>(int)$args['quiz_id'],'grades'=>$moodle->getQuizGrades(array((int)$args['quiz_id']),$userIds));
+    }
+    if ($action === 'grade_items') return array('course'=>$course,'grades'=>!empty($args['user_id'])?$moodle->getUserGrades($courseId,(int)$args['user_id']):$moodle->getGradeItems($courseId));
+    if ($action === 'course_completion') return array('course'=>$course,'completion'=>$moodle->getCourseCompletion($courseId,(int)$args['user_id']));
+    if ($action === 'activity_completion') return array('course'=>$course,'completion'=>$moodle->getActivityCompletion($courseId,(int)$args['user_id']));
     if ($action === 'forums') return array('course'=>$course,'forums'=>mtpc_orb_agent_forums($moodle,$courseId));
     if ($action === 'groups') return array('course'=>$course,'groups'=>$moodle->getCourseGroups($courseId));
     if ($action === 'calendar_events') return array('course'=>$course,'events'=>$moodle->getCalendarEvents(array($courseId), false));
+    if ($action === 'update_course') { $row=array('id'=>$courseId); foreach(array('fullname','shortname') as $field) if(isset($args[$field])&&$args[$field]!=='')$row[$field]=$args[$field]; if(isset($args['visible']))$row['visible']=$args['visible']?1:0; return array('message'=>'Đã cập nhật khóa học.','result'=>$moodle->updateCourses(array($row))); }
+    if ($action === 'delete_course') { $moodle->deleteCourses(array($courseId)); return array('message'=>'Đã xóa khóa học.'); }
     if ($action === 'enrol_user' || $action === 'unenrol_user') {
         $uid = isset($args['user_id']) ? (int)$args['user_id'] : 0; if ($uid <= 0) throw new Exception('Cần tài khoản Moodle cần ghi danh.');
         $row = array('roleid'=>isset($args['role_id'])?(int)$args['role_id']:5,'userid'=>$uid,'courseid'=>$courseId);
         if ($action === 'enrol_user') $moodle->enrolUsers(array($row)); else $moodle->unenrolUsers(array($row));
         return $action === 'enrol_user' ? 'Đã ghi danh tài khoản.' : 'Đã hủy ghi danh tài khoản.';
     }
+    if ($action === 'bulk_enrol') { $rows=array(); foreach((array)$args['user_ids'] as $uid)$rows[]=array('roleid'=>isset($args['role_id'])?(int)$args['role_id']:5,'userid'=>(int)$uid,'courseid'=>$courseId); return array('message'=>'Đã ghi danh '.count($rows).' tài khoản.','result'=>$moodle->enrolUsers($rows)); }
     if ($action === 'post_announcement') {
         $subject = trim(isset($args['subject']) ? $args['subject'] : ''); $message = trim(isset($args['message']) ? $args['message'] : '');
         if ($subject === '' || $message === '') throw new Exception('Cần tiêu đề và nội dung thông báo.');
@@ -389,10 +521,17 @@ function mtpc_orb_agent_moodle_tool($args, $operator, $confirmed) {
         $title = trim(isset($args['lecture_title'])?$args['lecture_title']:''); if ($title==='') throw new Exception('Cần tiêu đề bài giảng.');
         return array('message'=>'Đã đăng bài giảng.','result'=>$moodle->createLecture($courseId,isset($args['section_num'])?(int)$args['section_num']:0,isset($args['lecture_type'])?$args['lecture_type']:'page',$title,isset($args['lecture_content'])?$args['lecture_content']:'',1,isset($args['lecture_url'])?$args['lecture_url']:''));
     }
+    if ($action === 'create_assignment') return array('message'=>'Đã tạo bài tập.','result'=>$moodle->createAssignment($courseId,isset($args['section_num'])?(int)$args['section_num']:0,$args['assignment_name'],isset($args['description'])?$args['description']:'',isset($args['due_date'])?(int)$args['due_date']:0,isset($args['allow_from'])?(int)$args['allow_from']:0,isset($args['cutoff_date'])?(int)$args['cutoff_date']:0,isset($args['grade'])?(float)$args['grade']:10,isset($args['max_files'])?(int)$args['max_files']:1,0));
+    if ($action === 'create_quiz') return array('message'=>'Đã tạo bài kiểm tra trống. Hãy thêm câu hỏi trong Moodle.','result'=>$moodle->createQuiz($courseId,isset($args['section_num'])?(int)$args['section_num']:0,$args['quiz_name'],isset($args['description'])?$args['description']:'',isset($args['time_open'])?(int)$args['time_open']:0,isset($args['time_close'])?(int)$args['time_close']:0,isset($args['time_limit'])?(int)$args['time_limit']:0,isset($args['attempts'])?(int)$args['attempts']:0,isset($args['grade'])?(float)$args['grade']:10));
+    if ($action === 'manage_activity') return array('message'=>'Đã cập nhật hoạt động Moodle.','result'=>$moodle->manageActivity((int)$args['course_module_id'],$args['operation'],isset($args['new_name'])?$args['new_name']:'',isset($args['section_num'])?(int)$args['section_num']:-1));
     if ($action === 'save_grade') return array('message'=>'Đã lưu điểm.','result'=>$moodle->saveGrade((int)$args['assignment_id'],(int)$args['user_id'],(float)$args['grade'],isset($args['feedback'])?$args['feedback']:'',''));
+    if ($action === 'bulk_save_grades') { $saved=array(); foreach((array)$args['grades'] as $row)$saved[]=$moodle->saveGrade((int)$args['assignment_id'],(int)$row['user_id'],(float)$row['grade'],isset($row['feedback'])?$row['feedback']:'',''); return array('message'=>'Đã lưu điểm cho '.count($saved).' học viên.','result'=>$saved); }
     if ($action === 'create_group') return array('message'=>'Đã tạo nhóm Moodle.','result'=>$moodle->createGroups(array(array('courseid'=>$courseId,'name'=>isset($args['group_name'])?$args['group_name']:'','description'=>isset($args['description'])?$args['description']:''))));
     if ($action === 'add_group_member') return array('message'=>'Đã thêm thành viên.','result'=>$moodle->addGroupMembers(array(array('groupid'=>(int)$args['group_id'],'userid'=>(int)$args['user_id']))));
+    if ($action === 'remove_group_member') return array('message'=>'Đã xóa thành viên khỏi nhóm.','result'=>$moodle->deleteGroupMembers(array(array('groupid'=>(int)$args['group_id'],'userid'=>(int)$args['user_id']))));
+    if ($action === 'delete_group') { $moodle->deleteGroups(array((int)$args['group_id'])); return array('message'=>'Đã xóa nhóm Moodle.'); }
     if ($action === 'create_calendar_event') return array('message'=>'Đã tạo lịch Moodle.','result'=>$moodle->createCalendarEvents(array(array('name'=>$args['event_name'],'description'=>isset($args['description'])?$args['description']:'','eventtype'=>'course','courseid'=>$courseId,'timestart'=>(int)$args['timestart'],'timeduration'=>isset($args['timeduration'])?(int)$args['timeduration']:0,'visible'=>1))));
+    if ($action === 'delete_calendar_event') { $moodle->deleteCalendarEvents(array((int)$args['event_id'])); return array('message'=>'Đã xóa sự kiện Moodle.'); }
     throw new Exception('Thao tác Moodle chưa được hỗ trợ trên Zalo.');
 }
 

@@ -33,8 +33,11 @@ $writePermissions = array(
     'enrol-user' => 'moodle.write', 'unenrol-user' => 'moodle.write', 'create-user' => 'moodle.write',
     'update-user' => 'moodle.write', 'delete-user' => 'moodle.write',
     'post-announcement' => 'moodle.content.write', 'post-lecture' => 'moodle.content.write', 'post-lecture-file' => 'moodle.content.write', 'save-grade' => 'moodle.grade.write',
+    'create-assignment' => 'moodle.content.write', 'create-quiz' => 'moodle.content.write', 'manage-activity' => 'moodle.content.write',
     'create-group' => 'moodle.group.write', 'add-group-member' => 'moodle.group.write',
-    'create-calendar-event' => 'moodle.calendar.write', 'send-message' => 'moodle.message.write'
+    'remove-group-member' => 'moodle.group.write', 'delete-group' => 'moodle.group.write',
+    'create-calendar-event' => 'moodle.calendar.write', 'delete-calendar-event' => 'moodle.calendar.write',
+    'bulk-enrol' => 'moodle.write', 'bulk-save-grades' => 'moodle.grade.write', 'send-message' => 'moodle.message.write'
 );
 mtpc_require_permission(isset($writePermissions[$action]) ? $writePermissions[$action] : 'moodle.read');
 
@@ -192,21 +195,35 @@ try {
         'forums' => array('mod_forum_get_forums_by_courses'),
         'assignment-submissions' => array('mod_assign_get_submissions'),
         'assignment-grades' => array('mod_assign_get_grades'),
+        'quizzes' => array('mod_quiz_get_quizzes_by_courses'),
+        'quiz-attempts' => array('mod_quiz_get_user_attempts', 'core_enrol_get_enrolled_users'),
+        'quiz-grades' => array('mod_quiz_get_user_best_grade', 'core_enrol_get_enrolled_users'),
+        'grade-items' => array('gradereport_user_get_grade_items'),
+        'course-completion' => array('core_completion_get_course_completion_status'),
+        'activity-completion' => array('core_completion_get_activities_completion_status'),
         'groups' => array('core_group_get_course_groups'),
         'calendar-events' => array('core_calendar_get_calendar_events'),
         'post-lecture' => array('local_mtpcbridge_create_lecture'),
         'post-lecture-file' => array('local_mtpcbridge_create_file_lecture'),
         'post-announcement' => array('mod_forum_get_forums_by_courses', 'local_mtpcbridge_create_announcement'),
+        'create-assignment' => array('local_mtpcbridge_create_assignment'),
+        'create-quiz' => array('local_mtpcbridge_create_quiz'),
+        'manage-activity' => array('local_mtpcbridge_manage_activity'),
         'save-grade' => array('mod_assign_save_grade'),
+        'bulk-save-grades' => array('mod_assign_save_grade'),
         'create-group' => array('core_group_create_groups'),
         'add-group-member' => array('core_group_add_group_members'),
+        'remove-group-member' => array('core_group_delete_group_members'),
+        'delete-group' => array('core_group_delete_groups'),
         'create-calendar-event' => array('core_calendar_create_calendar_events'),
+        'delete-calendar-event' => array('core_calendar_delete_calendar_events'),
         'send-message' => array('core_message_send_instant_messages'),
         'create-course' => array('core_course_get_courses', 'core_course_create_courses'),
         'update-course' => array('core_course_update_courses'),
         'delete-course' => array('core_course_delete_courses'),
         'enrol-user' => array('enrol_manual_enrol_users'),
         'unenrol-user' => array('enrol_manual_unenrol_users'),
+        'bulk-enrol' => array('enrol_manual_enrol_users'),
         'create-user' => array('core_user_create_users'),
         'update-user' => array('core_user_update_users'),
         'delete-user' => array('core_user_delete_users'),
@@ -358,6 +375,56 @@ try {
         mtpc_moodle_response(200, array('ok' => true, 'assignmentid' => $assignmentId, 'grades' => is_array($grades) ? $grades : array()));
     }
 
+    if ($_SERVER['REQUEST_METHOD'] === 'GET' && $action === 'quizzes') {
+        $courseId = isset($_GET['courseid']) ? (int)$_GET['courseid'] : 0;
+        if ($courseId <= 0) mtpc_moodle_response(422, array('ok'=>false, 'error'=>'Course ID không hợp lệ.'));
+        $rows = $moodle->getQuizzesByCourses(array($courseId));
+        mtpc_moodle_response(200, array('ok'=>true, 'courseid'=>$courseId, 'quizzes'=>is_array($rows)?$rows:array(), 'total'=>is_array($rows)?count($rows):0));
+    }
+
+    if ($_SERVER['REQUEST_METHOD'] === 'GET' && $action === 'quiz-attempts') {
+        $quizId = isset($_GET['quizid']) ? (int)$_GET['quizid'] : 0;
+        $userId = isset($_GET['userid']) ? (int)$_GET['userid'] : 0;
+        $courseId = isset($_GET['courseid']) ? (int)$_GET['courseid'] : 0;
+        if ($quizId <= 0) mtpc_moodle_response(422, array('ok'=>false, 'error'=>'Quiz ID không hợp lệ.'));
+        $rows = array();
+        if ($userId > 0) $rows[] = array('userid'=>$userId, 'result'=>$moodle->getUserQuizAttempts($quizId, $userId));
+        else {
+            if ($courseId <= 0) mtpc_moodle_response(422, array('ok'=>false, 'error'=>'Cần khóa học để đọc lượt làm bài của cả lớp.'));
+            foreach (array_slice((array)$moodle->getEnrolledUsers($courseId), 0, 200) as $user) $rows[] = array('userid'=>(int)$user['id'], 'fullname'=>isset($user['fullname'])?$user['fullname']:'', 'result'=>$moodle->getUserQuizAttempts($quizId, (int)$user['id']));
+        }
+        mtpc_moodle_response(200, array('ok'=>true, 'quizid'=>$quizId, 'userid'=>$userId, 'attempts'=>$rows, 'total'=>count($rows)));
+    }
+
+    if ($_SERVER['REQUEST_METHOD'] === 'GET' && $action === 'quiz-grades') {
+        $quizId = isset($_GET['quizid']) ? (int)$_GET['quizid'] : 0;
+        $userId = isset($_GET['userid']) ? (int)$_GET['userid'] : 0;
+        $courseId = isset($_GET['courseid']) ? (int)$_GET['courseid'] : 0;
+        if ($quizId <= 0) mtpc_moodle_response(422, array('ok'=>false, 'error'=>'Quiz ID không hợp lệ.'));
+        $userIds = $userId > 0 ? array($userId) : array();
+        if (!$userIds) {
+            if ($courseId <= 0) mtpc_moodle_response(422, array('ok'=>false, 'error'=>'Cần khóa học để đọc điểm của cả lớp.'));
+            foreach (array_slice((array)$moodle->getEnrolledUsers($courseId), 0, 200) as $user) $userIds[] = (int)$user['id'];
+        }
+        mtpc_moodle_response(200, array('ok'=>true, 'quizid'=>$quizId, 'userid'=>$userId, 'grades'=>$moodle->getQuizGrades(array($quizId), $userIds)));
+    }
+
+    if ($_SERVER['REQUEST_METHOD'] === 'GET' && $action === 'grade-items') {
+        $courseId = isset($_GET['courseid']) ? (int)$_GET['courseid'] : 0;
+        $userId = isset($_GET['userid']) ? (int)$_GET['userid'] : 0;
+        if ($courseId <= 0) mtpc_moodle_response(422, array('ok'=>false, 'error'=>'Course ID không hợp lệ.'));
+        $grades = $userId > 0 ? $moodle->getUserGrades($courseId, $userId) : $moodle->getGradeItems($courseId);
+        mtpc_moodle_response(200, array('ok'=>true, 'courseid'=>$courseId, 'userid'=>$userId, 'grades'=>$grades));
+    }
+
+    if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($action === 'course-completion' || $action === 'activity-completion')) {
+        $courseId = isset($_GET['courseid']) ? (int)$_GET['courseid'] : 0;
+        $userId = isset($_GET['userid']) ? (int)$_GET['userid'] : 0;
+        if ($courseId <= 0 || $userId <= 0) mtpc_moodle_response(422, array('ok'=>false, 'error'=>'Cần khóa học và tài khoản Moodle hợp lệ.'));
+        $result = $action === 'course-completion' ? $moodle->getCourseCompletion($courseId, $userId) : $moodle->getActivityCompletion($courseId, $userId);
+        mtpc_moodle_response(200, array('ok'=>true, 'courseid'=>$courseId, 'userid'=>$userId, 'completion'=>$result));
+    }
+
     if ($_SERVER['REQUEST_METHOD'] === 'GET' && $action === 'groups') {
         $courseId = isset($_GET['courseid']) ? (int)$_GET['courseid'] : 0;
         if ($courseId <= 0) mtpc_moodle_response(422, array('ok' => false, 'error' => 'Course ID không hợp lệ.'));
@@ -367,8 +434,9 @@ try {
 
     if ($_SERVER['REQUEST_METHOD'] === 'GET' && $action === 'calendar-events') {
         $courseId = isset($_GET['courseid']) ? (int)$_GET['courseid'] : 0;
-        $events = $courseId > 0 ? $moodle->getCalendarEvents(array($courseId), false) : $moodle->getCalendarEvents(array(), true);
-        mtpc_moodle_response(200, array('ok' => true, 'events' => is_array($events) ? $events : array()));
+        $eventResult = $courseId > 0 ? $moodle->getCalendarEvents(array($courseId), false) : $moodle->getCalendarEvents(array(), true);
+        $events = isset($eventResult['events']) && is_array($eventResult['events']) ? $eventResult['events'] : (is_array($eventResult) ? $eventResult : array());
+        mtpc_moodle_response(200, array('ok' => true, 'events' => $events, 'total' => count($events)));
     }
 
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -486,6 +554,45 @@ try {
         mtpc_moodle_response(200, array('ok' => true, 'message' => 'Đã lưu điểm và nhận xét.', 'result' => $result));
     }
 
+    if ($action === 'bulk-save-grades') {
+        $assignmentId = isset($body['assignmentid']) ? (int)$body['assignmentid'] : 0;
+        $grades = isset($body['grades']) && is_array($body['grades']) ? array_slice($body['grades'], 0, 200) : array();
+        if ($assignmentId <= 0 || !$grades) mtpc_moodle_response(422, array('ok'=>false, 'error'=>'Cần bài tập và danh sách điểm.'));
+        foreach ($grades as $row) if (empty($row['userid']) || !isset($row['grade']) || (float)$row['grade'] < 0) mtpc_moodle_response(422, array('ok'=>false, 'error'=>'Mỗi dòng điểm cần tài khoản và điểm không âm.'));
+        $results = array();
+        foreach ($grades as $row) $results[] = $moodle->saveGrade($assignmentId, (int)$row['userid'], (float)$row['grade'], mtpc_moodle_text(isset($row['feedback'])?$row['feedback']:'', 4000), '');
+        mtpc_audit('moodle.assignment.grade.bulk', 'moodle_assignment', $assignmentId, null, array('count'=>count($grades)));
+        mtpc_moodle_response(200, array('ok'=>true, 'message'=>'Đã lưu '.count($grades).' điểm.', 'count'=>count($grades), 'results'=>$results));
+    }
+
+    if ($action === 'create-assignment') {
+        $courseId = isset($body['courseid']) ? (int)$body['courseid'] : 0;
+        $name = mtpc_moodle_text(isset($body['name'])?$body['name']:'', 254);
+        if ($courseId <= 0 || $name === '') mtpc_moodle_response(422, array('ok'=>false, 'error'=>'Cần khóa học và tên bài tập.'));
+        $result = $moodle->createAssignment($courseId, isset($body['sectionnum'])?(int)$body['sectionnum']:0, $name, mtpc_moodle_text(isset($body['intro'])?$body['intro']:'', 12000), isset($body['duedate'])?(int)$body['duedate']:0, isset($body['allowsubmissionsfromdate'])?(int)$body['allowsubmissionsfromdate']:0, isset($body['cutoffdate'])?(int)$body['cutoffdate']:0, isset($body['grade'])?(float)$body['grade']:10, isset($body['maxfiles'])?(int)$body['maxfiles']:1, isset($body['maxbytes'])?(int)$body['maxbytes']:0);
+        mtpc_audit('moodle.assignment.create', 'moodle_course', $courseId, null, array('name'=>$name));
+        mtpc_moodle_response(201, array('ok'=>true, 'message'=>'Đã tạo bài tập Moodle.', 'assignment'=>$result));
+    }
+
+    if ($action === 'create-quiz') {
+        $courseId = isset($body['courseid']) ? (int)$body['courseid'] : 0;
+        $name = mtpc_moodle_text(isset($body['name'])?$body['name']:'', 254);
+        if ($courseId <= 0 || $name === '') mtpc_moodle_response(422, array('ok'=>false, 'error'=>'Cần khóa học và tên bài kiểm tra.'));
+        $result = $moodle->createQuiz($courseId, isset($body['sectionnum'])?(int)$body['sectionnum']:0, $name, mtpc_moodle_text(isset($body['intro'])?$body['intro']:'', 12000), isset($body['timeopen'])?(int)$body['timeopen']:0, isset($body['timeclose'])?(int)$body['timeclose']:0, isset($body['timelimit'])?(int)$body['timelimit']:0, isset($body['attempts'])?(int)$body['attempts']:0, isset($body['grade'])?(float)$body['grade']:10);
+        mtpc_audit('moodle.quiz.create', 'moodle_course', $courseId, null, array('name'=>$name));
+        mtpc_moodle_response(201, array('ok'=>true, 'message'=>'Đã tạo bài kiểm tra Moodle. Có thể thêm câu hỏi trong Moodle.', 'quiz'=>$result));
+    }
+
+    if ($action === 'manage-activity') {
+        $cmid = isset($body['coursemoduleid']) ? (int)$body['coursemoduleid'] : 0;
+        $operation = isset($body['operation']) ? strtolower((string)$body['operation']) : '';
+        if ($cmid <= 0 || !in_array($operation, array('rename','show','hide','move','delete'), true)) mtpc_moodle_response(422, array('ok'=>false, 'error'=>'Cần hoạt động và thao tác rename/show/hide/move/delete hợp lệ.'));
+        if ($operation === 'delete' && (!isset($body['confirm']) || $body['confirm'] !== 'DELETE')) mtpc_moodle_response(422, array('ok'=>false, 'error'=>'Xóa hoạt động cần confirm=DELETE.'));
+        $result = $moodle->manageActivity($cmid, $operation, mtpc_moodle_text(isset($body['name'])?$body['name']:'', 254), isset($body['sectionnum'])?(int)$body['sectionnum']:-1);
+        mtpc_audit('moodle.activity.'.$operation, 'moodle_course_module', $cmid, null, array('name'=>isset($body['name'])?$body['name']:''));
+        mtpc_moodle_response(200, array('ok'=>true, 'message'=>'Đã '.$operation.' hoạt động Moodle.', 'activity'=>$result));
+    }
+
     if ($action === 'create-group') {
         $courseId = isset($body['courseid']) ? (int)$body['courseid'] : 0;
         $name = mtpc_moodle_text(isset($body['name']) ? $body['name'] : '', 254);
@@ -506,6 +613,22 @@ try {
         mtpc_moodle_response(200, array('ok' => true, 'message' => 'Đã thêm tài khoản vào nhóm Moodle.', 'result' => $result));
     }
 
+    if ($action === 'remove-group-member') {
+        $groupId = isset($body['groupid']) ? (int)$body['groupid'] : 0; $userId = isset($body['userid']) ? (int)$body['userid'] : 0;
+        if ($groupId <= 0 || $userId <= 0) mtpc_moodle_response(422, array('ok'=>false, 'error'=>'Cần nhóm và tài khoản hợp lệ.'));
+        $result = $moodle->deleteGroupMembers(array(array('groupid'=>$groupId, 'userid'=>$userId)));
+        mtpc_audit('moodle.group.member.remove', 'moodle_group', $groupId, null, array('userid'=>$userId));
+        mtpc_moodle_response(200, array('ok'=>true, 'message'=>'Đã xóa thành viên khỏi nhóm Moodle.', 'result'=>$result));
+    }
+
+    if ($action === 'delete-group') {
+        $groupId = isset($body['groupid']) ? (int)$body['groupid'] : 0;
+        if ($groupId <= 0 || !isset($body['confirm']) || $body['confirm'] !== 'DELETE') mtpc_moodle_response(422, array('ok'=>false, 'error'=>'Xóa nhóm cần xác nhận.'));
+        $result = $moodle->deleteGroups(array($groupId));
+        mtpc_audit('moodle.group.delete', 'moodle_group', $groupId, null, array('deleted'=>true));
+        mtpc_moodle_response(200, array('ok'=>true, 'message'=>'Đã xóa nhóm Moodle.', 'result'=>$result));
+    }
+
     if ($action === 'create-calendar-event') {
         $courseId = isset($body['courseid']) ? (int)$body['courseid'] : 0;
         $name = mtpc_moodle_text(isset($body['name']) ? $body['name'] : '', 254);
@@ -515,6 +638,14 @@ try {
         $result = $moodle->createCalendarEvents(array($event));
         mtpc_audit('moodle.calendar.create', 'moodle_course', $courseId, null, $event);
         mtpc_moodle_response(201, array('ok' => true, 'message' => 'Đã tạo lịch trên Moodle.', 'result' => $result));
+    }
+
+    if ($action === 'delete-calendar-event') {
+        $eventId = isset($body['eventid']) ? (int)$body['eventid'] : 0;
+        if ($eventId <= 0 || !isset($body['confirm']) || $body['confirm'] !== 'DELETE') mtpc_moodle_response(422, array('ok'=>false, 'error'=>'Xóa lịch cần xác nhận.'));
+        $result = $moodle->deleteCalendarEvents(array($eventId));
+        mtpc_audit('moodle.calendar.delete', 'moodle_event', $eventId, null, array('deleted'=>true));
+        mtpc_moodle_response(200, array('ok'=>true, 'message'=>'Đã xóa sự kiện Moodle.', 'result'=>$result));
     }
 
     if ($action === 'send-message') {
@@ -540,13 +671,23 @@ try {
         mtpc_moodle_response(201, array('ok' => true, 'message' => 'Đã tạo khoá học trên Moodle.', 'courses' => $created));
     }
 
+    if ($action === 'bulk-enrol') {
+        $courseId = isset($body['courseid']) ? (int)$body['courseid'] : 0;
+        $userIds = isset($body['userids']) && is_array($body['userids']) ? array_slice($body['userids'], 0, 500) : array();
+        $roleId = isset($body['roleid']) ? (int)$body['roleid'] : 5; $rows = array();
+        foreach ($userIds as $userId) if ((int)$userId > 0) $rows[] = array('userid'=>(int)$userId, 'courseid'=>$courseId, 'roleid'=>$roleId);
+        if ($courseId <= 0 || $roleId <= 0 || !$rows) mtpc_moodle_response(422, array('ok'=>false, 'error'=>'Cần khóa học và danh sách tài khoản hợp lệ.'));
+        $result = $moodle->enrolUsers($rows);
+        mtpc_audit('moodle.enrol.bulk', 'moodle_course', $courseId, null, array('count'=>count($rows), 'roleid'=>$roleId));
+        mtpc_moodle_response(200, array('ok'=>true, 'message'=>'Đã ghi danh '.count($rows).' tài khoản.', 'count'=>count($rows), 'result'=>$result));
+    }
+
     if ($action === 'update-course') {
         $id = isset($body['id']) ? (int)$body['id'] : 0;
         $fullname = mtpc_moodle_text(isset($body['fullname']) ? $body['fullname'] : '', 254);
-        if ($id <= 0 || $fullname === '') {
-            mtpc_moodle_response(422, array('ok' => false, 'error' => 'Cần Course ID và tên khoá học.'));
-        }
-        $course = array('id' => $id, 'fullname' => $fullname);
+        if ($id <= 0) mtpc_moodle_response(422, array('ok' => false, 'error' => 'Cần khóa học hợp lệ.'));
+        $course = array('id' => $id);
+        if ($fullname !== '') $course['fullname'] = $fullname;
         foreach (array('shortname', 'idnumber', 'summary', 'startdate', 'enddate', 'visible', 'categoryid') as $key) {
             if (array_key_exists($key, $body)) {
                 $course[$key] = $key === 'summary' ? mtpc_moodle_text($body[$key], 4000) : $body[$key];
@@ -601,9 +742,9 @@ try {
             mtpc_moodle_response(422, array('ok' => false, 'error' => 'User ID không hợp lệ.'));
         }
         $user = array('id' => $id);
-        foreach (array('username', 'firstname', 'lastname', 'email', 'idnumber', 'city', 'country', 'description') as $key) {
+        foreach (array('username', 'firstname', 'lastname', 'email', 'idnumber', 'city', 'country', 'description', 'suspended') as $key) {
             if (array_key_exists($key, $body)) {
-                $user[$key] = mtpc_moodle_text($body[$key], 1000);
+                $user[$key] = $key === 'suspended' ? (int)(bool)$body[$key] : mtpc_moodle_text($body[$key], 1000);
             }
         }
         if (isset($body['password']) && strlen((string)$body['password']) >= 8) {

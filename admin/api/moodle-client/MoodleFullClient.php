@@ -443,21 +443,39 @@ class MoodleFullClient extends MoodleClient
         ));
     }
 
-    public function getQuizGrades($quizIds)
+    public function getQuizGrades($quizIds, $userIds = array())
     {
-        // Dùng core grades hoặc mod_quiz_get_user_best_grade
         $grades = array();
         foreach ($quizIds as $qid) {
-            try {
-                $g = $this->call('mod_quiz_get_user_best_grade', array('quizid' => $qid));
-                $grades[$qid] = $g;
-            } catch (RuntimeException $e) {
-                $grades[$qid] = array('error' => $e->getMessage());
-            } catch (Exception $e) {
-                $grades[$qid] = array('error' => $e->getMessage());
+            $targets = $userIds ? $userIds : array(0);
+            foreach ($targets as $userId) {
+                try {
+                    $g = $this->call('mod_quiz_get_user_best_grade', array('quizid' => $qid, 'userid' => (int)$userId));
+                    $grades[] = array('quizid' => (int)$qid, 'userid' => (int)$userId, 'grade' => $g);
+                } catch (RuntimeException $e) {
+                    $grades[] = array('quizid' => (int)$qid, 'userid' => (int)$userId, 'error' => $e->getMessage());
+                } catch (Exception $e) {
+                    $grades[] = array('quizid' => (int)$qid, 'userid' => (int)$userId, 'error' => $e->getMessage());
+                }
             }
         }
         return $grades;
+    }
+
+    public function getCourseCompletion($courseId, $userId)
+    {
+        return $this->call('core_completion_get_course_completion_status', array(
+            'courseid' => (int)$courseId,
+            'userid' => (int)$userId,
+        ));
+    }
+
+    public function getActivityCompletion($courseId, $userId)
+    {
+        return $this->call('core_completion_get_activities_completion_status', array(
+            'courseid' => (int)$courseId,
+            'userid' => (int)$userId,
+        ));
     }
 
     // ================================================================
@@ -547,6 +565,36 @@ class MoodleFullClient extends MoodleClient
             'mimetype' => (string)$mimetype,
             'filecontent' => base64_encode($fileContent),
             'description' => (string)$description,
+        ));
+    }
+
+    public function createAssignment($courseId, $sectionNum, $name, $intro = '', $dueDate = 0, $allowFrom = 0, $cutoffDate = 0, $grade = 10, $maxFiles = 1, $maxBytes = 0)
+    {
+        return $this->call('local_mtpcbridge_create_assignment', array(
+            'courseid' => (int)$courseId, 'sectionnum' => (int)$sectionNum,
+            'name' => (string)$name, 'intro' => (string)$intro,
+            'duedate' => (int)$dueDate, 'allowsubmissionsfromdate' => (int)$allowFrom,
+            'cutoffdate' => (int)$cutoffDate, 'grade' => (float)$grade,
+            'maxfiles' => (int)$maxFiles, 'maxbytes' => (int)$maxBytes,
+        ));
+    }
+
+    public function createQuiz($courseId, $sectionNum, $name, $intro = '', $timeOpen = 0, $timeClose = 0, $timeLimit = 0, $attempts = 0, $grade = 10)
+    {
+        return $this->call('local_mtpcbridge_create_quiz', array(
+            'courseid' => (int)$courseId, 'sectionnum' => (int)$sectionNum,
+            'name' => (string)$name, 'intro' => (string)$intro,
+            'timeopen' => (int)$timeOpen, 'timeclose' => (int)$timeClose,
+            'timelimit' => (int)$timeLimit, 'attempts' => (int)$attempts,
+            'grade' => (float)$grade,
+        ));
+    }
+
+    public function manageActivity($courseModuleId, $action, $name = '', $sectionNum = -1)
+    {
+        return $this->call('local_mtpcbridge_manage_activity', array(
+            'coursemoduleid' => (int)$courseModuleId, 'action' => (string)$action,
+            'name' => (string)$name, 'sectionnum' => (int)$sectionNum,
         ));
     }
 

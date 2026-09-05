@@ -5,6 +5,8 @@ require_once($CFG->libdir . '/externallib.php');
 require_once($CFG->dirroot . '/course/lib.php');
 require_once($CFG->dirroot . '/course/modlib.php');
 require_once($CFG->libdir . '/resourcelib.php');
+require_once($CFG->dirroot . '/mod/assign/lib.php');
+require_once($CFG->dirroot . '/mod/quiz/lib.php');
 
 /**
  * Minimal Moodle-side bridge used by the MTPC Admin dashboard.
@@ -216,6 +218,191 @@ class local_mtpcbridge_external extends external_api {
             'filename' => new external_value(PARAM_FILE),
             'mimetype' => new external_value(PARAM_TEXT),
             'filesize' => new external_value(PARAM_INT),
+        ));
+    }
+
+    public static function create_assignment_parameters() {
+        return new external_function_parameters(array(
+            'courseid' => new external_value(PARAM_INT, 'Course ID', VALUE_REQUIRED),
+            'sectionnum' => new external_value(PARAM_INT, 'Course section number', VALUE_DEFAULT, 0),
+            'name' => new external_value(PARAM_TEXT, 'Assignment name', VALUE_REQUIRED),
+            'intro' => new external_value(PARAM_RAW, 'Assignment instructions', VALUE_DEFAULT, ''),
+            'duedate' => new external_value(PARAM_INT, 'Due timestamp, zero means none', VALUE_DEFAULT, 0),
+            'allowsubmissionsfromdate' => new external_value(PARAM_INT, 'Submission opening timestamp', VALUE_DEFAULT, 0),
+            'cutoffdate' => new external_value(PARAM_INT, 'Cut-off timestamp, zero means none', VALUE_DEFAULT, 0),
+            'grade' => new external_value(PARAM_FLOAT, 'Maximum grade', VALUE_DEFAULT, 10),
+            'maxfiles' => new external_value(PARAM_INT, 'Maximum submitted files', VALUE_DEFAULT, 1),
+            'maxbytes' => new external_value(PARAM_INT, 'Maximum file bytes, zero uses course default', VALUE_DEFAULT, 0),
+        ));
+    }
+
+    public static function create_assignment($courseid, $sectionnum, $name, $intro, $duedate, $allowsubmissionsfromdate, $cutoffdate, $grade, $maxfiles, $maxbytes) {
+        global $CFG;
+        $params = self::validate_parameters(self::create_assignment_parameters(), compact('courseid', 'sectionnum', 'name', 'intro', 'duedate', 'allowsubmissionsfromdate', 'cutoffdate', 'grade', 'maxfiles', 'maxbytes'));
+        $course = get_course($params['courseid']);
+        $context = context_course::instance($course->id);
+        self::validate_context($context);
+        require_capability('moodle/course:manageactivities', $context);
+        if (!get_config('assign', 'version')) throw new moodle_exception('modulerequirementsnotmet', 'error', '', 'assign');
+        $name = trim(clean_param($params['name'], PARAM_TEXT));
+        if ($name === '') throw new invalid_parameter_exception('Assignment name is required.');
+        $allowfrom = max(0, (int)$params['allowsubmissionsfromdate']);
+        $duedate = max(0, (int)$params['duedate']);
+        $cutoff = max(0, (int)$params['cutoffdate']);
+        if ($duedate && $allowfrom && $duedate < $allowfrom) throw new invalid_parameter_exception('Due date must be after the opening date.');
+        if ($cutoff && $duedate && $cutoff < $duedate) throw new invalid_parameter_exception('Cut-off date must be after the due date.');
+        list($module, $coursecontext, $sectioninfo, $cm, $data) = prepare_new_moduleinfo_data($course, 'assign', max(0, (int)$params['sectionnum']));
+        $data->name = $name;
+        $data->intro = clean_param($params['intro'], PARAM_CLEANHTML);
+        $data->introformat = FORMAT_HTML;
+        $data->alwaysshowdescription = 1;
+        $data->allowsubmissionsfromdate = $allowfrom;
+        $data->duedate = $duedate;
+        $data->cutoffdate = $cutoff;
+        $data->gradingduedate = $duedate;
+        $data->grade = max(1, min(1000, (float)$params['grade']));
+        $data->submissiondrafts = 0;
+        $data->requiresubmissionstatement = 0;
+        $data->sendnotifications = 0;
+        $data->sendlatenotifications = 0;
+        $data->sendstudentnotifications = 1;
+        $data->teamsubmission = 0;
+        $data->requireallteammemberssubmit = 0;
+        $data->blindmarking = 0;
+        $data->markingworkflow = 0;
+        $data->markingallocation = 0;
+        $data->assignsubmission_file_enabled = 1;
+        $data->assignsubmission_file_maxfilesubmissions = max(1, min(20, (int)$params['maxfiles']));
+        $data->assignsubmission_file_maxsubmissionsizebytes = max(0, (int)$params['maxbytes']);
+        $data->assignsubmission_onlinetext_enabled = 1;
+        $data->assignsubmission_onlinetext_wordlimit_enabled = 0;
+        $data->assignsubmission_onlinetext_wordlimit = 0;
+        $data->visible = 1;
+        $created = add_moduleinfo($data, $course, null);
+        return self::activity_result($created->coursemodule, 'create', (int)$params['sectionnum']);
+    }
+
+    public static function create_assignment_returns() {
+        return self::activity_returns();
+    }
+
+    public static function create_quiz_parameters() {
+        return new external_function_parameters(array(
+            'courseid' => new external_value(PARAM_INT, 'Course ID', VALUE_REQUIRED),
+            'sectionnum' => new external_value(PARAM_INT, 'Course section number', VALUE_DEFAULT, 0),
+            'name' => new external_value(PARAM_TEXT, 'Quiz name', VALUE_REQUIRED),
+            'intro' => new external_value(PARAM_RAW, 'Quiz instructions', VALUE_DEFAULT, ''),
+            'timeopen' => new external_value(PARAM_INT, 'Opening timestamp', VALUE_DEFAULT, 0),
+            'timeclose' => new external_value(PARAM_INT, 'Closing timestamp', VALUE_DEFAULT, 0),
+            'timelimit' => new external_value(PARAM_INT, 'Time limit in seconds', VALUE_DEFAULT, 0),
+            'attempts' => new external_value(PARAM_INT, 'Allowed attempts, zero means unlimited', VALUE_DEFAULT, 0),
+            'grade' => new external_value(PARAM_FLOAT, 'Maximum grade', VALUE_DEFAULT, 10),
+        ));
+    }
+
+    public static function create_quiz($courseid, $sectionnum, $name, $intro, $timeopen, $timeclose, $timelimit, $attempts, $grade) {
+        $params = self::validate_parameters(self::create_quiz_parameters(), compact('courseid', 'sectionnum', 'name', 'intro', 'timeopen', 'timeclose', 'timelimit', 'attempts', 'grade'));
+        $course = get_course($params['courseid']);
+        $context = context_course::instance($course->id);
+        self::validate_context($context);
+        require_capability('moodle/course:manageactivities', $context);
+        if (!get_config('quiz', 'version')) throw new moodle_exception('modulerequirementsnotmet', 'error', '', 'quiz');
+        $name = trim(clean_param($params['name'], PARAM_TEXT));
+        if ($name === '') throw new invalid_parameter_exception('Quiz name is required.');
+        $timeopen = max(0, (int)$params['timeopen']);
+        $timeclose = max(0, (int)$params['timeclose']);
+        if ($timeopen && $timeclose && $timeclose <= $timeopen) throw new invalid_parameter_exception('Quiz closing time must be after opening time.');
+        list($module, $coursecontext, $sectioninfo, $cm, $data) = prepare_new_moduleinfo_data($course, 'quiz', max(0, (int)$params['sectionnum']));
+        $data->name = $name;
+        $data->intro = clean_param($params['intro'], PARAM_CLEANHTML);
+        $data->introformat = FORMAT_HTML;
+        $data->timeopen = $timeopen;
+        $data->timeclose = $timeclose;
+        $data->timelimit = max(0, (int)$params['timelimit']);
+        $data->overduehandling = 'autosubmit';
+        $data->graceperiod = 0;
+        $data->preferredbehaviour = 'deferredfeedback';
+        $data->attempts = max(0, (int)$params['attempts']);
+        $data->attemptonlast = 0;
+        $data->grademethod = QUIZ_GRADEHIGHEST;
+        $data->decimalpoints = 2;
+        $data->questiondecimalpoints = -1;
+        $data->grade = max(1, min(1000, (float)$params['grade']));
+        $data->questionsperpage = 1;
+        $data->navmethod = QUIZ_NAVMETHOD_FREE;
+        $data->shuffleanswers = 1;
+        $data->sumgrades = 0;
+        $data->quizpassword = '';
+        foreach (array('immediately', 'open', 'closed') as $when) {
+            $data->{'attempt' . $when} = 1;
+            $data->{'maxmarks' . $when} = 1;
+            $data->{'marks' . $when} = 1;
+            $data->{'overallfeedback' . $when} = 1;
+        }
+        foreach (array('correctness', 'specificfeedback', 'generalfeedback', 'rightanswer') as $field) {
+            $data->{$field . 'closed'} = 1;
+        }
+        $data->visible = 1;
+        $created = add_moduleinfo($data, $course, null);
+        return self::activity_result($created->coursemodule, 'create', (int)$params['sectionnum']);
+    }
+
+    public static function create_quiz_returns() {
+        return self::activity_returns();
+    }
+
+    public static function manage_activity_parameters() {
+        return new external_function_parameters(array(
+            'coursemoduleid' => new external_value(PARAM_INT, 'Course module ID', VALUE_REQUIRED),
+            'action' => new external_value(PARAM_ALPHA, 'rename, show, hide, move, or delete', VALUE_REQUIRED),
+            'name' => new external_value(PARAM_TEXT, 'New activity name', VALUE_DEFAULT, ''),
+            'sectionnum' => new external_value(PARAM_INT, 'Target section for move', VALUE_DEFAULT, -1),
+        ));
+    }
+
+    public static function manage_activity($coursemoduleid, $action, $name, $sectionnum) {
+        global $DB;
+        $params = self::validate_parameters(self::manage_activity_parameters(), compact('coursemoduleid', 'action', 'name', 'sectionnum'));
+        $cm = get_coursemodule_from_id('', $params['coursemoduleid'], 0, false, MUST_EXIST);
+        $course = get_course($cm->course);
+        $context = context_module::instance($cm->id);
+        self::validate_context($context);
+        require_capability('moodle/course:manageactivities', $context);
+        $action = strtolower($params['action']);
+        if (!in_array($action, array('rename', 'show', 'hide', 'move', 'delete'), true)) throw new invalid_parameter_exception('Unsupported activity action.');
+        if ($action === 'delete') {
+            course_delete_module($cm->id);
+            return array('coursemoduleid'=>(int)$cm->id, 'instanceid'=>(int)$cm->instance, 'courseid'=>(int)$course->id, 'sectionnum'=>(int)$sectionnum, 'module'=>(string)$cm->modname, 'name'=>(string)$cm->name, 'visible'=>0, 'action'=>'delete');
+        }
+        if ($action === 'rename') {
+            $newname = trim(clean_param($params['name'], PARAM_TEXT));
+            if ($newname === '') throw new invalid_parameter_exception('New activity name is required.');
+            set_coursemodule_name($cm->id, $newname);
+        } else if ($action === 'show' || $action === 'hide') {
+            set_coursemodule_visible($cm->id, $action === 'show' ? 1 : 0);
+        } else if ($action === 'move') {
+            $section = $DB->get_record('course_sections', array('course'=>$course->id, 'section'=>max(0, (int)$params['sectionnum'])), '*', MUST_EXIST);
+            moveto_module($cm, $section);
+        }
+        rebuild_course_cache($course->id, true);
+        return self::activity_result($cm->id, $action, (int)$params['sectionnum']);
+    }
+
+    public static function manage_activity_returns() {
+        return self::activity_returns();
+    }
+
+    private static function activity_result($cmid, $action, $sectionnum) {
+        $cm = get_coursemodule_from_id('', $cmid, 0, false, MUST_EXIST);
+        return array('coursemoduleid'=>(int)$cm->id, 'instanceid'=>(int)$cm->instance, 'courseid'=>(int)$cm->course, 'sectionnum'=>(int)$sectionnum, 'module'=>(string)$cm->modname, 'name'=>(string)$cm->name, 'visible'=>(int)$cm->visible, 'action'=>(string)$action);
+    }
+
+    private static function activity_returns() {
+        return new external_single_structure(array(
+            'coursemoduleid'=>new external_value(PARAM_INT), 'instanceid'=>new external_value(PARAM_INT),
+            'courseid'=>new external_value(PARAM_INT), 'sectionnum'=>new external_value(PARAM_INT),
+            'module'=>new external_value(PARAM_ALPHANUMEXT), 'name'=>new external_value(PARAM_TEXT),
+            'visible'=>new external_value(PARAM_INT), 'action'=>new external_value(PARAM_ALPHA),
         ));
     }
 
