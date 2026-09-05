@@ -62,6 +62,36 @@ function mtpc_moodle_text($value, $limit)
     return function_exists('mb_substr') ? mb_substr($value, 0, $limit, 'UTF-8') : substr($value, 0, $limit);
 }
 
+function mtpc_moodle_shortname($fullname, $courses)
+{
+    $value = str_replace(array('Đ', 'đ'), array('D', 'd'), (string)$fullname);
+    if (function_exists('iconv')) {
+        $ascii = @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $value);
+        if ($ascii !== false) $value = $ascii;
+    }
+    $words = preg_split('/[^A-Za-z0-9]+/', strtoupper($value), -1, PREG_SPLIT_NO_EMPTY);
+    $base = '';
+    if (count($words) > 1) {
+        foreach ($words as $word) $base .= substr($word, 0, 1);
+    } else if ($words) {
+        $base = $words[0];
+    }
+    $base = substr(preg_replace('/[^A-Z0-9]/', '', $base), 0, 20);
+    if (strlen($base) < 2 && $words) $base = substr(implode('', $words), 0, 20);
+    if ($base === '') $base = 'COURSE';
+    $used = array();
+    foreach ($courses as $course) {
+        if (is_array($course) && isset($course['shortname'])) $used[strtoupper((string)$course['shortname'])] = true;
+    }
+    $candidate = $base;
+    $suffix = 2;
+    while (isset($used[$candidate])) {
+        $candidate = substr($base, 0, 16) . '-' . $suffix;
+        $suffix++;
+    }
+    return $candidate;
+}
+
 function mtpc_moodle_body()
 {
     $body = json_decode(file_get_contents('php://input'), true);
@@ -152,6 +182,35 @@ function mtpc_moodle_forum_url($moodleUrl, $forumId)
 
 try {
     $moodle = new MoodleFullClient($moodleUrl, $moodleToken);
+    $functionRequirements = array(
+        'courses' => array('core_course_get_courses'),
+        'categories' => array('core_course_get_categories'),
+        'users' => array('core_user_get_users'),
+        'enrolled-users' => array('core_enrol_get_enrolled_users'),
+        'course-contents' => array('core_course_get_contents'),
+        'assignments' => array('mod_assign_get_assignments'),
+        'forums' => array('mod_forum_get_forums_by_courses'),
+        'assignment-submissions' => array('mod_assign_get_submissions'),
+        'assignment-grades' => array('mod_assign_get_grades'),
+        'groups' => array('core_group_get_course_groups'),
+        'calendar-events' => array('core_calendar_get_calendar_events'),
+        'post-lecture' => array('local_mtpcbridge_create_lecture'),
+        'post-lecture-file' => array('local_mtpcbridge_create_file_lecture'),
+        'post-announcement' => array('mod_forum_get_forums_by_courses', 'local_mtpcbridge_create_announcement'),
+        'save-grade' => array('mod_assign_save_grade'),
+        'create-group' => array('core_group_create_groups'),
+        'add-group-member' => array('core_group_add_group_members'),
+        'create-calendar-event' => array('core_calendar_create_calendar_events'),
+        'send-message' => array('core_message_send_instant_messages'),
+        'create-course' => array('core_course_get_courses', 'core_course_get_categories', 'core_course_create_courses'),
+        'update-course' => array('core_course_update_courses'),
+        'delete-course' => array('core_course_delete_courses'),
+        'enrol-user' => array('enrol_manual_enrol_users'),
+        'unenrol-user' => array('enrol_manual_unenrol_users'),
+        'create-user' => array('core_user_create_users'),
+        'update-user' => array('core_user_update_users'),
+        'delete-user' => array('core_user_delete_users'),
+    );
 
     if ($_SERVER['REQUEST_METHOD'] === 'GET' && $action === 'status') {
         $site = $moodle->getSiteInfo();
@@ -163,26 +222,37 @@ try {
                 }
             }
         }
-        $required = array(
-            'core_course_get_courses', 'core_course_get_contents', 'core_user_get_users',
-            'core_enrol_get_enrolled_users', 'core_course_create_courses', 'enrol_manual_enrol_users',
-            'mod_forum_get_forums_by_courses', 'mod_forum_add_discussion',
-            'mod_assign_get_submissions', 'mod_assign_get_grades', 'mod_assign_save_grade',
-            'core_group_get_course_groups', 'core_group_create_groups', 'core_group_add_group_members',
-            'core_calendar_get_calendar_events', 'core_calendar_create_calendar_events',
-            'core_message_send_instant_messages', 'local_mtpcbridge_create_lecture', 'local_mtpcbridge_create_file_lecture',
-            'local_mtpcbridge_create_announcement'
-        );
+        $required = array();
+        foreach ($functionRequirements as $names) foreach ($names as $name) $required[$name] = $name;
+        $required = array_values($required);
         $available = array();
+        $missing = array();
         foreach ($required as $name) {
             $available[$name] = in_array($name, $functions, true);
+            if (!$available[$name]) $missing[] = $name;
         }
         mtpc_moodle_response(200, array('ok' => true, 'connected' => true, 'site' => array(
             'name' => isset($site['sitename']) ? (string)$site['sitename'] : '',
             'url' => isset($site['siteurl']) ? (string)$site['siteurl'] : $moodleUrl,
             'username' => isset($site['username']) ? (string)$site['username'] : '',
             'user_id' => isset($site['userid']) ? (int)$site['userid'] : 0,
-        ), 'function_count' => count($functions), 'required_functions' => $available));
+        ), 'function_count' => count($functions), 'required_functions' => $available, 'missing_functions' => $missing, 'ready' => count($missing) === 0));
+    }
+
+    if (isset($functionRequirements[$action])) {
+        $granted = $moodle->getAvailableFunctions();
+        $missing = array();
+        foreach ($functionRequirements[$action] as $requiredFunction) {
+            if (!in_array($requiredFunction, $granted, true)) $missing[] = $requiredFunction;
+        }
+        if ($missing) {
+            mtpc_moodle_response(503, array(
+                'ok' => false,
+                'error' => 'External service của Moodle còn thiếu function: ' . implode(', ', $missing) . '. Thêm function vào service dashboard rồi thử lại.',
+                'code' => 'MOODLE_FUNCTION_MISSING',
+                'missing_functions' => $missing,
+            ));
+        }
     }
 
     if ($_SERVER['REQUEST_METHOD'] === 'GET' && $action === 'courses') {
@@ -329,12 +399,15 @@ try {
             'docx' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
             'ppt' => 'application/vnd.ms-powerpoint',
             'pptx' => 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+            'xls' => 'application/vnd.ms-excel',
+            'xlsx' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'csv' => 'text/csv',
             'txt' => 'text/plain', 'md' => 'text/markdown', 'html' => 'text/html',
-            'jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg', 'png' => 'image/png',
+            'jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg', 'png' => 'image/png', 'webp' => 'image/webp',
         );
         $extension = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
         if (!isset($allowed[$extension])) {
-            mtpc_moodle_response(422, array('ok' => false, 'error' => 'Chỉ hỗ trợ PDF, Word, PowerPoint, TXT/Markdown/HTML và ảnh JPG/PNG.'));
+            mtpc_moodle_response(422, array('ok' => false, 'error' => 'Chỉ hỗ trợ PDF, Office, CSV, TXT/Markdown/HTML và ảnh JPG/PNG/WebP.'));
         }
         $decoded = base64_decode($encoded, true);
         if ($decoded === false || $decoded === '') {
@@ -446,10 +519,19 @@ try {
     if ($action === 'create-course') {
         $fullname = mtpc_moodle_text(isset($body['fullname']) ? $body['fullname'] : '', 254);
         $shortname = mtpc_moodle_text(isset($body['shortname']) ? $body['shortname'] : '', 100);
-        $categoryId = isset($body['categoryid']) ? (int)$body['categoryid'] : 1;
-        if ($fullname === '' || $shortname === '' || $categoryId <= 0) {
-            mtpc_moodle_response(422, array('ok' => false, 'error' => 'Cần tên khoá học, shortname và category ID hợp lệ.'));
+        $categoryId = isset($body['categoryid']) ? (int)$body['categoryid'] : 0;
+        if ($fullname === '') mtpc_moodle_response(422, array('ok' => false, 'error' => 'Cần tên khoá học.'));
+        if ($shortname === '') $shortname = mtpc_moodle_shortname($fullname, $moodle->getCourses());
+        if ($categoryId <= 0) {
+            $categories = $moodle->getCategories();
+            foreach ($categories as $category) {
+                if (is_array($category) && !empty($category['id'])) {
+                    $categoryId = (int)$category['id'];
+                    break;
+                }
+            }
         }
+        if ($categoryId <= 0) mtpc_moodle_response(422, array('ok' => false, 'error' => 'Moodle chưa có danh mục để tạo khoá học.'));
         $created = $moodle->createCourses(array(array('fullname' => $fullname, 'shortname' => $shortname, 'categoryid' => $categoryId, 'summary' => mtpc_moodle_text(isset($body['summary']) ? $body['summary'] : '', 4000), 'visible' => isset($body['visible']) ? (int)(bool)$body['visible'] : 1)));
         mtpc_audit('moodle.course.create', 'moodle_course', $shortname, null, array('fullname' => $fullname, 'shortname' => $shortname, 'categoryid' => $categoryId));
         mtpc_moodle_response(201, array('ok' => true, 'message' => 'Đã tạo khoá học trên Moodle.', 'courses' => $created));
