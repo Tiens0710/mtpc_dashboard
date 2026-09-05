@@ -169,7 +169,8 @@
   </style>
   <style id="admin-orb-attachment">
     #adminOrbFile{display:none!important}
-    #adminOrbAttach{display:none!important;flex:0 0 auto;width:38px!important;height:38px!important;padding:0;border:0;border-radius:50%;background:transparent;color:#18733e;font-size:18px;box-shadow:none;cursor:pointer}
+    #adminOrbAttach{display:inline-flex!important;align-items:center;justify-content:center;gap:6px;flex:0 0 auto;width:auto!important;min-width:100px;height:40px!important;padding:0 12px;border:1px solid #8bc6a5;border-radius:12px;background:#d0ecda;color:#155b3b;font-size:13px;font-weight:700;box-shadow:none;cursor:pointer}
+    #adminOrbAttach::after{content:'Chọn file'}
     #adminOrbAttach:hover{background:#e1f5e6}
     #adminOrbAttachment{display:inline-block;flex:0 1 150px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#18733e;font-size:11px;cursor:pointer}
     #adminOrbAttachment[hidden]{display:none}
@@ -274,7 +275,23 @@
     @media(max-width:600px){.ai-moodle-stat{grid-template-columns:1fr}.ai-moodle-row{align-items:flex-start;flex-direction:column}.ai-moodle-row button{width:100%}}
   </style>
   <link rel="stylesheet" href="chat-workspace.css?v=20260904-2">
-  </head>
+  <style id="admin-chat-mint-theme">
+    #adminAiWelcome~#adminOrbWidget #adminOrbPanel.admin-orb-panel:not(.hidden){background:rgba(213,239,222,.94)!important;border-color:#a3cfb4!important}
+    #adminAiWelcome~#adminOrbWidget #adminOrbPanel #adminOrbTranscript{background:linear-gradient(180deg,rgba(228,245,234,.9),rgba(207,233,218,.94))!important}
+    #adminAiWelcome~#adminOrbWidget #adminOrbPanel .admin-orb-message{background:#f1faf4!important;border-color:#b9dbc6!important;color:#174e34!important;text-shadow:none!important;font-weight:500}
+    #adminAiWelcome~#adminOrbWidget #adminOrbPanel .admin-orb-message.user{background:#bee4ce!important;border-color:#95c9ac!important;color:#124b31!important}
+    #adminAiWelcome~#adminOrbWidget #adminOrbPanel .admin-orb-role{color:#267147!important;text-shadow:none!important}
+    #adminAiWelcome~#adminOrbWidget #adminOrbPanel #adminOrbForm{background:#def1e5!important;border-top-color:#aed5bd!important;gap:8px;flex-wrap:wrap;padding:8px 10px!important}
+    #adminAiWelcome~#adminOrbWidget #adminOrbPanel #adminOrbInput{flex:1 1 120px;min-width:0;color:#174e34!important;background:transparent!important;text-shadow:none!important}
+    #adminAiWelcome~#adminOrbWidget #adminOrbPanel #adminOrbInput::placeholder{color:#527b62!important;opacity:1}
+    #adminOrbAttach:focus-visible{outline:3px solid #238854;outline-offset:2px}
+    #adminAiWelcome~#adminOrbWidget #adminOrbPanel #adminOrbAttachment{order:-1;flex:1 0 100%;color:#195d3d;padding:3px 4px}
+    #adminAiWelcome~#adminOrbWidget #adminOrbPanel #adminOrbFilePrompt{background:#e6f5ec;color:#215b3d;border-color:#aed5bd}
+    #adminAiWelcome~#adminOrbWidget #adminOrbPanel .admin-file-result{background:#eef9f2;color:#174e34;border-color:#a3cfb4}
+    #adminAiWelcome~#adminOrbWidget #adminOrbPanel .admin-file-result a,
+    #adminAiWelcome~#adminOrbWidget #adminOrbPanel .admin-file-result button{background:#d0ecda;color:#155b3b;border-color:#8bc6a5}
+  </style>
+</head>
 <body>
   <div class="app">
     <aside class="sidebar">
