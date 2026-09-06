@@ -232,10 +232,20 @@ a:hover { color: var(--mtpc-green-900); }
     background: rgba(250, 253, 251, .98);
 }
 .drawer-toggles .drawer-toggler .btn {
-    border: 0;
-    background: var(--mtpc-green-700);
-    color: #fff;
-    box-shadow: 0 4px 10px rgba(8, 122, 73, .18);
+    border: 1px solid var(--mtpc-border);
+    background: #fff !important;
+    color: var(--mtpc-green-700) !important;
+    box-shadow: 0 3px 10px rgba(20, 38, 29, .10);
+}
+.drawer-toggles .drawer-toggler .btn .icon {
+    color: currentColor !important;
+}
+.drawer-toggles .drawer-toggler .btn:hover,
+.drawer-toggles .drawer-toggler .btn:focus-visible {
+    border-color: rgba(8, 122, 73, .35);
+    background: var(--mtpc-green-50) !important;
+    color: var(--mtpc-green-950) !important;
+    box-shadow: 0 5px 14px rgba(20, 38, 29, .14);
 }
 
 .alert {

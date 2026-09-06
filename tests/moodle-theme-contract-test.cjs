@@ -23,8 +23,9 @@ assert.ok(read('scss/mtpc.scss').includes('.path-mod-forum'), 'Forum styles must
 assert.ok(read('scss/mtpc.scss').includes('background: var(--mtpc-green-900)'), 'Navbar must use a stable MTPC green surface');
 assert.ok(!read('scss/mtpc.scss').includes('linear-gradient'), 'Theme must avoid decorative gradients that make Moodle feel synthetic');
 assert.ok(read('classes/privacy/provider.php').includes('null_provider'), 'Theme privacy provider is missing');
-assert.match(read('version.php'), /\$plugin->version\s*=\s*2026090602;/, 'Theme version must be bumped for the new visual revision');
+assert.match(read('version.php'), /\$plugin->version\s*=\s*2026090603;/, 'Theme version must be bumped for the new visual revision');
 assert.ok(read('scss/mtpc.scss').includes('.navbar.fixed-top.bg-white'), 'Navbar override must cover Boost white navbar state');
+assert.ok(read('scss/mtpc.scss').includes('.drawer-toggles .drawer-toggler .btn'), 'Drawer toggle needs an explicit light-surface style');
 assert.ok(fs.readFileSync(path.join(root, '.cpanel.yml'), 'utf8').includes('moodle-theme/mtpc'), 'cPanel does not deploy the Moodle theme');
 
 console.log('Moodle theme contract OK: Boost inheritance, responsive cards, focus and reduced motion.');
