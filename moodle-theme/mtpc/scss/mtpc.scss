@@ -24,17 +24,21 @@ body {
 a { text-underline-offset: .18em; }
 a:hover { color: var(--mtpc-green-900); }
 
-.navbar.fixed-top {
+.navbar.fixed-top,
+.navbar.fixed-top.bg-white {
     min-height: 4rem;
     color: #fff;
-    background: var(--mtpc-green-900);
+    background-color: var(--mtpc-green-900) !important;
+    background-image: none !important;
     border-bottom: 1px solid rgba(255, 255, 255, .14);
     box-shadow: 0 2px 8px rgba(3, 61, 39, .14);
 }
 .navbar.fixed-top .navbar-brand,
 .navbar.fixed-top .nav-link,
 .navbar.fixed-top .btn-nav,
-.navbar.fixed-top .icon { color: #fff; }
+.navbar.fixed-top .navbar-toggler,
+.navbar.fixed-top .icon { color: #fff !important; }
+.navbar.fixed-top .navbar-toggler { border-color: rgba(255, 255, 255, .38); }
 .navbar.fixed-top .nav-link {
     border-radius: .45rem;
     transition: background-color 160ms ease, color 160ms ease;
