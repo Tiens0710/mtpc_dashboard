@@ -13,7 +13,8 @@ assert.ok(read('config.php').includes("$THEME->parents = array('boost')"), 'MTPC
 assert.ok(read('scss/mtpc.scss').includes(':focus-visible'), 'Theme must preserve visible keyboard focus');
 assert.ok(read('scss/mtpc.scss').includes('prefers-reduced-motion'), 'Theme must respect reduced-motion preferences');
 assert.ok(!read('scss/mtpc.scss').includes('transition: all'), 'Theme must not use transition: all');
-assert.ok(read('scss/mtpc.scss').includes('minmax(min(100%, 17.5rem), 1fr)'), 'Course cards must use a responsive grid');
+assert.ok(read('scss/mtpc.scss').includes('grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr))'), 'Course cards must use a responsive grid');
+assert.ok(read('scss/mtpc.scss').includes('max-width: 110rem !important'), 'Dashboard content must not be trapped in the default narrow container');
 assert.ok(read('classes/privacy/provider.php').includes('null_provider'), 'Theme privacy provider is missing');
 assert.ok(fs.readFileSync(path.join(root, '.cpanel.yml'), 'utf8').includes('moodle-theme/mtpc'), 'cPanel does not deploy the Moodle theme');
 
