@@ -535,6 +535,25 @@ class MoodleFullClient extends MoodleClient
         ));
     }
 
+    public function listAnnouncements($courseId, $forumId, $query = '', $limit = 20)
+    {
+        return $this->call('local_mtpcbridge_list_announcements', array(
+            'courseid' => (int)$courseId,
+            'forumid' => (int)$forumId,
+            'query' => (string)$query,
+            'limit' => max(1, min(50, (int)$limit)),
+        ));
+    }
+
+    public function deleteAnnouncements($courseId, $forumId, $discussionIds)
+    {
+        return $this->call('local_mtpcbridge_delete_announcements', array(
+            'courseid' => (int)$courseId,
+            'forumid' => (int)$forumId,
+            'discussionids' => array_values(array_map('intval', $discussionIds)),
+        ));
+    }
+
     /**
      * Tạo bài giảng Page hoặc URL thông qua plugin local_mtpcbridge trên Moodle.
      * Plugin dùng add_moduleinfo() phía Moodle để tạo đúng course module.

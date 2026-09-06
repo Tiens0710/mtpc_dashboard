@@ -32,7 +32,7 @@ $writePermissions = array(
     'create-course' => 'moodle.write', 'update-course' => 'moodle.write', 'delete-course' => 'moodle.write',
     'enrol-user' => 'moodle.write', 'unenrol-user' => 'moodle.write', 'create-user' => 'moodle.write',
     'update-user' => 'moodle.write', 'delete-user' => 'moodle.write',
-    'post-announcement' => 'moodle.content.write', 'post-lecture' => 'moodle.content.write', 'post-lecture-file' => 'moodle.content.write', 'save-grade' => 'moodle.grade.write',
+    'post-announcement' => 'moodle.content.write', 'delete-announcements' => 'moodle.content.write', 'post-lecture' => 'moodle.content.write', 'post-lecture-file' => 'moodle.content.write', 'save-grade' => 'moodle.grade.write',
     'create-assignment' => 'moodle.content.write', 'create-quiz' => 'moodle.content.write', 'manage-activity' => 'moodle.content.write',
     'create-group' => 'moodle.group.write', 'add-group-member' => 'moodle.group.write',
     'remove-group-member' => 'moodle.group.write', 'delete-group' => 'moodle.group.write',
@@ -206,6 +206,8 @@ try {
         'post-lecture' => array('local_mtpcbridge_create_lecture'),
         'post-lecture-file' => array('local_mtpcbridge_create_file_lecture'),
         'post-announcement' => array('mod_forum_get_forums_by_courses', 'local_mtpcbridge_create_announcement'),
+        'announcements' => array('mod_forum_get_forums_by_courses', 'local_mtpcbridge_list_announcements'),
+        'delete-announcements' => array('mod_forum_get_forums_by_courses', 'local_mtpcbridge_delete_announcements'),
         'create-assignment' => array('local_mtpcbridge_create_assignment'),
         'create-quiz' => array('local_mtpcbridge_create_quiz'),
         'manage-activity' => array('local_mtpcbridge_manage_activity'),
@@ -359,6 +361,17 @@ try {
         if ($courseId <= 0) mtpc_moodle_response(422, array('ok' => false, 'error' => 'Course ID không hợp lệ.'));
         $forums = mtpc_moodle_course_forums($moodle, $courseId);
         mtpc_moodle_response(200, array('ok' => true, 'courseid' => $courseId, 'forums' => $forums, 'total' => count($forums)));
+    }
+
+    if ($_SERVER['REQUEST_METHOD'] === 'GET' && $action === 'announcements') {
+        $courseId = isset($_GET['courseid']) ? (int)$_GET['courseid'] : 0;
+        if ($courseId <= 0) mtpc_moodle_response(422, array('ok'=>false, 'error'=>'Course ID không hợp lệ.'));
+        $forum = mtpc_moodle_find_announcement_forum($moodle, $courseId);
+        if (!$forum || empty($forum['id'])) mtpc_moodle_response(422, array('ok'=>false, 'error'=>'Không tìm thấy diễn đàn thông báo của khóa học.'));
+        $query = mtpc_moodle_text(isset($_GET['query']) ? $_GET['query'] : '', 254);
+        $limit = isset($_GET['limit']) ? max(1, min(50, (int)$_GET['limit'])) : 20;
+        $rows = $moodle->listAnnouncements($courseId, (int)$forum['id'], $query, $limit);
+        mtpc_moodle_response(200, array('ok'=>true, 'courseid'=>$courseId, 'forum'=>$forum, 'announcements'=>$rows, 'total'=>count($rows)));
     }
 
     if ($_SERVER['REQUEST_METHOD'] === 'GET' && $action === 'assignment-submissions') {
@@ -540,6 +553,17 @@ try {
         }
         mtpc_audit('moodle.announcement.create', 'moodle_course', $courseId, null, array('forumid' => (int)$forum['id'], 'subject' => $subject));
         mtpc_moodle_response(201, array('ok' => true, 'message' => 'Đã đăng thông báo lên Moodle.', 'courseid' => $courseId, 'forum' => $forum, 'discussionid' => $discussionId, 'url' => mtpc_moodle_forum_url($moodleUrl, $forum['id']), 'result' => $result));
+    }
+
+    if ($action === 'delete-announcements') {
+        $courseId = isset($body['courseid']) ? (int)$body['courseid'] : 0;
+        $ids = isset($body['discussionids']) && is_array($body['discussionids']) ? array_values(array_unique(array_map('intval', $body['discussionids']))) : array();
+        if ($courseId <= 0 || !$ids || count($ids) > 20 || min($ids) <= 0) mtpc_moodle_response(422, array('ok'=>false, 'error'=>'Cần Course ID và từ 1 đến 20 Discussion ID hợp lệ.'));
+        $forum = mtpc_moodle_find_announcement_forum($moodle, $courseId);
+        if (!$forum || empty($forum['id'])) mtpc_moodle_response(422, array('ok'=>false, 'error'=>'Không tìm thấy diễn đàn thông báo của khóa học.'));
+        $result = $moodle->deleteAnnouncements($courseId, (int)$forum['id'], $ids);
+        mtpc_audit('moodle.announcement.delete', 'moodle_course', $courseId, null, array('forumid'=>(int)$forum['id'], 'discussionids'=>$ids));
+        mtpc_moodle_response(200, array('ok'=>true, 'message'=>'Đã xóa ' . count($ids) . ' thông báo Moodle.', 'result'=>$result));
     }
 
     if ($action === 'save-grade') {

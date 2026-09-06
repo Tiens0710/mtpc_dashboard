@@ -5,6 +5,7 @@ function xmldb_local_mtpcbridge_install() {
     global $DB;
     $functions = array(
         'local_mtpcbridge_create_lecture', 'local_mtpcbridge_create_file_lecture', 'local_mtpcbridge_create_announcement',
+        'local_mtpcbridge_list_announcements', 'local_mtpcbridge_delete_announcements',
         'local_mtpcbridge_create_assignment', 'local_mtpcbridge_create_quiz', 'local_mtpcbridge_manage_activity',
         'core_course_get_courses', 'core_course_get_categories', 'core_course_get_contents',
         'core_course_create_courses', 'core_course_update_courses', 'core_course_delete_courses',

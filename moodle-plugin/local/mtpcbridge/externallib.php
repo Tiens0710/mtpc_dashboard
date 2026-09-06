@@ -514,4 +514,93 @@ class local_mtpcbridge_external extends external_api {
             'url' => new external_value(PARAM_URL),
         ));
     }
+
+    public static function list_announcements_parameters() {
+        return new external_function_parameters(array(
+            'courseid' => new external_value(PARAM_INT, 'Course ID', VALUE_REQUIRED),
+            'forumid' => new external_value(PARAM_INT, 'Announcements forum instance ID', VALUE_REQUIRED),
+            'query' => new external_value(PARAM_TEXT, 'Optional subject search', VALUE_DEFAULT, ''),
+            'limit' => new external_value(PARAM_INT, 'Maximum rows, 1 to 50', VALUE_DEFAULT, 20),
+        ));
+    }
+
+    public static function list_announcements($courseid, $forumid, $query, $limit) {
+        global $DB;
+        $params = self::validate_parameters(self::list_announcements_parameters(), compact('courseid', 'forumid', 'query', 'limit'));
+        $course = get_course($params['courseid']);
+        $forum = $DB->get_record('forum', array('id'=>$params['forumid'], 'course'=>$course->id), '*', MUST_EXIST);
+        if ((string)$forum->type !== 'news') throw new invalid_parameter_exception('The selected forum is not the course announcements forum.');
+        $cm = get_coursemodule_from_instance('forum', $forum->id, $course->id, false, MUST_EXIST);
+        $context = context_module::instance($cm->id);
+        self::validate_context($context);
+        require_capability('mod/forum:viewdiscussion', $context);
+        $query = trim($params['query']);
+        $where = 'd.course = :courseid AND d.forum = :forumid';
+        $sqlparams = array('courseid'=>$course->id, 'forumid'=>$forum->id);
+        if ($query !== '') {
+            $where .= ' AND ' . $DB->sql_like('d.name', ':query', false, false);
+            $sqlparams['query'] = '%' . $DB->sql_like_escape($query) . '%';
+        }
+        $sql = "SELECT d.id, d.name AS subject, d.timemodified, d.userid, p.message, p.created, p.modified
+                  FROM {forum_discussions} d
+                  JOIN {forum_posts} p ON p.id = d.firstpost
+                 WHERE $where
+              ORDER BY d.timemodified DESC, d.id DESC";
+        $rows = $DB->get_records_sql($sql, $sqlparams, 0, max(1, min(50, (int)$params['limit'])));
+        $result = array();
+        foreach ($rows as $row) {
+            $result[] = array('discussionid'=>(int)$row->id, 'subject'=>(string)$row->subject,
+                'message'=>(string)$row->message, 'created'=>(int)$row->created, 'modified'=>(int)$row->modified,
+                'userid'=>(int)$row->userid);
+        }
+        return $result;
+    }
+
+    public static function list_announcements_returns() {
+        return new external_multiple_structure(new external_single_structure(array(
+            'discussionid'=>new external_value(PARAM_INT), 'subject'=>new external_value(PARAM_TEXT),
+            'message'=>new external_value(PARAM_RAW), 'created'=>new external_value(PARAM_INT),
+            'modified'=>new external_value(PARAM_INT), 'userid'=>new external_value(PARAM_INT),
+        )));
+    }
+
+    public static function delete_announcements_parameters() {
+        return new external_function_parameters(array(
+            'courseid' => new external_value(PARAM_INT, 'Course ID', VALUE_REQUIRED),
+            'forumid' => new external_value(PARAM_INT, 'Announcements forum instance ID', VALUE_REQUIRED),
+            'discussionids' => new external_multiple_structure(new external_value(PARAM_INT, 'Discussion ID')),
+        ));
+    }
+
+    public static function delete_announcements($courseid, $forumid, $discussionids) {
+        global $CFG, $DB;
+        require_once($CFG->dirroot . '/mod/forum/lib.php');
+        $params = self::validate_parameters(self::delete_announcements_parameters(), compact('courseid', 'forumid', 'discussionids'));
+        $ids = array_values(array_unique(array_map('intval', $params['discussionids'])));
+        if (!$ids || count($ids) > 20 || min($ids) <= 0) throw new invalid_parameter_exception('Provide between 1 and 20 valid discussion IDs.');
+        $course = get_course($params['courseid']);
+        $forum = $DB->get_record('forum', array('id'=>$params['forumid'], 'course'=>$course->id), '*', MUST_EXIST);
+        if ((string)$forum->type !== 'news') throw new invalid_parameter_exception('The selected forum is not the course announcements forum.');
+        $cm = get_coursemodule_from_instance('forum', $forum->id, $course->id, false, MUST_EXIST);
+        $context = context_module::instance($cm->id);
+        self::validate_context($context);
+        require_capability('mod/forum:deleteanypost', $context);
+        $discussions = array();
+        foreach ($ids as $id) $discussions[] = $DB->get_record('forum_discussions', array('id'=>$id, 'forum'=>$forum->id, 'course'=>$course->id), '*', MUST_EXIST);
+        $transaction = $DB->start_delegated_transaction();
+        $deleted = array();
+        foreach ($discussions as $discussion) {
+            if (!forum_delete_discussion($discussion, true, $course, $cm, $forum)) throw new moodle_exception('couldnotdelete', 'forum');
+            $deleted[] = (int)$discussion->id;
+        }
+        $transaction->allow_commit();
+        return array('deletedcount'=>count($deleted), 'discussionids'=>$deleted);
+    }
+
+    public static function delete_announcements_returns() {
+        return new external_single_structure(array(
+            'deletedcount'=>new external_value(PARAM_INT),
+            'discussionids'=>new external_multiple_structure(new external_value(PARAM_INT)),
+        ));
+    }
 }

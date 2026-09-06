@@ -23,6 +23,18 @@ $functions = array(
         'type' => 'write',
         'capabilities' => 'mod/forum:addnews',
     ),
+    'local_mtpcbridge_list_announcements' => array(
+        'classname' => 'local_mtpcbridge_external', 'methodname' => 'list_announcements',
+        'description' => 'List and search course announcements.', 'type' => 'read',
+        'capabilities' => 'mod/forum:viewdiscussion',
+        'services' => array('dashboard'),
+    ),
+    'local_mtpcbridge_delete_announcements' => array(
+        'classname' => 'local_mtpcbridge_external', 'methodname' => 'delete_announcements',
+        'description' => 'Delete selected course announcement discussions.', 'type' => 'write',
+        'capabilities' => 'mod/forum:deleteanypost',
+        'services' => array('dashboard'),
+    ),
     'local_mtpcbridge_create_assignment' => array(
         'classname' => 'local_mtpcbridge_external', 'methodname' => 'create_assignment',
         'description' => 'Create a standard Assignment activity in a course.', 'type' => 'write',
