@@ -741,6 +741,7 @@ function mtpc_zalo_admin_handle_message($operator, $text, $pendingPath, $config,
         try {
             return mtpc_orb_agent_handle_message($operator, $text, $pendingPath, $config, $groupsPath, $messagesPath);
         } catch (Exception $agentError) {
+            error_log('[MTPC_ZALO_AGENT] ' . $agentError->getMessage());
             // Continue with the proven fixed-intent implementation below.
         }
     }

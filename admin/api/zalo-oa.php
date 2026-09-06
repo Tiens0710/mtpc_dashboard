@@ -32,9 +32,13 @@ $config = array(
     'profile_url' => 'https://openapi.zalo.me/v3.0/oa/user/detail',
     'profile_fallback_url' => 'https://openapi.zalo.me/v2.0/oa/getprofile',
     'conversation_url' => 'https://openapi.zalo.me/v2.0/oa/conversation',
+    'token_url' => 'https://oauth.zaloapp.com/v4/oa/access_token',
     'oa_id' => '',
     'auto_reply' => false,
-    'gmf_asset_id' => ''
+    'gmf_asset_id' => '',
+    'app_id' => '',
+    'secret_key' => '',
+    'refresh_token' => ''
 );
 if (is_file($configPath)) {
     require $configPath;
@@ -48,6 +52,10 @@ if (is_file($configPath)) {
     if (isset($MTPC_ZALO_OA_ID)) $config['oa_id'] = trim((string)$MTPC_ZALO_OA_ID);
     if (isset($MTPC_ZALO_OA_AUTO_REPLY)) $config['auto_reply'] = (bool)$MTPC_ZALO_OA_AUTO_REPLY;
     if (isset($MTPC_ZALO_OA_ASSET_ID)) $config['gmf_asset_id'] = trim((string)$MTPC_ZALO_OA_ASSET_ID);
+    if (isset($MTPC_ZALO_OA_APP_ID)) $config['app_id'] = trim((string)$MTPC_ZALO_OA_APP_ID);
+    if (isset($MTPC_ZALO_OA_SECRET_KEY)) $config['secret_key'] = trim((string)$MTPC_ZALO_OA_SECRET_KEY);
+    if (isset($MTPC_ZALO_OA_REFRESH_TOKEN)) $config['refresh_token'] = trim((string)$MTPC_ZALO_OA_REFRESH_TOKEN);
+    if (isset($MTPC_ZALO_OA_TOKEN_URL) && trim((string)$MTPC_ZALO_OA_TOKEN_URL) !== '') $config['token_url'] = trim((string)$MTPC_ZALO_OA_TOKEN_URL);
 }
 
 require_once __DIR__ . '/zalo-env.php';
@@ -59,11 +67,25 @@ $groupsPath = $storageDir . '/groups.json';
 $operatorsPath = $storageDir . '/operators.json';
 $pendingCommandsPath = $storageDir . '/pending-commands.json';
 $linkRequestsPath = $storageDir . '/link-requests.json';
+$tokenStatePath = $storageDir . '/token-state.json';
 if (!is_dir($storageDir) && !@mkdir($storageDir, 0750, true)) {
     mtpc_zalo_out(500, array('ok' => false, 'error' => 'Không thể tạo vùng lưu tin nhắn Zalo.'));
 }
 require_once __DIR__ . '/zalo-admin.php';
 require_once __DIR__ . '/orb-agent.php';
+
+function mtpc_zalo_apply_token_state($config) {
+    global $tokenStatePath;
+    if (!isset($tokenStatePath) || !is_file($tokenStatePath)) return $config;
+    $state = json_decode((string)@file_get_contents($tokenStatePath), true);
+    if (!is_array($state)) return $config;
+    if (!empty($state['access_token'])) $config['access_token'] = trim((string)$state['access_token']);
+    if (!empty($state['refresh_token'])) $config['refresh_token'] = trim((string)$state['refresh_token']);
+    if (!empty($state['expires_at'])) $config['access_token_expires_at'] = (int)$state['expires_at'];
+    return $config;
+}
+
+$config = mtpc_zalo_apply_token_state($config);
 
 function mtpc_zalo_body() {
     $body = json_decode(file_get_contents('php://input'), true);
@@ -425,9 +447,45 @@ function mtpc_zalo_generate_reply($question) {
     if (!preg_match('/[\x{1F300}-\x{1FAFF}\x{2600}-\x{27BF}]/u', $answer)) $answer .= ' 🌿';
     return $answer;
 }
-function mtpc_zalo_send($config, $userId, $message) {
-    if ($config['access_token'] === '') throw new Exception('Chưa cấu hình Zalo OA access token.');
-    if ($userId === '' || $message === '') throw new Exception('Thiếu người nhận hoặc nội dung tin nhắn Zalo.');
+function mtpc_zalo_refresh_access_token($config) {
+    global $tokenStatePath;
+    foreach (array('app_id', 'secret_key', 'refresh_token') as $field) {
+        if (empty($config[$field])) throw new Exception('Access token Zalo đã hết hạn nhưng thiếu ' . strtoupper($field) . ' để tự làm mới.');
+    }
+    $curl = curl_init(isset($config['token_url']) ? $config['token_url'] : 'https://oauth.zaloapp.com/v4/oa/access_token');
+    curl_setopt_array($curl, array(
+        CURLOPT_POST => true,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_CONNECTTIMEOUT => 10,
+        CURLOPT_TIMEOUT => 20,
+        CURLOPT_HTTPHEADER => array('Content-Type: application/x-www-form-urlencoded', 'secret_key: ' . $config['secret_key']),
+        CURLOPT_POSTFIELDS => http_build_query(array('grant_type' => 'refresh_token', 'refresh_token' => $config['refresh_token'], 'app_id' => $config['app_id']), '', '&')
+    ));
+    $raw = curl_exec($curl);
+    $status = (int)curl_getinfo($curl, CURLINFO_HTTP_CODE);
+    $curlError = curl_error($curl);
+    curl_close($curl);
+    $response = json_decode((string)$raw, true);
+    if ($raw === false || $status < 200 || $status >= 300 || !is_array($response) || empty($response['access_token'])) {
+        $detail = is_array($response) && !empty($response['error_name']) ? (string)$response['error_name'] : (is_array($response) && !empty($response['message']) ? (string)$response['message'] : $curlError);
+        throw new Exception('Không thể tự làm mới access token Zalo' . ($detail !== '' ? ': ' . $detail : '.'));
+    }
+    $state = array(
+        'access_token' => trim((string)$response['access_token']),
+        'refresh_token' => !empty($response['refresh_token']) ? trim((string)$response['refresh_token']) : $config['refresh_token'],
+        'expires_at' => time() + max(60, (int)(isset($response['expires_in']) ? $response['expires_in'] : 3600)) - 60,
+        'updated_at' => gmdate('c')
+    );
+    if (!isset($tokenStatePath) || @file_put_contents($tokenStatePath, json_encode($state, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT) . "\n", LOCK_EX) === false) {
+        throw new Exception('Đã làm mới token Zalo nhưng không lưu được token xoay vòng vào vùng private.');
+    }
+    $config['access_token'] = $state['access_token'];
+    $config['refresh_token'] = $state['refresh_token'];
+    $config['access_token_expires_at'] = $state['expires_at'];
+    return $config;
+}
+
+function mtpc_zalo_send_once($config, $userId, $message) {
     $payload = json_encode(array(
         'recipient' => array('user_id' => $userId),
         'message' => array('text' => $message)
@@ -446,10 +504,36 @@ function mtpc_zalo_send($config, $userId, $message) {
     $status = (int)curl_getinfo($curl, CURLINFO_HTTP_CODE);
     $error = curl_error($curl);
     curl_close($curl);
-    if ($raw === false || $status < 200 || $status >= 300) {
-        throw new Exception('Zalo OA từ chối gửi tin (HTTP ' . $status . ').' . ($error !== '' ? ' ' . $error : ''));
-    }
     $response = json_decode($raw, true);
+    return array('raw' => $raw, 'status' => $status, 'curl_error' => $error, 'response' => $response);
+}
+
+function mtpc_zalo_send_failed_for_token($attempt) {
+    if ((int)$attempt['status'] === 401) return true;
+    $response = isset($attempt['response']) && is_array($attempt['response']) ? $attempt['response'] : array();
+    $message = '';
+    if (isset($response['message'])) $message = (string)$response['message'];
+    elseif (isset($response['error_message'])) $message = (string)$response['error_message'];
+    elseif (isset($response['error_name'])) $message = (string)$response['error_name'];
+    $message = strtolower($message);
+    return strpos($message, 'access token') !== false || strpos($message, 'expired') !== false || strpos($message, 'invalid token') !== false;
+}
+
+function mtpc_zalo_send($config, $userId, $message) {
+    $config = mtpc_zalo_apply_token_state($config);
+    if ($userId === '' || $message === '') throw new Exception('Thiếu người nhận hoặc nội dung tin nhắn Zalo.');
+    if (!empty($config['access_token_expires_at']) && (int)$config['access_token_expires_at'] <= time()) $config = mtpc_zalo_refresh_access_token($config);
+    if ($config['access_token'] === '') {
+        if (!empty($config['refresh_token'])) $config = mtpc_zalo_refresh_access_token($config);
+        else throw new Exception('Chưa cấu hình Zalo OA access token.');
+    }
+    $attempt = mtpc_zalo_send_once($config, $userId, $message);
+    if (mtpc_zalo_send_failed_for_token($attempt) && !empty($config['refresh_token'])) {
+        $config = mtpc_zalo_refresh_access_token($config);
+        $attempt = mtpc_zalo_send_once($config, $userId, $message);
+    }
+    $raw = $attempt['raw']; $status = (int)$attempt['status']; $error = $attempt['curl_error']; $response = $attempt['response'];
+    if ($raw === false || $status < 200 || $status >= 300) throw new Exception('Zalo OA từ chối gửi tin (HTTP ' . $status . ').' . ($error !== '' ? ' ' . $error : ''));
     if (!is_array($response)) throw new Exception('Zalo OA trả về dữ liệu không hợp lệ.');
     $errorCode = null;
     if (isset($response['error'])) $errorCode = (int)$response['error'];
@@ -576,6 +660,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         mtpc_zalo_out(200, array(
             'ok' => true,
             'configured' => $config['access_token'] !== '' && $config['webhook_token'] !== '',
+            'auto_reply' => (bool)$config['auto_reply'],
+            'token_refresh_configured' => $config['app_id'] !== '' && $config['secret_key'] !== '' && $config['refresh_token'] !== '',
             'oa_id' => $config['oa_id'],
             'webhook_url' => 'https://agent.mtpc.edu.vn/api/zalo-oa.php?action=webhook'
         ));
@@ -856,6 +942,8 @@ if ($action === 'webhook') {
         http_response_code(200);
         echo json_encode(array('ok' => true, 'received' => true, 'auto_reply' => array('enabled' => true, 'queued' => true, 'privileged' => $operator ? true : false)), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         fastcgi_finish_request();
+        ignore_user_abort(true);
+        @set_time_limit(90);
         $backgroundResponse = true;
     }
     if ($userName === '' && $userId !== '') {

@@ -24,5 +24,10 @@ orb_assert(strpos(file_get_contents(__DIR__ . '/../admin/api/orb-agent.php'), 'm
 orb_assert(strpos(file_get_contents(__DIR__ . '/../admin/api/orb-agent.php'), 'mtpc_orb_agent_activity') !== false, 'Zalo Agent Core is missing natural activity lookup');
 orb_assert(strpos(file_get_contents(__DIR__ . '/../admin/api/orb-agent.php'), "'create_assignment','create_quiz','manage_activity'") !== false, 'Zalo Agent Core is missing Moodle content writes');
 orb_assert(strpos(file_get_contents(__DIR__ . '/../admin/api/orb-agent.php'), "'bulk_enrol'") !== false, 'Zalo Agent Core is missing bulk enrolment');
+$zaloApi = file_get_contents(__DIR__ . '/../admin/api/zalo-oa.php');
+$zaloEnv = file_get_contents(__DIR__ . '/../admin/api/zalo-env.php');
+orb_assert(strpos($zaloApi, 'mtpc_zalo_refresh_access_token') !== false, 'Zalo automatic token refresh is missing');
+orb_assert(strpos($zaloApi, 'token-state.json') !== false, 'Rotated Zalo tokens are not persisted outside the web root');
+orb_assert(strpos($zaloEnv, 'MTPC_ZALO_OA_REFRESH_TOKEN') !== false, 'Zalo refresh token environment support is missing');
 
 echo "PASS: Zalo follow-up group selection and plain-text replies\n";
