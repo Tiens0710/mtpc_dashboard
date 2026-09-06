@@ -29,6 +29,11 @@ assert.ok(agent.includes("'moodle_action'"), 'Shared agent is missing Moodle too
 assert.ok(agent.includes("'intent' => 'orb_tool'"), 'Shared agent writes are not routed through confirmation');
 assert.ok(agent.includes('course_name'), 'Shared agent does not support Moodle course names');
 assert.ok(agent.includes('mtpc_orb_agent_history'), 'Shared Zalo agent does not preserve short conversation context');
+assert.ok(agent.includes('$currentMessageRowId'), 'Zalo conversation history is not anchored to the current inbound message');
+assert.ok(oa.includes('mtpc_zalo_processing_lock'), 'Concurrent Zalo messages are not serialized per user');
+assert.ok(agent.includes("'zalo_orb_agent_fast'"), 'Common Zalo commands do not have a fast response path');
+assert.ok(agent.includes('CURLOPT_TIMEOUT => 15'), 'Gemini timeout is too long for the Zalo webhook worker');
+assert.ok(agent.includes('$round<3'), 'Zalo agent can still hold the worker for too many Gemini rounds');
 assert.ok(agent.includes("$write && !$confirmed"), 'Moodle writes can bypass Zalo confirmation');
 assert.ok(agent.includes('mtpc_orb_agent_group_identifier'), 'Follow-up Zalo group commands cannot resolve the only managed group');
 assert.ok(agent.includes('mtpc_orb_agent_plain_text'), 'Agent replies are not cleaned for Zalo plain-text rendering');

@@ -111,6 +111,22 @@ function mtpc_zalo_append($path, $row) {
     $line = json_encode($row, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n";
     return @file_put_contents($path, $line, FILE_APPEND | LOCK_EX) !== false;
 }
+function mtpc_zalo_processing_lock($storageDir, $userId) {
+    if (trim((string)$userId) === '') return null;
+    $lockDir = rtrim($storageDir, '/\\') . '/locks';
+    if (!is_dir($lockDir) && !@mkdir($lockDir, 0750, true) && !is_dir($lockDir)) return null;
+    $handle = @fopen($lockDir . '/' . sha1((string)$userId) . '.lock', 'c');
+    if (!$handle || !@flock($handle, LOCK_EX)) {
+        if ($handle) @fclose($handle);
+        return null;
+    }
+    return $handle;
+}
+function mtpc_zalo_processing_unlock($handle) {
+    if (!is_resource($handle)) return;
+    @flock($handle, LOCK_UN);
+    @fclose($handle);
+}
 function mtpc_zalo_update_user_name($path, $messageId, $userName) {
     if ($messageId === '' || $userName === '' || !is_file($path)) return false;
     $handle = @fopen($path, 'c+');
@@ -935,6 +951,7 @@ if ($action === 'webhook') {
         'read' => false
     );
     if (!mtpc_zalo_append($messagesPath, $row)) mtpc_zalo_out(500, array('ok' => false, 'error' => 'Không lưu được tin nhắn Zalo.'));
+    if ($operator) $operator['_message_row_id'] = $row['id'];
     $autoReply = array('enabled' => $config['auto_reply'], 'sent' => false);
     $isUserText = $userId !== '' && ($text !== '' || $messageType === 'sticker') && ($eventName === 'unknown' || $eventName === 'user_send_text' || strpos($eventName, 'user_send_') === 0);
     $backgroundResponse = false;
@@ -958,6 +975,7 @@ if ($action === 'webhook') {
         }
     }
     if ($config['auto_reply'] && $isUserText && $userId !== '') {
+        $processingLock = $operator ? mtpc_zalo_processing_lock($storageDir, $userId) : null;
         try {
             if ($linkResult) {
                 $reply = $linkResult['reply'];
@@ -980,6 +998,7 @@ if ($action === 'webhook') {
             mtpc_zalo_append($messagesPath, array('id' => mtpc_zalo_id(), 'direction' => 'system', 'event_name' => 'auto_reply_error', 'user_id' => $userId, 'user_name' => $userName, 'text' => 'Không gửi được trả lời tự động: ' . $error->getMessage(), 'received_at' => gmdate('c'), 'read' => true));
             error_log('[MTPC_ZALO_AUTO_REPLY] ' . $error->getMessage());
         }
+        mtpc_zalo_processing_unlock($processingLock);
     }
     if ($backgroundResponse) exit;
     mtpc_zalo_out(200, array('ok' => true, 'received' => true, 'auto_reply' => $autoReply));

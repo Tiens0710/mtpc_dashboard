@@ -94,7 +94,7 @@ function mtpc_orb_agent_call_gemini($contents, $operator) {
         'generationConfig' => array('maxOutputTokens' => 700, 'temperature' => 0.2)
     );
     $curl = curl_init('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent');
-    curl_setopt_array($curl, array(CURLOPT_POST => true, CURLOPT_RETURNTRANSFER => true, CURLOPT_CONNECTTIMEOUT => 8, CURLOPT_TIMEOUT => 25, CURLOPT_HTTPHEADER => array('Content-Type: application/json', 'x-goog-api-key: ' . $key), CURLOPT_POSTFIELDS => json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)));
+    curl_setopt_array($curl, array(CURLOPT_POST => true, CURLOPT_RETURNTRANSFER => true, CURLOPT_CONNECTTIMEOUT => 6, CURLOPT_TIMEOUT => 15, CURLOPT_HTTPHEADER => array('Content-Type: application/json', 'x-goog-api-key: ' . $key), CURLOPT_POSTFIELDS => json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)));
     $raw = curl_exec($curl); $status = (int)curl_getinfo($curl, CURLINFO_HTTP_CODE); $error = curl_error($curl); curl_close($curl);
     if ($raw === false || $status < 200 || $status >= 300) throw new Exception('Agent Gemini tạm thời không phản hồi.' . ($error !== '' ? ' ' . $error : ''));
     $data = json_decode($raw, true);
@@ -539,11 +539,16 @@ function mtpc_orb_agent_execute_pending($operator, $intent, $config, $groupsPath
     return mtpc_orb_agent_execute_tool(isset($intent['tool']) ? $intent['tool'] : '', isset($intent['args']) ? $intent['args'] : array(), $operator, $config, $groupsPath, $messagesPath, true);
 }
 
-function mtpc_orb_agent_history($messagesPath, $userId, $currentText) {
+function mtpc_orb_agent_history($messagesPath, $userId, $currentText, $currentMessageRowId) {
     $history = array();
     if (function_exists('mtpc_zalo_read_messages')) {
+        $reachedCurrentMessage = trim((string)$currentMessageRowId) === '';
         foreach (mtpc_zalo_read_messages($messagesPath) as $row) {
             if ((string)(isset($row['user_id']) ? $row['user_id'] : '') !== (string)$userId) continue;
+            if (!$reachedCurrentMessage) {
+                if ((string)(isset($row['id']) ? $row['id'] : '') !== (string)$currentMessageRowId) continue;
+                $reachedCurrentMessage = true;
+            }
             $direction = isset($row['direction']) ? $row['direction'] : '';
             $text = trim(isset($row['text']) ? (string)$row['text'] : '');
             if ($text === '' || !in_array($direction, array('inbound','outbound'), true)) continue;
@@ -562,8 +567,29 @@ function mtpc_orb_agent_history($messagesPath, $userId, $currentText) {
 
 function mtpc_orb_agent_handle_message($operator, $text, $pendingPath, $config, $groupsPath, $messagesPath) {
     if (trim((string)$text) === '') $text = 'Tôi vừa gửi một sticker. Hãy phản hồi ngắn gọn, tự nhiên.';
-    $contents = mtpc_orb_agent_history($messagesPath, isset($operator['user_id']) ? $operator['user_id'] : '', $text);
-    for ($round=0; $round<4; $round++) {
+    $normalized = mtpc_orb_agent_normalize($text);
+    if (in_array($normalized, array('xin chao','chao','chao ban','hello','hi'), true)) {
+        return array('reply'=>'Chào anh/chị! Em là Nhi, anh/chị cần em hỗ trợ gì ạ?','event_name'=>'zalo_orb_agent_fast');
+    }
+    $asksForCourses = strpos($normalized, 'khoa hoc') !== false && (
+        strpos($normalized, 'moodle') !== false || strpos($normalized, 'may khoa hoc') !== false ||
+        strpos($normalized, 'danh sach') !== false || strpos($normalized, 'coi khoa hoc') !== false || strpos($normalized, 'xem khoa hoc') !== false
+    );
+    if ($asksForCourses) {
+        try {
+            $courseResult = mtpc_orb_agent_moodle_tool(array('action'=>'courses'), $operator, false);
+        } catch (Exception $error) {
+            return array('reply'=>'Em chưa lấy được danh sách Moodle lúc này: ' . $error->getMessage(),'event_name'=>'zalo_orb_agent_fast_error');
+        }
+        $courses = isset($courseResult['courses']) && is_array($courseResult['courses']) ? $courseResult['courses'] : array();
+        $names = array();
+        foreach (array_slice($courses, 0, 8) as $course) if (!empty($course['fullname'])) $names[] = '• ' . $course['fullname'];
+        $reply = 'Moodle hiện có ' . count($courses) . ' khóa học.';
+        if ($names) $reply .= "\n" . implode("\n", $names);
+        return array('reply'=>$reply,'event_name'=>'zalo_orb_agent_fast');
+    }
+    $contents = mtpc_orb_agent_history($messagesPath, isset($operator['user_id']) ? $operator['user_id'] : '', $text, isset($operator['_message_row_id']) ? $operator['_message_row_id'] : '');
+    for ($round=0; $round<3; $round++) {
         $content = mtpc_orb_agent_call_gemini($contents, $operator); $contents[] = $content;
         $calls = array(); $reply = '';
         foreach ($content['parts'] as $part) { if (isset($part['functionCall'])) $calls[] = $part['functionCall']; if (isset($part['text'])) $reply .= $part['text']; }
