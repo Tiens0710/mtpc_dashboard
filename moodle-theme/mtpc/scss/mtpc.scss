@@ -583,17 +583,15 @@ a:hover { color: var(--mtpc-green-900); }
 @media (max-width: 767.98px) {
     #page.drawers .main-inner { width: calc(100% - 1rem) !important; margin-top: .75rem; padding: .75rem; }
     .navbar.fixed-top { min-height: 3.75rem; }
-    .drawer-toggles {
+    #page.drawers > .main-inner > .drawer-toggles {
         position: fixed !important;
         top: calc(3.75rem + .75rem) !important;
         bottom: auto !important;
-        z-index: 1040;
-    }
-    .drawer-toggles.drawer-toggles-left {
         right: auto !important;
         left: .75rem !important;
+        z-index: 1040;
     }
-    .drawer-toggles .drawer-toggler { margin: 0; }
+    #page.drawers > .main-inner > .drawer-toggles .drawer-toggler { margin: 0 !important; }
     .block .card-body { padding: 1rem; }
     .block_myoverview .dashboard-card-deck,
     .block_myoverview .card-grid[data-region="card-deck"] {
