@@ -31,6 +31,8 @@ assert.ok(agent.includes('course_name'), 'Shared agent does not support Moodle c
 assert.ok(agent.includes('mtpc_orb_agent_history'), 'Shared Zalo agent does not preserve short conversation context');
 assert.ok(agent.includes('$currentMessageRowId'), 'Zalo conversation history is not anchored to the current inbound message');
 assert.ok(oa.includes('mtpc_zalo_processing_lock'), 'Concurrent Zalo messages are not serialized per user');
+assert.ok(admin.includes("new DateTime('@' . $timestamp)"), 'Email timestamps are not converted from UTC to Vietnam time');
+assert.ok(admin.includes("new DateTimeZone('Asia/Ho_Chi_Minh')"), 'Zalo email display timezone is not fixed to Vietnam');
 assert.ok(agent.includes("'zalo_orb_agent_fast'"), 'Common Zalo commands do not have a fast response path');
 assert.ok(agent.includes('CURLOPT_TIMEOUT => 15'), 'Gemini timeout is too long for the Zalo webhook worker');
 assert.ok(agent.includes('$round<3'), 'Zalo agent can still hold the worker for too many Gemini rounds');

@@ -149,6 +149,14 @@ function mtpc_zalo_admin_text($value, $length) {
     return function_exists('mb_substr') ? mb_substr($value, 0, $length, 'UTF-8') : substr($value, 0, $length);
 }
 
+function mtpc_zalo_admin_local_time($timestamp, $format) {
+    $timestamp = (int)$timestamp;
+    if ($timestamp <= 0) return '--:--';
+    $local = new DateTime('@' . $timestamp);
+    $local->setTimezone(new DateTimeZone('Asia/Ho_Chi_Minh'));
+    return $local->format($format);
+}
+
 function mtpc_zalo_admin_normalize($text) {
     $text = function_exists('mb_strtolower') ? mb_strtolower((string)$text, 'UTF-8') : strtolower((string)$text);
     $text = strtr($text, array('à'=>'a','á'=>'a','ạ'=>'a','ả'=>'a','ã'=>'a','â'=>'a','ầ'=>'a','ấ'=>'a','ậ'=>'a','ẩ'=>'a','ẫ'=>'a','ă'=>'a','ằ'=>'a','ắ'=>'a','ặ'=>'a','ẳ'=>'a','ẵ'=>'a','è'=>'e','é'=>'e','ẹ'=>'e','ẻ'=>'e','ẽ'=>'e','ê'=>'e','ề'=>'e','ế'=>'e','ệ'=>'e','ể'=>'e','ễ'=>'e','ì'=>'i','í'=>'i','ị'=>'i','ỉ'=>'i','ĩ'=>'i','ò'=>'o','ó'=>'o','ọ'=>'o','ỏ'=>'o','õ'=>'o','ô'=>'o','ồ'=>'o','ố'=>'o','ộ'=>'o','ổ'=>'o','ỗ'=>'o','ơ'=>'o','ờ'=>'o','ớ'=>'o','ợ'=>'o','ở'=>'o','ỡ'=>'o','ù'=>'u','ú'=>'u','ụ'=>'u','ủ'=>'u','ũ'=>'u','ư'=>'u','ừ'=>'u','ứ'=>'u','ự'=>'u','ử'=>'u','ữ'=>'u','ỳ'=>'y','ý'=>'y','ỵ'=>'y','ỷ'=>'y','ỹ'=>'y','đ'=>'d'));
@@ -453,7 +461,7 @@ function mtpc_zalo_admin_email_digest($operator, $intent) {
     if (!$rows) return '📭 Không có email ' . $range[2] . ($query !== '' ? ' phù hợp với “' . $query . '”' : '') . '.';
     $lines = array('📬 Email ' . $range[2] . ': ' . count($rows) . ' thư');
     foreach ($rows as $index => $row) {
-        $time = $row['timestamp'] ? date('H:i', $row['timestamp']) : '--:--';
+        $time = mtpc_zalo_admin_local_time($row['timestamp'], 'H:i');
         $status = $row['unread'] ? ' · chưa đọc' : '';
         $line = ($index + 1) . '. [' . $time . '] ' . mtpc_zalo_admin_text($row['from'], 90) . $status . "\n   " . mtpc_zalo_admin_text($row['subject'], 150) . ' · UID ' . $row['uid'];
         if ($row['preview'] !== '') $line .= "\n   " . $row['preview'];
