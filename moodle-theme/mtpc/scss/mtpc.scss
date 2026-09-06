@@ -157,7 +157,7 @@ a:hover { color: var(--mtpc-green-900); }
 }
 .block_myoverview .card-grid[data-region="card-deck"] {
     display: grid !important;
-    grid-template-columns: repeat(auto-fill, minmax(18rem, 22rem)) !important;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 18rem), 22rem)) !important;
     align-content: start;
     justify-content: start;
     gap: 1.1rem;
@@ -211,8 +211,8 @@ a:hover { color: var(--mtpc-green-900); }
     background-image: none !important;
 }
 .block_myoverview .card-grid[data-region="card-deck"] .course-card .card-img-top {
-    height: 12rem;
-    min-height: 12rem;
+    height: clamp(10rem, 24vw, 12rem);
+    min-height: clamp(10rem, 24vw, 12rem);
     background-color: var(--mtpc-green-100) !important;
     background-repeat: no-repeat;
     background-position: center;
@@ -585,7 +585,30 @@ a:hover { color: var(--mtpc-green-900); }
     .navbar.fixed-top { min-height: 3.75rem; }
     .block .card-body { padding: 1rem; }
     .block_myoverview .dashboard-card-deck,
-    .block_myoverview .card-grid[data-region="card-deck"] { grid-template-columns: 1fr !important; }
+    .block_myoverview .card-grid[data-region="card-deck"] {
+        grid-template-columns: 1fr !important;
+        gap: .8rem;
+    }
+    .block_myoverview .card-grid[data-region="card-deck"] > .col {
+        min-width: 0;
+    }
+    .block_myoverview .card-grid[data-region="card-deck"] .course-card .card-img-top {
+        height: 10rem;
+        min-height: 10rem;
+    }
+    .block_myoverview .card-grid[data-region="card-deck"] .course-card .course-info-container {
+        min-height: 4.5rem;
+        padding: .8rem .9rem .35rem;
+    }
+    .block_myoverview .card-grid[data-region="card-deck"] .course-card .card-footer {
+        min-height: 2rem;
+        padding: .2rem .5rem;
+    }
+    #page-my-index .block_myoverview .course-search,
+    #page-my-index .block_myoverview .search-widget {
+        width: 100%;
+        min-width: 0;
+    }
     .block_myoverview .dashboard-card-img { min-height: 8rem; }
     #page-my-index .block_myoverview .dashboard-card-deck { min-height: 0 !important; }
 

@@ -23,14 +23,17 @@ assert.ok(read('scss/mtpc.scss').includes('.path-mod-forum'), 'Forum styles must
 assert.ok(read('scss/mtpc.scss').includes('background: var(--mtpc-green-900)'), 'Navbar must use a stable MTPC green surface');
 assert.ok(!read('scss/mtpc.scss').includes('linear-gradient'), 'Theme must avoid decorative gradients that make Moodle feel synthetic');
 assert.ok(read('classes/privacy/provider.php').includes('null_provider'), 'Theme privacy provider is missing');
-assert.match(read('version.php'), /\$plugin->version\s*=\s*2026090607;/, 'Theme version must be bumped for the new visual revision');
+assert.match(read('version.php'), /\$plugin->version\s*=\s*2026090608;/, 'Theme version must be bumped for the new visual revision');
 assert.ok(read('scss/mtpc.scss').includes('.navbar.fixed-top.bg-white'), 'Navbar override must cover Boost white navbar state');
 assert.ok(read('scss/mtpc.scss').includes('.drawer-toggles .drawer-toggler .btn'), 'Drawer toggle needs an explicit light-surface style');
 assert.ok(read('scss/mtpc.scss').includes('grid-template-columns: repeat(auto-fill, minmax(18rem, 22rem))'), 'Dashboard cards must not stretch into a large empty panel');
 assert.ok(read('scss/mtpc.scss').includes('.card-grid[data-region="card-deck"] .course-card'), 'Theme must style the Moodle course-card markup');
-assert.ok(read('scss/mtpc.scss').includes('height: 12rem'), 'Current Moodle course artwork needs a larger media area');
+assert.ok(read('scss/mtpc.scss').includes('height: clamp(10rem, 24vw, 12rem)'), 'Current Moodle course artwork needs a larger responsive media area');
 assert.ok(read('scss/mtpc.scss').includes('min-height: 4.75rem'), 'Current Moodle course card body must stay compact');
 assert.ok(read('scss/mtpc.scss').includes('background-size: cover'), 'Course artwork must fill the media area cleanly');
+assert.ok(read('scss/mtpc.scss').includes('minmax(min(100%, 18rem), 22rem)'), 'Course grid must not overflow narrow tablet widths');
+assert.ok(read('scss/mtpc.scss').includes('height: 10rem'), 'Course artwork needs a smaller mobile height');
+assert.ok(read('scss/mtpc.scss').includes('min-width: 0'), 'Mobile course controls must be allowed to shrink');
 assert.ok(fs.readFileSync(path.join(root, '.cpanel.yml'), 'utf8').includes('moodle-theme/mtpc'), 'cPanel does not deploy the Moodle theme');
 
 console.log('Moodle theme contract OK: Boost inheritance, responsive cards, focus and reduced motion.');
