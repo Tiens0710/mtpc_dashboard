@@ -15,6 +15,9 @@ assert.ok(read('scss/mtpc.scss').includes('prefers-reduced-motion'), 'Theme must
 assert.ok(!read('scss/mtpc.scss').includes('transition: all'), 'Theme must not use transition: all');
 assert.ok(read('scss/mtpc.scss').includes('grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr))'), 'Course cards must use a responsive grid');
 assert.ok(read('scss/mtpc.scss').includes('max-width: 110rem !important'), 'Dashboard content must not be trapped in the default narrow container');
+assert.ok(read('scss/mtpc.scss').includes('#page-mod-forum-view'), 'Announcements page must have a dedicated visual treatment');
+assert.ok(read('scss/mtpc.scss').includes('.forumheaderlist'), 'Announcements discussion list must be styled');
+assert.ok(read('scss/mtpc.scss').includes('.forumsearch'), 'Announcements search must be styled');
 assert.ok(read('classes/privacy/provider.php').includes('null_provider'), 'Theme privacy provider is missing');
 assert.ok(fs.readFileSync(path.join(root, '.cpanel.yml'), 'utf8').includes('moodle-theme/mtpc'), 'cPanel does not deploy the Moodle theme');
 
