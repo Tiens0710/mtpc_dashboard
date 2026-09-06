@@ -148,8 +148,11 @@ a:hover { color: var(--mtpc-green-900); }
 
 .block_myoverview .dashboard-card-deck {
     display: grid !important;
-    grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(18rem, 22rem));
+    align-content: start;
+    justify-content: start;
     gap: 1.1rem;
+    min-height: 0 !important;
     margin: 0;
 }
 .block_myoverview .dashboard-card-deck .dashboard-card {
@@ -173,9 +176,11 @@ a:hover { color: var(--mtpc-green-900); }
     box-shadow: 0 7px 18px rgba(20, 38, 29, .10);
 }
 .block_myoverview .dashboard-card-img {
-    min-height: 8.5rem;
+    aspect-ratio: 16 / 7;
+    min-height: 0;
     background-color: #d9eee3;
     background-blend-mode: normal;
+    background-image: none !important;
 }
 .block_myoverview .course-info-container { padding: 1.15rem 1.2rem 1.25rem; }
 .block_myoverview .coursename {
@@ -183,6 +188,61 @@ a:hover { color: var(--mtpc-green-900); }
     font-size: 1.05rem;
     font-weight: 700;
     overflow-wrap: anywhere;
+}
+
+/* Dashboard: compact course overview with a quieter Moodle-like rhythm */
+#page-my-index #region-main {
+    min-width: 0;
+}
+#page-my-index .block_myoverview {
+    overflow: hidden;
+    border-color: var(--mtpc-border);
+    background: var(--mtpc-surface);
+}
+#page-my-index .block_myoverview .card-body {
+    padding: clamp(1.15rem, 2.4vw, 1.75rem);
+}
+#page-my-index .block_myoverview .card-title {
+    margin-bottom: 1.15rem;
+    font-size: 1.35rem;
+    letter-spacing: -.015em;
+}
+#page-my-index .block_myoverview .dashboard-card-deck {
+    padding-top: .25rem;
+    padding-bottom: 0;
+}
+#page-my-index .block_myoverview .dashboard-card {
+    display: flex;
+    min-height: 15rem;
+    flex-direction: column;
+}
+#page-my-index .block_myoverview .dashboard-card .course-info-container {
+    display: flex;
+    min-width: 0;
+    flex: 1 1 auto;
+    flex-direction: column;
+}
+#page-my-index .block_myoverview .dashboard-card .morebutton {
+    margin-top: auto;
+}
+#page-my-index .block_myoverview .course-search,
+#page-my-index .block_myoverview .search-widget {
+    min-width: 12rem;
+}
+#page-my-index .block_myoverview .form-control,
+#page-my-index .block_myoverview .custom-select,
+#page-my-index .block_myoverview .form-select,
+#page-my-index .block_myoverview .btn {
+    border-radius: .5rem;
+}
+#page-my-index .block_timeline,
+#page-my-index .block_calendar_month {
+    border-color: var(--mtpc-border);
+    background: var(--mtpc-surface);
+}
+#page-my-index .block_timeline .card-title,
+#page-my-index .block_calendar_month .card-title {
+    font-size: 1.2rem;
 }
 
 .btn {
@@ -449,6 +509,7 @@ a:hover { color: var(--mtpc-green-900); }
     .block .card-body { padding: 1rem; }
     .block_myoverview .dashboard-card-deck { grid-template-columns: 1fr; }
     .block_myoverview .dashboard-card-img { min-height: 8rem; }
+    #page-my-index .block_myoverview .dashboard-card-deck { min-height: 0 !important; }
 
     #page-mod-forum-view .forumsearch,
     .path-mod-forum .forumsearch { justify-content: stretch; }
