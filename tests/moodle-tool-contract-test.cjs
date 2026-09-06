@@ -51,7 +51,8 @@ assert.ok(index.includes('mtpcResolveMoodleEvent'), 'Natural Moodle event lookup
 assert.ok(index.includes('assignment_name'), 'Moodle schema should accept assignment names');
 assert.ok(index.includes('user_query'), 'Moodle schema should accept natural user queries');
 assert.ok(index.includes('ai-file-chat.js?v=20260905-3'), 'AI file adapter cache version is stale');
-assert.ok(version.includes('$plugin->version = 2026090503;'), 'Plugin version was not bumped');
+assert.ok(version.includes('$plugin->version = 2026090600;'), 'Plugin version was not bumped');
+assert.ok(upgrade.includes('upgrade_plugin_savepoint(true, 2026090600'), 'Moodle grant repair upgrade is missing');
 for (const bridge of ['create_assignment', 'create_quiz', 'manage_activity']) {
   assert.ok(services.includes(`'local_mtpcbridge_${bridge}'`), `Plugin service declaration is missing ${bridge}`);
   assert.ok(external.includes(`function ${bridge}(`), `Plugin implementation is missing ${bridge}`);
