@@ -38,6 +38,8 @@ for (const functionName of new Set(requiredFunctions)) {
 }
 
 assert.ok(index.includes('mtpcMoodleUniqueShortname'), 'Course shortname auto-generation is missing');
+assert.ok(index.includes('var refreshedCourseData=await moodleRequest(\'courses\')'), 'Course lookup must refresh a stale browser cache after a miss');
+assert.ok(index.includes("['moodle_create_course','moodle_update_course','moodle_delete_course'].indexOf(tool)!==-1)mtpcMoodleCourses=[]"), 'Course mutations must invalidate the browser course cache');
 assert.ok(index.includes('timestart_text'), 'Natural-language calendar time support is missing');
 assert.ok(index.includes('missing_functions'), 'Moodle status does not expose missing functions');
 assert.ok(api.includes("'tool_status' => $toolStatus"), 'Moodle status should expose readiness per tool');

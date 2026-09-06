@@ -469,6 +469,7 @@
         if(tool.indexOf('student_')===0||tool==='academic_result_update')await loadStudents();
         if(tool.indexOf('attendance_')===0)await loadAttendance();
         if(tool==='fee_assignment'||tool==='payment_record')await loadFinance();
+        if(['moodle_create_course','moodle_update_course','moodle_delete_course'].indexOf(tool)!==-1)mtpcMoodleCourses=[];
         if(tool.indexOf('moodle_')===0&&typeof window.MTPC_MOODLE_LOAD==='function')window.MTPC_MOODLE_LOAD();
         await loadOperations();
         return{ok:true,executed:true,pending_approval:false,message:(result&&result.message)||'Đã thực hiện thao tác ngay.',result:result||{},operation};
@@ -1094,8 +1095,9 @@
       var courses=mtpcMoodleCourses;
       if(!courses.length){try{var courseData=await moodleRequest('courses');courses=courseData.courses||[];mtpcMoodleCourses=courses}catch(error){return{error:'Không tải được danh sách khoá học Moodle để tìm theo tên.'}}}
       var wanted=mtpcMoodleNormalizeCourseName(courseName);
-      var exact=courses.filter(function(course){return mtpcMoodleNormalizeCourseName(course.fullname)===wanted||mtpcMoodleNormalizeCourseName(course.shortname)===wanted});
-      var matches=exact.length?exact:courses.filter(function(course){var fullname=mtpcMoodleNormalizeCourseName(course.fullname),shortname=mtpcMoodleNormalizeCourseName(course.shortname);return fullname.indexOf(wanted)!==-1||wanted.indexOf(fullname)!==-1||shortname.indexOf(wanted)!==-1||wanted.indexOf(shortname)!==-1});
+      function findMatches(rows){var exact=rows.filter(function(course){return mtpcMoodleNormalizeCourseName(course.fullname)===wanted||mtpcMoodleNormalizeCourseName(course.shortname)===wanted});return exact.length?exact:rows.filter(function(course){var fullname=mtpcMoodleNormalizeCourseName(course.fullname),shortname=mtpcMoodleNormalizeCourseName(course.shortname);return fullname.indexOf(wanted)!==-1||wanted.indexOf(fullname)!==-1||shortname.indexOf(wanted)!==-1||wanted.indexOf(shortname)!==-1})}
+      var matches=findMatches(courses);
+      if(!matches.length){try{var refreshedCourseData=await moodleRequest('courses');courses=refreshedCourseData.courses||[];mtpcMoodleCourses=courses;matches=findMatches(courses)}catch(error){return{error:'Không tải lại được danh sách khoá học Moodle để tìm theo tên.'}}}
       if(matches.length===1){args.course_id=Number(matches[0].id);args.courseid=args.course_id;return{args:args,course:matches[0]}}
       if(!matches.length)return{error:'Không tìm thấy khoá học Moodle có tên "'+courseName+'". Hãy nói lại tên đầy đủ hoặc xem danh sách trong mục Moodle.'};
       return{error:'Có nhiều khoá học khớp với tên "'+courseName+'": '+matches.slice(0,5).map(function(course){return course.fullname}).join(', ')+'. Hãy nói rõ tên đầy đủ.'};
