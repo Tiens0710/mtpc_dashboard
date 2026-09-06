@@ -213,13 +213,39 @@ a:hover { color: var(--mtpc-green-900); }
 }
 #page-my-index .block_myoverview .dashboard-card {
     display: flex;
-    min-height: 15rem;
+    position: relative;
+    min-height: 0;
     flex-direction: column;
+}
+#page-my-index .block_myoverview .dashboard-card::before {
+    position: absolute;
+    z-index: 0;
+    top: 0;
+    right: 0;
+    left: 0;
+    height: 7.5rem;
+    content: "";
+    background: var(--mtpc-green-100);
+    pointer-events: none;
+}
+#page-my-index .block_myoverview .dashboard-card .dashboard-card-img,
+#page-my-index .block_myoverview .dashboard-card > .card-img-top {
+    position: relative;
+    z-index: 1;
+    height: 7.5rem;
+    min-height: 7.5rem;
+    aspect-ratio: auto;
+    background-color: transparent !important;
+    background-image: none !important;
+    opacity: 0;
 }
 #page-my-index .block_myoverview .dashboard-card .course-info-container {
     display: flex;
+    position: relative;
+    z-index: 1;
     min-width: 0;
     flex: 1 1 auto;
+    min-height: 7.25rem;
     flex-direction: column;
 }
 #page-my-index .block_myoverview .dashboard-card .morebutton {
