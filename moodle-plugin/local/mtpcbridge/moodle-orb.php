@@ -3,8 +3,8 @@
  * Moodle-hosted Orb chat endpoint.
  *
  * The browser only sends text and Moodle's sesskey. Gemini and the Moodle
- * service token remain on the server. Students receive a read-only tool;
- * site administrators receive the full management tool.
+ * service token remain on the server. This Moodle surface is always a
+ * student-safe, read-only assistant, including when an administrator tests it.
  */
 define('AJAX_SCRIPT', true);
 require_once(dirname(dirname(__DIR__)) . '/config.php');
@@ -29,7 +29,7 @@ function mtpc_moodle_orb_repo_file($file) {
         dirname(dirname(dirname(dirname(__DIR__)))) . '/admin/api/' . $file,
     );
     foreach ($candidates as $candidate) if (is_readable($candidate)) return $candidate;
-    throw new moodle_exception('invalidrecord', 'error', '', null, 'Không tìm thấy thành phần Orb trên máy chủ.');
+    throw new Exception('Không tìm thấy thành phần Orb trên máy chủ: admin/api/' . basename($file));
 }
 
 function mtpc_moodle_orb_read_body() {
@@ -48,37 +48,28 @@ function mtpc_moodle_orb_save_history($history) {
     $SESSION->mtpc_moodle_orb_history = array_slice($history, -16);
 }
 
-function mtpc_moodle_orb_tool($student) {
-    if ($student) return mtpc_orb_agent_student_moodle_tool();
-    foreach (mtpc_orb_agent_tools() as $tool) {
-        if (isset($tool['name']) && $tool['name'] === 'moodle_action') return $tool;
-    }
-    throw new moodle_exception('invalidrecord', 'error', '', null, 'Công cụ Moodle của Orb chưa được nạp.');
+function mtpc_moodle_orb_tool() {
+    return mtpc_orb_agent_student_moodle_tool();
 }
 
-function mtpc_moodle_orb_call_gemini($contents, $student) {
+function mtpc_moodle_orb_call_gemini($contents) {
     $key = getenv('GEMINI_API_KEY');
     $path = '/home/mtpc/private/gemini-config.php';
     if (!$key && is_file($path)) {
         require $path;
         $key = isset($GEMINI_API_KEY) ? $GEMINI_API_KEY : '';
     }
-    if (!$key) throw new moodle_exception('serverconnection', 'error', '', null, 'Chưa cấu hình GEMINI_API_KEY trên máy chủ.');
+    if (!$key) throw new Exception('Máy chủ chưa cấu hình GEMINI_API_KEY cho Orb Moodle.');
 
-    $system = $student
-        ? 'Bạn là Nhi, trợ lý học tập đang trò chuyện trực tiếp trong Moodle với một học sinh. '
+    $system = 'Bạn là Nhi, trợ lý học tập đang trò chuyện trực tiếp trong Moodle với một học sinh. '
         . 'Chỉ dùng công cụ moodle_student_action để tra cứu các khóa học mà chính học sinh đã ghi danh, nội dung bài học, bài tập, bài kiểm tra, điểm, tiến độ, thông báo, diễn đàn và lịch của chính em. '
-        . 'Tuyệt đối không tạo, sửa, xóa, ghi danh, chấm điểm, gửi tin, xem danh sách người dùng hoặc xem dữ liệu của học sinh khác. Nếu được yêu cầu điều khiển Moodle, hãy nói rõ Orb học sinh chỉ có quyền đọc.'
-        : 'Bạn là Nhi, trợ lý quản trị Moodle của Trường Trung cấp Miền Tây, đang trò chuyện trực tiếp trong Moodle. '
-        . 'Hiểu yêu cầu tiếng Việt tự nhiên và dùng công cụ Moodle khi cần. Tự tra khóa học, tài khoản, bài tập, quiz và hoạt động theo tên; '
-        . 'không bắt quản trị viên nhớ ID. Trả lời tiếng Việt ngắn gọn, không bịa dữ liệu. '
-        . 'Các thao tác tạo, sửa, xóa, ghi danh, chấm điểm hoặc gửi tin phải chờ hệ thống yêu cầu XÁC NHẬN; không nói đã thực hiện trước khi có kết quả.';
+        . 'Tuyệt đối không tạo, sửa, xóa, ghi danh, chấm điểm, gửi tin, xem danh sách người dùng hoặc xem dữ liệu của học sinh khác. Nếu được yêu cầu điều khiển Moodle, hãy nói rõ Orb học sinh chỉ có quyền đọc.';
     $payload = array(
         'systemInstruction' => array('parts' => array(array('text' =>
             $system
         ))),
         'contents' => $contents,
-        'tools' => array(array('functionDeclarations' => array(mtpc_moodle_orb_tool($student)))),
+        'tools' => array(array('functionDeclarations' => array(mtpc_moodle_orb_tool()))),
         'generationConfig' => array('maxOutputTokens' => 700, 'temperature' => 0.2),
     );
     $curl = curl_init('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent');
@@ -95,11 +86,14 @@ function mtpc_moodle_orb_call_gemini($contents, $student) {
     $error = curl_error($curl);
     curl_close($curl);
     if ($raw === false || $status < 200 || $status >= 300) {
-        throw new moodle_exception('serverconnection', 'error', '', null, 'Gemini không phản hồi.' . ($error ? ' ' . $error : ''));
+        $failed = json_decode((string)$raw, true);
+        $detail = is_array($failed) && !empty($failed['error']['message']) ? trim((string)$failed['error']['message']) : '';
+        if ($detail === '') $detail = $error !== '' ? $error : 'Không có nội dung phản hồi.';
+        throw new Exception('Gemini HTTP ' . $status . ': ' . $detail);
     }
     $data = json_decode($raw, true);
     if (!is_array($data) || empty($data['candidates'][0]['content']['parts'])) {
-        throw new moodle_exception('serverconnection', 'error', '', null, 'Gemini trả về dữ liệu không hợp lệ.');
+        throw new Exception('Gemini trả về dữ liệu không hợp lệ.');
     }
     return $data['candidates'][0]['content'];
 }
@@ -112,33 +106,31 @@ try {
     if ($text === '') mtpc_moodle_orb_response(422, array('ok' => false, 'error' => 'Bạn chưa nhập yêu cầu.'));
 
     global $USER, $SESSION;
-    $isadmin = has_capability('moodle/site:config', context_system::instance());
-    $role = $isadmin ? 'admin' : 'student';
+    $role = 'student';
     $operator = array('user_id' => (string)$USER->id, 'user_name' => fullname($USER), 'role' => $role);
     if (isset($SESSION->mtpc_moodle_orb_role) && $SESSION->mtpc_moodle_orb_role !== $role) {
         unset($SESSION->mtpc_moodle_orb_history, $SESSION->mtpc_moodle_orb_pending);
     }
     $SESSION->mtpc_moodle_orb_role = $role;
     $normalized = mtpc_orb_agent_normalize($text);
-    $pending = $isadmin && isset($SESSION->mtpc_moodle_orb_pending) && is_array($SESSION->mtpc_moodle_orb_pending)
-        ? $SESSION->mtpc_moodle_orb_pending : null;
-    if ($pending) {
-        if (in_array($normalized, array('xac nhan', 'xacnhan', 'dong y', 'ok', 'thuc hien'), true)) {
-            $result = mtpc_orb_agent_execute_pending($operator, $pending['intent'], array(), '', '');
-            unset($SESSION->mtpc_moodle_orb_pending);
-            mtpc_moodle_orb_response(200, array('ok' => true, 'reply' => isset($result['message']) ? $result['message'] : 'Đã thực hiện xong thao tác Moodle.'));
-        }
-        if (in_array($normalized, array('huy', 'bo qua', 'khong', 'cancel'), true)) {
-            unset($SESSION->mtpc_moodle_orb_pending);
-            mtpc_moodle_orb_response(200, array('ok' => true, 'reply' => 'Đã hủy thao tác đang chờ.'));
-        }
-        mtpc_moodle_orb_response(200, array('ok' => true, 'pending' => true, 'reply' => 'Mình đang chờ anh/chị “XÁC NHẬN” hoặc “HỦY” thao tác trước đó.'));
+    unset($SESSION->mtpc_moodle_orb_pending);
+
+    if (in_array($normalized, array('chao', 'xin chao', 'hello', 'hi'), true)) {
+        mtpc_moodle_orb_response(200, array('ok' => true, 'reply' => 'Chào em! Nhi có thể giúp xem khóa học, bài tập, điểm, tiến độ, thông báo và lịch học của chính em trên Moodle.'));
+    }
+    if (strpos($normalized, 'khoa hoc cua toi') !== false || strpos($normalized, 'khoa hoc toi da ghi danh') !== false) {
+        $courseResult = mtpc_orb_agent_execute_tool('moodle_student_action', array('action' => 'courses'), $operator, array(), '', '', false);
+        $courseRows = isset($courseResult['courses']) && is_array($courseResult['courses']) ? $courseResult['courses'] : array();
+        if (!$courseRows) mtpc_moodle_orb_response(200, array('ok' => true, 'reply' => 'Tài khoản này hiện chưa được ghi danh vào khóa học nào.'));
+        $courseNames = array();
+        foreach (array_slice($courseRows, 0, 20) as $courseRow) $courseNames[] = isset($courseRow['fullname']) ? $courseRow['fullname'] : ('Khóa học ID ' . $courseRow['id']);
+        mtpc_moodle_orb_response(200, array('ok' => true, 'reply' => 'Các khóa học của em: ' . implode(', ', $courseNames) . '.'));
     }
 
     $contents = mtpc_moodle_orb_history();
     $contents[] = array('role' => 'user', 'parts' => array(array('text' => mtpc_zalo_admin_text($text, 4000))));
     for ($round = 0; $round < 3; $round++) {
-        $content = mtpc_moodle_orb_call_gemini($contents, !$isadmin);
+        $content = mtpc_moodle_orb_call_gemini($contents);
         $contents[] = $content;
         $calls = array();
         $reply = '';
@@ -155,15 +147,10 @@ try {
             $name = isset($call['name']) ? $call['name'] : '';
             $args = isset($call['args']) && is_array($call['args']) ? $call['args'] : array();
             try {
-                if (!$isadmin && $name !== 'moodle_student_action') throw new Exception('Orb học sinh chỉ có quyền tra cứu dữ liệu học tập của chính mình.');
+                if ($name !== 'moodle_student_action') throw new Exception('Orb học sinh chỉ có quyền tra cứu dữ liệu học tập của chính mình.');
                 $result = mtpc_orb_agent_execute_tool($name, $args, $operator, array(), '', '', false);
             } catch (Exception $error) {
                 $result = array('ok' => false, 'error' => $error->getMessage());
-            }
-            if (is_array($result) && !empty($result['pending'])) {
-                $SESSION->mtpc_moodle_orb_pending = array('intent' => $result['intent'], 'expires_at' => time() + 600);
-                mtpc_moodle_orb_save_history($contents);
-                mtpc_moodle_orb_response(200, array('ok' => true, 'pending' => true, 'reply' => 'Mình đã chuẩn bị: ' . $result['intent']['summary'] . "\nNhấn “XÁC NHẬN” để thực hiện hoặc “HỦY” để bỏ qua."));
             }
             $encoded = json_encode(array('result' => $result), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
             if (strlen($encoded) > 14000) $encoded = substr($encoded, 0, 14000) . '...';
@@ -173,6 +160,6 @@ try {
     }
     mtpc_moodle_orb_save_history($contents);
     mtpc_moodle_orb_response(200, array('ok' => true, 'reply' => 'Kết quả hơi dài. Anh/chị thu hẹp yêu cầu giúp mình nhé.'));
-} catch (Exception $error) {
+} catch (Throwable $error) {
     mtpc_moodle_orb_response(500, array('ok' => false, 'error' => $error->getMessage()));
 }

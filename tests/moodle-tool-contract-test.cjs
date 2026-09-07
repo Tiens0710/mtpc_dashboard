@@ -57,7 +57,7 @@ assert.ok(index.includes('mtpcResolveMoodleEvent'), 'Natural Moodle event lookup
 assert.ok(index.includes('assignment_name'), 'Moodle schema should accept assignment names');
 assert.ok(index.includes('user_query'), 'Moodle schema should accept natural user queries');
 assert.ok(index.includes('ai-file-chat.js?v=20260905-3'), 'AI file adapter cache version is stale');
-assert.ok(version.includes('$plugin->version = 2026090702;'), 'Plugin version was not bumped');
+assert.ok(version.includes('$plugin->version = 2026090703;'), 'Plugin version was not bumped');
 assert.ok(upgrade.includes('upgrade_plugin_savepoint(true, 2026090601'), 'Moodle announcement upgrade is missing');
 assert.ok(themeConfig.includes("$THEME->javascripts_footer = array('mtpc-orb');"), 'Moodle theme does not load the Orb widget');
 assert.ok(orbJs.includes('moodle-orb.php'), 'Moodle Orb widget is missing its server endpoint');
@@ -67,10 +67,11 @@ assert.ok(orbJs.includes('SpeechRecognition'), 'Moodle Orb widget must expose br
 assert.ok(orbJs.includes('setVoiceOpen(true)'), 'Moodle Orb must expand before starting voice input');
 assert.ok(!orbJs.includes('setOpen(true, false);'), 'Voice input must not open the conventional chat panel');
 assert.ok(orbJs.includes('mtpc-orb-voice-form'), 'Expanded Orb must support text without opening the chat panel');
-assert.ok(orbEndpoint.includes("has_capability('moodle/site:config'"), 'Moodle Orb endpoint is missing the admin/student role split');
+assert.ok(orbEndpoint.includes("$role = 'student'"), 'Moodle Orb endpoint must always use the student-safe role');
 assert.ok(orbEndpoint.includes('moodle_student_action'), 'Moodle Orb endpoint is missing the student-safe tool');
+assert.ok(!orbEndpoint.includes("mtpc_moodle_orb_tool($student)"), 'Moodle Orb endpoint must not expose the admin Moodle tool');
 assert.ok(orbAgent.includes('function mtpc_orb_agent_moodle_student_tool'), 'Shared Orb agent is missing the student-safe Moodle tool');
-assert.ok(orbEndpoint.includes("'moodle_action'"), 'Moodle Orb endpoint is missing the Moodle tool');
+assert.ok(!orbEndpoint.includes("'moodle_action'"), 'Moodle Orb endpoint must not expose the admin Moodle tool');
 for (const bridge of ['create_assignment', 'create_quiz', 'manage_activity', 'list_announcements', 'delete_announcements']) {
   assert.ok(services.includes(`'local_mtpcbridge_${bridge}'`), `Plugin service declaration is missing ${bridge}`);
   assert.ok(external.includes(`function ${bridge}(`), `Plugin implementation is missing ${bridge}`);
