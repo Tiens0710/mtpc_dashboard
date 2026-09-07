@@ -82,6 +82,199 @@ a:hover { color: var(--mtpc-green-900); }
     min-width: 0;
 }
 
+.mtpc-orb {
+    position: fixed;
+    right: 1.25rem;
+    bottom: 1.25rem;
+    z-index: 1100;
+    font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+.mtpc-orb [hidden] { display: none !important; }
+.mtpc-orb-launch {
+    position: relative;
+    width: 3.75rem;
+    height: 3.75rem;
+    padding: 0;
+    border: 2px solid #c9f4d7;
+    border-radius: 50%;
+    background: var(--mtpc-green-700);
+    color: #fff;
+    box-shadow: 0 8px 22px rgba(3, 61, 39, .24), 0 0 0 5px rgba(32, 173, 105, .12);
+    cursor: pointer;
+    touch-action: manipulation;
+}
+.mtpc-orb-launch:hover,
+.mtpc-orb-launch:focus-visible {
+    background: var(--mtpc-green-800);
+    box-shadow: 0 10px 26px rgba(3, 61, 39, .28), 0 0 0 7px rgba(32, 173, 105, .16);
+}
+.mtpc-orb-ring {
+    position: absolute;
+    inset: .35rem;
+    border: 1px solid rgba(219, 255, 229, .68);
+    border-radius: 50%;
+    opacity: .8;
+    animation: mtpcOrbPulse 2.8s ease-out infinite;
+}
+.mtpc-orb-core {
+    position: absolute;
+    inset: 1.05rem;
+    display: grid;
+    place-items: center;
+    border: 1px solid rgba(255, 255, 255, .9);
+    border-radius: 50%;
+    background: #20ad69;
+    box-shadow: inset 0 2px 8px rgba(255, 255, 255, .32), 0 0 14px rgba(143, 245, 162, .54);
+}
+.mtpc-orb-core i {
+    display: block;
+    width: .45rem;
+    height: .45rem;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 0 8px rgba(255, 255, 255, .9);
+}
+.mtpc-orb-panel {
+    position: absolute;
+    right: 0;
+    bottom: calc(100% + .8rem);
+    display: flex;
+    flex-direction: column;
+    width: min(23rem, calc(100vw - 2rem));
+    max-height: min(38rem, calc(100vh - 6rem));
+    overflow: hidden;
+    border: 1px solid var(--mtpc-border);
+    border-radius: .9rem;
+    background: var(--mtpc-surface);
+    box-shadow: 0 18px 45px rgba(20, 38, 29, .2);
+}
+.mtpc-orb-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: .75rem;
+    padding: .9rem 1rem;
+    background: var(--mtpc-green-900);
+    color: #fff;
+}
+.mtpc-orb-header h2 { margin: 0; color: #fff; font-size: 1rem; line-height: 1.25; }
+.mtpc-orb-header p { margin: .2rem 0 0; color: #d4f7df; font-size: .72rem; }
+.mtpc-orb-close {
+    width: 2rem;
+    height: 2rem;
+    flex: 0 0 auto;
+    border: 1px solid rgba(255, 255, 255, .38);
+    border-radius: .45rem;
+    background: transparent;
+    color: #fff;
+    font-size: 1.35rem;
+    line-height: 1;
+    cursor: pointer;
+}
+.mtpc-orb-close:hover,
+.mtpc-orb-close:focus-visible { background: rgba(255, 255, 255, .14); }
+.mtpc-orb-transcript {
+    min-height: 9rem;
+    flex: 1 1 auto;
+    overflow: auto;
+    padding: .85rem;
+    background: #f7fbf8;
+    overscroll-behavior: contain;
+}
+.mtpc-orb-message {
+    max-width: 88%;
+    margin: 0 0 .6rem;
+    padding: .6rem .7rem;
+    border: 1px solid var(--mtpc-border);
+    border-radius: .7rem .7rem .7rem .25rem;
+    background: #fff;
+    color: var(--mtpc-ink);
+    font-size: .82rem;
+    line-height: 1.45;
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+}
+.mtpc-orb-message.user {
+    margin-left: auto;
+    border-color: #b9e6c4;
+    border-radius: .7rem .7rem .25rem .7rem;
+    background: var(--mtpc-green-50);
+}
+.mtpc-orb-status {
+    min-height: 1.2rem;
+    margin: 0;
+    padding: .35rem .85rem;
+    color: var(--mtpc-muted);
+    font-size: .72rem;
+}
+.mtpc-orb-form {
+    display: flex;
+    gap: .5rem;
+    padding: .7rem .85rem;
+    border-top: 1px solid var(--mtpc-border);
+    background: #fff;
+}
+.mtpc-orb-form input {
+    min-width: 0;
+    flex: 1 1 auto;
+    min-height: 2.5rem;
+    padding: .55rem .7rem;
+    border: 1px solid var(--mtpc-border);
+    border-radius: .5rem;
+    color: var(--mtpc-ink);
+}
+.mtpc-orb-form input::placeholder { color: var(--mtpc-muted); }
+.mtpc-orb-send,
+.mtpc-orb-hints button,
+.mtpc-orb-confirm button {
+    min-height: 2.5rem;
+    padding: .5rem .75rem;
+    border: 1px solid var(--mtpc-green-700);
+    border-radius: .5rem;
+    background: var(--mtpc-green-700);
+    color: #fff;
+    font-weight: 700;
+    cursor: pointer;
+    touch-action: manipulation;
+}
+.mtpc-orb-send:hover,
+.mtpc-orb-send:focus-visible,
+.mtpc-orb-hints button:hover,
+.mtpc-orb-hints button:focus-visible,
+.mtpc-orb-confirm button:hover,
+.mtpc-orb-confirm button:focus-visible { background: var(--mtpc-green-800); }
+.mtpc-orb-send:disabled { cursor: wait; opacity: .65; }
+.mtpc-orb-hints,
+.mtpc-orb-confirm {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .45rem;
+    padding: 0 .85rem .75rem;
+    background: #fff;
+}
+.mtpc-orb-hints button,
+.mtpc-orb-confirm button { min-height: 2.15rem; padding: .35rem .6rem; font-size: .75rem; }
+.mtpc-orb-hints button { border-color: var(--mtpc-border); background: #fff; color: var(--mtpc-green-900); }
+.mtpc-orb-confirm { padding-top: .1rem; }
+.mtpc-orb-confirm button:last-child { border-color: var(--mtpc-border); background: #fff; color: var(--mtpc-green-900); }
+.mtpc-orb :focus-visible { outline: 3px solid rgba(32, 173, 105, .5); outline-offset: 2px; }
+@keyframes mtpcOrbPulse { 0% { transform: scale(.78); opacity: .1; } 35% { opacity: .7; } 100% { transform: scale(1.35); opacity: 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+    .mtpc-orb-ring { animation: none; }
+}
+
+.mtpc-orb .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
 .drawer-left {
     border-right: 1px solid var(--mtpc-border);
     background: #fbfdfc;
@@ -583,6 +776,12 @@ a:hover { color: var(--mtpc-green-900); }
 @media (max-width: 767.98px) {
     #page.drawers .main-inner { width: calc(100% - 1rem) !important; margin-top: .75rem; padding: .75rem; }
     .navbar.fixed-top { min-height: 3.75rem; }
+    .mtpc-orb { right: .75rem; bottom: .75rem; }
+    .mtpc-orb-panel {
+        right: 0;
+        width: min(23rem, calc(100vw - 1.5rem));
+        max-height: calc(100vh - 5rem);
+    }
     #page.drawers > .main-inner > .drawer-toggles {
         position: fixed !important;
         top: calc(3.75rem + .75rem) !important;

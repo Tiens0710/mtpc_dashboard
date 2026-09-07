@@ -17,4 +17,4 @@ $THEME->scss = function($theme) {
 };
 $THEME->prescsscallback = 'theme_mtpc_get_pre_scss';
 $THEME->activityheaderconfig = array('notitle' => true);
-
+$THEME->javascripts_footer = array('mtpc-orb');
