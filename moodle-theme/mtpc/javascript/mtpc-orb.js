@@ -18,10 +18,11 @@
                 '<span class="ai-orb-core"></span></span>' +
         '</button>' +
         '<div class="mtpc-orb-voice-copy" id="mtpcOrbVoiceStage" role="dialog" aria-label="Trò chuyện bằng giọng nói với Nhi">' +
-            '<strong>Nhi · Trợ lý học tập</strong><p id="mtpcOrbVoiceStatus">Chạm Orb để bắt đầu nói</p>' +
-            '<div class="mtpc-orb-voice-reply" aria-live="polite"></div>' +
+            '<div class="mtpc-orb-voice-head"><div><strong>Nhi · Trợ lý học tập</strong><p id="mtpcOrbVoiceStatus">Chạm Orb để bắt đầu nói</p></div>' +
+                '<button type="button" class="mtpc-orb-sound-toggle" aria-label="Tắt âm thanh phản hồi" aria-pressed="true">Âm thanh: Bật</button></div>' +
+            '<div class="mtpc-orb-voice-transcript" aria-live="polite" aria-label="Nội dung cuộc trò chuyện"></div>' +
             '<form class="mtpc-orb-voice-form"><label class="sr-only" for="mtpcOrbVoiceInput">Nhập yêu cầu cho Nhi</label>' +
-                '<input id="mtpcOrbVoiceInput" type="text" autocomplete="off" placeholder="Nhập yêu cầu nếu bạn không dùng giọng nói…">' +
+                '<input id="mtpcOrbVoiceInput" name="message" type="text" autocomplete="off" placeholder="Nhập yêu cầu nếu bạn không dùng giọng nói…">' +
                 '<button type="submit" aria-label="Gửi yêu cầu">➜</button></form>' +
             '<div class="mtpc-orb-voice-hints" aria-label="Gợi ý yêu cầu"><button type="button" data-orb-prompt="Liệt kê các khóa học tôi đã ghi danh">Khóa học của tôi</button>' +
                 '<button type="button" data-orb-prompt="Xem điểm của tôi">Điểm của tôi</button></div>' +
@@ -47,7 +48,8 @@
     var chatToggle = root.querySelector('.mtpc-orb-chat-toggle');
     var voiceClose = root.querySelector('.mtpc-orb-voice-close');
     var voiceStatus = root.querySelector('#mtpcOrbVoiceStatus');
-    var voiceReply = root.querySelector('.mtpc-orb-voice-reply');
+    var voiceTranscript = root.querySelector('.mtpc-orb-voice-transcript');
+    var soundToggle = root.querySelector('.mtpc-orb-sound-toggle');
     var voiceForm = root.querySelector('.mtpc-orb-voice-form');
     var voiceInput = root.querySelector('#mtpcOrbVoiceInput');
     var voiceSend = voiceForm.querySelector('button[type="submit"]');
@@ -63,6 +65,7 @@
     var recognition = null;
     var listening = false;
     var speechText = '';
+    var soundEnabled = true;
 
     function setVoiceState(state, message) {
         launch.setAttribute('data-voice-state', state);
@@ -81,6 +84,9 @@
         item.textContent = text;
         transcript.appendChild(item);
         transcript.scrollTop = transcript.scrollHeight;
+        var voiceItem = item.cloneNode(true);
+        voiceTranscript.appendChild(voiceItem);
+        voiceTranscript.scrollTop = voiceTranscript.scrollHeight;
     }
 
     function ensureWelcome() {
@@ -124,18 +130,28 @@
     }
 
     function speakReply(text) {
-        if (!text || !window.speechSynthesis || !window.SpeechSynthesisUtterance) {
+        if (!soundEnabled || !text || !window.speechSynthesis || !window.SpeechSynthesisUtterance) {
             setVoiceState('idle', 'Sẵn sàng lắng nghe');
             return;
         }
         window.speechSynthesis.cancel();
+        window.speechSynthesis.resume();
         var utterance = new window.SpeechSynthesisUtterance(text);
         utterance.lang = 'vi-VN';
         utterance.rate = .98;
         utterance.pitch = 1;
+        var voices = window.speechSynthesis.getVoices();
+        for (var voiceIndex = 0; voiceIndex < voices.length; voiceIndex += 1) {
+            if ((voices[voiceIndex].lang || '').toLowerCase().indexOf('vi') === 0) {
+                utterance.voice = voices[voiceIndex];
+                break;
+            }
+        }
         utterance.onstart = function() { setVoiceState('speaking', 'Nhi đang trả lời…'); };
         utterance.onend = function() { setVoiceState('idle', 'Sẵn sàng lắng nghe'); };
-        utterance.onerror = function() { setVoiceState('idle', 'Sẵn sàng lắng nghe'); };
+        utterance.onerror = function(event) {
+            setVoiceState('idle', event.error === 'not-allowed' ? 'Trình duyệt đang chặn âm thanh · hãy bấm lại Orb' : 'Không phát được âm thanh · phản hồi vẫn hiển thị bên dưới');
+        };
         window.speechSynthesis.speak(utterance);
     }
 
@@ -148,7 +164,6 @@
         voiceInput.disabled = true;
         voiceSend.disabled = true;
         addMessage('user', text);
-        if (shouldSpeak || showOnVoiceStage) voiceReply.textContent = '';
         setVoiceState('thinking', 'Nhi đang xử lý…');
         try {
             var response = await fetch(M.cfg.wwwroot + '/local/mtpcbridge/moodle-orb.php?sesskey=' + encodeURIComponent(M.cfg.sesskey), {
@@ -161,15 +176,13 @@
             if (!response.ok || !data.ok) throw new Error(data.error || 'Không nhận được phản hồi từ Nhi.');
             if (data.reply) {
                 addMessage('assistant', data.reply);
-                if (shouldSpeak || showOnVoiceStage) voiceReply.textContent = data.reply;
             }
             if (data.pending) addPendingActions();
-            if (shouldSpeak && data.reply && !data.pending && root.classList.contains('is-voice-open')) speakReply(data.reply);
+            if (data.reply && !data.pending && root.classList.contains('is-voice-open') && soundEnabled) speakReply(data.reply);
             else setVoiceState('idle', data.pending ? 'Đang chờ xác nhận' : 'Sẵn sàng lắng nghe');
         } catch (error) {
             var errorMessage = error.message || 'Nhi chưa kết nối được. Hãy thử lại sau ít giây.';
             addMessage('assistant', errorMessage);
-            if (shouldSpeak || showOnVoiceStage) voiceReply.textContent = errorMessage;
             setVoiceState('idle', 'Có lỗi kết nối · hãy thử lại');
         } finally {
             busy = false;
@@ -254,6 +267,14 @@
         speechText = '';
         if (listening) stopListening();
         setVoiceOpen(false);
+    });
+    soundToggle.addEventListener('click', function() {
+        soundEnabled = !soundEnabled;
+        soundToggle.textContent = soundEnabled ? 'Âm thanh: Bật' : 'Âm thanh: Tắt';
+        soundToggle.setAttribute('aria-pressed', soundEnabled ? 'true' : 'false');
+        soundToggle.setAttribute('aria-label', soundEnabled ? 'Tắt âm thanh phản hồi' : 'Bật âm thanh phản hồi');
+        if (!soundEnabled && window.speechSynthesis) window.speechSynthesis.cancel();
+        setVoiceState('idle', soundEnabled ? 'Âm thanh đã bật' : 'Âm thanh đã tắt');
     });
     close.addEventListener('click', function() { setOpen(false); });
     form.addEventListener('submit', function(event) {
