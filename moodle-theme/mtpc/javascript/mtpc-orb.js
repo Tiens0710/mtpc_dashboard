@@ -17,13 +17,17 @@
                 '<span class="ai-orb-eq"><i class="ai-eq-bar"></i><i class="ai-eq-bar"></i><i class="ai-eq-bar"></i><i class="ai-eq-bar"></i><i class="ai-eq-bar"></i><i class="ai-eq-bar"></i><i class="ai-eq-bar"></i></span>' +
                 '<span class="ai-orb-core"></span></span>' +
         '</button>' +
-        '<div class="mtpc-orb-voice-copy" role="dialog" aria-label="Trò chuyện bằng giọng nói với Nhi">' +
+        '<div class="mtpc-orb-voice-copy" id="mtpcOrbVoiceStage" role="dialog" aria-label="Trò chuyện bằng giọng nói với Nhi">' +
             '<strong>Nhi · Trợ lý học tập</strong><p id="mtpcOrbVoiceStatus">Chạm Orb để bắt đầu nói</p>' +
             '<div class="mtpc-orb-voice-reply" aria-live="polite"></div>' +
-            '<button type="button" class="mtpc-orb-use-text">Nhập bằng văn bản</button>' +
+            '<form class="mtpc-orb-voice-form"><label class="sr-only" for="mtpcOrbVoiceInput">Nhập yêu cầu cho Nhi</label>' +
+                '<input id="mtpcOrbVoiceInput" type="text" autocomplete="off" placeholder="Nhập yêu cầu nếu bạn không dùng giọng nói…">' +
+                '<button type="submit" aria-label="Gửi yêu cầu">➜</button></form>' +
+            '<div class="mtpc-orb-voice-hints" aria-label="Gợi ý yêu cầu"><button type="button" data-orb-prompt="Liệt kê các khóa học tôi đã ghi danh">Khóa học của tôi</button>' +
+                '<button type="button" data-orb-prompt="Xem điểm của tôi">Điểm của tôi</button></div>' +
         '</div>' +
         '<button type="button" class="mtpc-orb-voice-close" aria-label="Đóng Orb">×</button>' +
-        '<button type="button" class="mtpc-orb-chat-toggle" aria-label="Mở cuộc trò chuyện với Nhi" aria-controls="mtpcOrbPanel" aria-expanded="false"><span aria-hidden="true">⌄</span></button>' +
+        '<button type="button" class="mtpc-orb-chat-toggle" aria-label="Mở Orb để nhập văn bản" aria-controls="mtpcOrbVoiceStage" aria-expanded="false"><span aria-hidden="true">⌨</span></button>' +
         '<div class="mtpc-orb-panel" id="mtpcOrbPanel" hidden role="dialog" aria-labelledby="mtpcOrbTitle" aria-describedby="mtpcOrbStatus">' +
             '<header class="mtpc-orb-header"><div><h2 id="mtpcOrbTitle">Nhi · Trợ lý Moodle</h2><p>Chạm Orb để nói · tra cứu học tập của em</p></div>' +
                 '<button type="button" class="mtpc-orb-close" aria-label="Đóng cuộc trò chuyện">×</button></header>' +
@@ -42,9 +46,11 @@
     var launch = root.querySelector('.mtpc-orb-launch');
     var chatToggle = root.querySelector('.mtpc-orb-chat-toggle');
     var voiceClose = root.querySelector('.mtpc-orb-voice-close');
-    var useText = root.querySelector('.mtpc-orb-use-text');
     var voiceStatus = root.querySelector('#mtpcOrbVoiceStatus');
     var voiceReply = root.querySelector('.mtpc-orb-voice-reply');
+    var voiceForm = root.querySelector('.mtpc-orb-voice-form');
+    var voiceInput = root.querySelector('#mtpcOrbVoiceInput');
+    var voiceSend = voiceForm.querySelector('button[type="submit"]');
     var panel = root.querySelector('.mtpc-orb-panel');
     var close = root.querySelector('.mtpc-orb-close');
     var mic = root.querySelector('.mtpc-orb-mic');
@@ -133,14 +139,16 @@
         window.speechSynthesis.speak(utterance);
     }
 
-    async function ask(text, shouldSpeak) {
+    async function ask(text, shouldSpeak, showOnVoiceStage) {
         if (busy || !text) return;
         busy = true;
         input.disabled = true;
         mic.disabled = true;
         send.disabled = true;
+        voiceInput.disabled = true;
+        voiceSend.disabled = true;
         addMessage('user', text);
-        if (shouldSpeak) voiceReply.textContent = '';
+        if (shouldSpeak || showOnVoiceStage) voiceReply.textContent = '';
         setVoiceState('thinking', 'Nhi đang xử lý…');
         try {
             var response = await fetch(M.cfg.wwwroot + '/local/mtpcbridge/moodle-orb.php?sesskey=' + encodeURIComponent(M.cfg.sesskey), {
@@ -153,7 +161,7 @@
             if (!response.ok || !data.ok) throw new Error(data.error || 'Không nhận được phản hồi từ Nhi.');
             if (data.reply) {
                 addMessage('assistant', data.reply);
-                if (shouldSpeak) voiceReply.textContent = data.reply;
+                if (shouldSpeak || showOnVoiceStage) voiceReply.textContent = data.reply;
             }
             if (data.pending) addPendingActions();
             if (shouldSpeak && data.reply && !data.pending && root.classList.contains('is-voice-open')) speakReply(data.reply);
@@ -161,14 +169,17 @@
         } catch (error) {
             var errorMessage = error.message || 'Nhi chưa kết nối được. Hãy thử lại sau ít giây.';
             addMessage('assistant', errorMessage);
-            if (shouldSpeak) voiceReply.textContent = errorMessage;
+            if (shouldSpeak || showOnVoiceStage) voiceReply.textContent = errorMessage;
             setVoiceState('idle', 'Có lỗi kết nối · hãy thử lại');
         } finally {
             busy = false;
             input.disabled = false;
             mic.disabled = false;
             send.disabled = false;
+            voiceInput.disabled = false;
+            voiceSend.disabled = false;
             input.value = '';
+            voiceInput.value = '';
         }
     }
 
@@ -236,14 +247,8 @@
     });
     mic.addEventListener('click', function() { setOpen(false, false); startListening(); });
     chatToggle.addEventListener('click', function() {
-        setVoiceOpen(false);
-        setOpen(panel.hidden);
-    });
-    useText.addEventListener('click', function() {
-        speechText = '';
-        if (listening) stopListening();
-        setVoiceOpen(false);
-        setOpen(true);
+        setVoiceOpen(true);
+        window.setTimeout(function() { voiceInput.focus(); }, 0);
     });
     voiceClose.addEventListener('click', function() {
         speechText = '';
@@ -255,9 +260,22 @@
         event.preventDefault();
         ask(input.value.trim(), false);
     });
+    voiceForm.addEventListener('submit', function(event) {
+        event.preventDefault();
+        ask(voiceInput.value.trim(), false, true);
+    });
     root.addEventListener('click', function(event) {
         var prompt = event.target.closest('[data-orb-prompt]');
-        if (prompt) { setOpen(true); ask(prompt.getAttribute('data-orb-prompt'), false); return; }
+        if (prompt) {
+            if (prompt.closest('.mtpc-orb-voice-copy')) {
+                setVoiceOpen(true);
+                ask(prompt.getAttribute('data-orb-prompt'), false, true);
+            } else {
+                setOpen(true);
+                ask(prompt.getAttribute('data-orb-prompt'), false);
+            }
+            return;
+        }
         var confirmButton = event.target.closest('[data-orb-confirm]');
         if (confirmButton) ask(confirmButton.getAttribute('data-orb-confirm'), false);
     });
