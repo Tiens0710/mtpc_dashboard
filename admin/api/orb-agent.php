@@ -79,6 +79,17 @@ function mtpc_orb_agent_tools() {
     );
 }
 
+function mtpc_orb_agent_student_moodle_tool() {
+    return mtpc_orb_agent_tool('moodle_student_action', 'Trợ lý học tập Moodle. Chỉ tra cứu các khóa học mà học sinh hiện tại đã ghi danh, nội dung, bài tập, bài kiểm tra, điểm, tiến độ, thông báo, diễn đàn và lịch của chính học sinh; tuyệt đối không quản trị dữ liệu hoặc xem thông tin người khác.', array(
+        'action' => array('type' => 'STRING', 'enum' => array('status','courses','course_contents','assignments','assignment','quizzes','grades','quiz_attempts','quiz_grades','course_completion','activity_completion','forums','announcements','calendar_events')),
+        'course_name' => array('type' => 'STRING'), 'course_id' => array('type' => 'INTEGER'),
+        'assignment_name' => array('type' => 'STRING'), 'assignment_id' => array('type' => 'INTEGER'),
+        'quiz_name' => array('type' => 'STRING'), 'quiz_id' => array('type' => 'INTEGER'),
+        'activity_name' => array('type' => 'STRING'), 'course_module_id' => array('type' => 'INTEGER'),
+        'announcement_title' => array('type' => 'STRING'), 'count' => array('type' => 'INTEGER')
+    ), array('action'));
+}
+
 function mtpc_orb_agent_call_gemini($contents, $operator) {
     $key = mtpc_orb_agent_api_key();
     if ($key === '') throw new Exception('Chưa cấu hình GEMINI_API_KEY.');
@@ -385,8 +396,106 @@ function mtpc_orb_agent_execute_tool($name, $args, $operator, $config, $groupsPa
         if (!is_array($prepared)) throw new Exception($prepared);
         return mtpc_zalo_admin_execute_group_pending($config, $groupsPath, mtpc_zalo_admin_db(), $operator, $prepared);
     }
+    if ($name === 'moodle_student_action') return mtpc_orb_agent_moodle_student_tool($args, $operator);
     if ($name === 'moodle_action') return mtpc_orb_agent_moodle_tool($args, $operator, $confirmed);
     throw new Exception('Tool không được hỗ trợ.');
+}
+
+function mtpc_orb_agent_student_course($moodle, $userId, $args) {
+    $courses = (array)$moodle->getEnrolledCourses((int)$userId);
+    $courseId = isset($args['course_id']) ? (int)$args['course_id'] : 0;
+    if ($courseId > 0) {
+        foreach ($courses as $course) if ((int)$course['id'] === $courseId) return $course;
+        throw new Exception('Học sinh hiện tại chưa được ghi danh trong khóa học này.');
+    }
+    $name = trim(isset($args['course_name']) ? (string)$args['course_name'] : '');
+    if ($name === '' && count($courses) === 1) return $courses[0];
+    if ($name === '') throw new Exception('Hãy nói tên khóa học cần xem.');
+    $needle = mtpc_orb_agent_normalize($name); $matches = array();
+    foreach ($courses as $course) {
+        $full = isset($course['fullname']) ? (string)$course['fullname'] : '';
+        $short = isset($course['shortname']) ? (string)$course['shortname'] : '';
+        $hay = mtpc_orb_agent_normalize($full . ' ' . $short);
+        if ($needle !== '' && (strpos($hay, $needle) !== false || strpos($needle, mtpc_orb_agent_normalize($full)) !== false)) $matches[] = $course;
+    }
+    if (count($matches) === 1) return $matches[0];
+    if (!$matches) throw new Exception('Không tìm thấy khóa học đã ghi danh có tên “' . $name . '”.');
+    $labels = array(); foreach (array_slice($matches, 0, 5) as $course) $labels[] = isset($course['fullname']) ? $course['fullname'] : ('ID ' . $course['id']);
+    throw new Exception('Có nhiều khóa học phù hợp: ' . implode(', ', $labels) . '. Hãy nói rõ tên hơn.');
+}
+
+function mtpc_orb_agent_student_assignment($moodle, $courseId, $args) {
+    $rows = array();
+    foreach ((array)$moodle->getAssignments(array((int)$courseId)) as $course) {
+        foreach ((array)(isset($course['assignments']) ? $course['assignments'] : array()) as $assignment) $rows[] = $assignment;
+    }
+    $id = isset($args['assignment_id']) ? (int)$args['assignment_id'] : 0;
+    if ($id > 0) foreach ($rows as $row) if ((int)$row['id'] === $id) return $row;
+    $name = trim(isset($args['assignment_name']) ? (string)$args['assignment_name'] : '');
+    if ($name === '') throw new Exception('Hãy nói tên bài tập cần xem.');
+    $needle = mtpc_orb_agent_normalize($name); $matches = array();
+    foreach ($rows as $row) {
+        $value = mtpc_orb_agent_normalize(isset($row['name']) ? $row['name'] : '');
+        if ($value === $needle || ($needle !== '' && strpos($value, $needle) !== false)) $matches[] = $row;
+    }
+    if (count($matches) === 1) return $matches[0];
+    if (!$matches) throw new Exception('Không tìm thấy bài tập “' . $name . '” trong khóa học.');
+    throw new Exception('Có nhiều bài tập phù hợp với “' . $name . '”. Hãy nói rõ tên hơn.');
+}
+
+function mtpc_orb_agent_student_quiz($moodle, $courseId, $args) {
+    $rows = (array)$moodle->getQuizzesByCourses(array((int)$courseId));
+    $id = isset($args['quiz_id']) ? (int)$args['quiz_id'] : 0;
+    if ($id > 0) foreach ($rows as $row) if ((int)$row['id'] === $id) return $row;
+    $name = trim(isset($args['quiz_name']) ? (string)$args['quiz_name'] : '');
+    if ($name === '') throw new Exception('Hãy nói tên bài kiểm tra cần xem.');
+    $needle = mtpc_orb_agent_normalize($name); $matches = array();
+    foreach ($rows as $row) {
+        $value = mtpc_orb_agent_normalize(isset($row['name']) ? $row['name'] : '');
+        if ($value === $needle || ($needle !== '' && strpos($value, $needle) !== false)) $matches[] = $row;
+    }
+    if (count($matches) === 1) return $matches[0];
+    if (!$matches) throw new Exception('Không tìm thấy bài kiểm tra “' . $name . '” trong khóa học.');
+    throw new Exception('Có nhiều bài kiểm tra phù hợp với “' . $name . '”. Hãy nói rõ tên hơn.');
+}
+
+function mtpc_orb_agent_moodle_student_tool($args, $operator) {
+    if (isset($operator['role']) && $operator['role'] !== 'student') throw new Exception('Công cụ này chỉ dành cho học sinh.');
+    $userId = isset($operator['user_id']) ? (int)$operator['user_id'] : 0;
+    if ($userId <= 0) throw new Exception('Không xác định được tài khoản Moodle hiện tại.');
+    list($moodle, $moodleUrl) = mtpc_orb_agent_moodle();
+    $action = isset($args['action']) ? (string)$args['action'] : 'status';
+    if ($action === 'status') {
+        $site = $moodle->getSiteInfo();
+        return array('site' => isset($site['sitename']) ? $site['sitename'] : '', 'role' => 'student');
+    }
+    if ($action === 'courses') {
+        $rows = array();
+        foreach ((array)$moodle->getEnrolledCourses($userId) as $course) $rows[] = array('id' => (int)$course['id'], 'fullname' => isset($course['fullname']) ? $course['fullname'] : '', 'shortname' => isset($course['shortname']) ? $course['shortname'] : '');
+        return array('courses' => $rows);
+    }
+    $needsCourse = array('course_contents','assignments','assignment','quizzes','grades','quiz_attempts','quiz_grades','course_completion','activity_completion','forums','announcements','calendar_events');
+    if (!in_array($action, $needsCourse, true)) throw new Exception('Orb học sinh chỉ hỗ trợ tra cứu dữ liệu học tập của chính mình.');
+    $course = mtpc_orb_agent_student_course($moodle, $userId, $args); $courseId = (int)$course['id'];
+    if ($action === 'course_contents') return array('course' => $course, 'sections' => $moodle->getCourseContents($courseId));
+    if ($action === 'assignments') return array('course' => $course, 'assignments' => $moodle->getAssignments(array($courseId)));
+    if ($action === 'assignment') return array('course' => $course, 'assignment' => mtpc_orb_agent_student_assignment($moodle, $courseId, $args));
+    if ($action === 'quizzes') return array('course' => $course, 'quizzes' => $moodle->getQuizzesByCourses(array($courseId)));
+    if ($action === 'grades') return array('course' => $course, 'grades' => $moodle->getUserGrades($courseId, $userId));
+    if ($action === 'quiz_attempts' || $action === 'quiz_grades') {
+        $quiz = mtpc_orb_agent_student_quiz($moodle, $courseId, $args); $quizId = (int)$quiz['id'];
+        if ($action === 'quiz_attempts') return array('course' => $course, 'quiz' => $quiz, 'attempts' => $moodle->getUserQuizAttempts($quizId, $userId));
+        return array('course' => $course, 'quiz' => $quiz, 'grades' => $moodle->getQuizGrades(array($quizId), array($userId)));
+    }
+    if ($action === 'course_completion') return array('course' => $course, 'completion' => $moodle->getCourseCompletion($courseId, $userId));
+    if ($action === 'activity_completion') return array('course' => $course, 'completion' => $moodle->getActivityCompletion($courseId, $userId));
+    if ($action === 'forums') return array('course' => $course, 'forums' => mtpc_orb_agent_forums($moodle, $courseId));
+    if ($action === 'announcements') {
+        $forum = mtpc_orb_agent_announcement_forum($moodle, $courseId);
+        return array('course' => $course, 'forum' => $forum, 'announcements' => $moodle->listAnnouncements($courseId, (int)$forum['id'], isset($args['announcement_title']) ? $args['announcement_title'] : '', isset($args['count']) ? (int)$args['count'] : 20));
+    }
+    if ($action === 'calendar_events') return array('course' => $course, 'events' => $moodle->getCalendarEvents(array($courseId), false));
+    throw new Exception('Orb học sinh chưa hỗ trợ thao tác này.');
 }
 
 function mtpc_orb_agent_moodle_tool($args, $operator, $confirmed) {

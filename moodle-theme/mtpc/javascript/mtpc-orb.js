@@ -12,15 +12,15 @@
             '<span class="mtpc-orb-ring" aria-hidden="true"></span><span class="mtpc-orb-core" aria-hidden="true"><i></i></span>' +
         '</button>' +
         '<div class="mtpc-orb-panel" hidden role="dialog" aria-labelledby="mtpcOrbTitle" aria-describedby="mtpcOrbStatus">' +
-            '<header class="mtpc-orb-header"><div><h2 id="mtpcOrbTitle">Nhi · Trợ lý Moodle</h2><p>Hỗ trợ quản trị ngay trong Moodle</p></div>' +
+            '<header class="mtpc-orb-header"><div><h2 id="mtpcOrbTitle">Nhi · Trợ lý Moodle</h2><p>Tra cứu học tập ngay trong Moodle</p></div>' +
                 '<button type="button" class="mtpc-orb-close" aria-label="Đóng trợ lý Moodle">×</button></header>' +
             '<div class="mtpc-orb-transcript" aria-live="polite" aria-label="Nội dung cuộc trò chuyện"></div>' +
             '<p id="mtpcOrbStatus" class="mtpc-orb-status" role="status">Sẵn sàng hỗ trợ</p>' +
             '<form class="mtpc-orb-form"><label class="sr-only" for="mtpcOrbInput">Nhập yêu cầu cho Nhi</label>' +
                 '<input id="mtpcOrbInput" name="message" type="text" autocomplete="off" placeholder="Ví dụ: xem các khóa học Moodle…">' +
                 '<button type="submit" class="mtpc-orb-send" aria-label="Gửi yêu cầu">Gửi</button></form>' +
-            '<div class="mtpc-orb-hints" aria-label="Gợi ý yêu cầu"><button type="button" data-orb-prompt="Kiểm tra trạng thái Moodle">Trạng thái Moodle</button>' +
-                '<button type="button" data-orb-prompt="Liệt kê các khóa học Moodle">Danh sách khóa học</button></div>' +
+            '<div class="mtpc-orb-hints" aria-label="Gợi ý yêu cầu"><button type="button" data-orb-prompt="Liệt kê các khóa học tôi đã ghi danh">Khóa học của tôi</button>' +
+                '<button type="button" data-orb-prompt="Xem điểm của tôi">Điểm của tôi</button></div>' +
         '</div>';
     document.body.appendChild(root);
 
@@ -96,7 +96,7 @@
 
     launch.addEventListener('click', function() {
         setOpen(panel.hidden);
-        if (!transcript.children.length) addMessage('assistant', 'Chào anh/chị! Em có thể hỗ trợ tra cứu và quản trị Moodle.');
+        if (!transcript.children.length) addMessage('assistant', 'Chào em! Nhi có thể giúp tra cứu khóa học, bài tập, điểm và tiến độ của em trên Moodle.');
     });
     close.addEventListener('click', function() { setOpen(false); });
     form.addEventListener('submit', function(event) {

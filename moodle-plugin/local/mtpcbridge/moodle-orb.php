@@ -3,15 +3,14 @@
  * Moodle-hosted Orb chat endpoint.
  *
  * The browser only sends text and Moodle's sesskey. Gemini and the Moodle
- * service token remain on the server. This endpoint is intentionally limited
- * to Moodle site administrators because the shared agent can perform writes.
+ * service token remain on the server. Students receive a read-only tool;
+ * site administrators receive the full management tool.
  */
 define('AJAX_SCRIPT', true);
 require_once(dirname(dirname(__DIR__)) . '/config.php');
 
 require_login();
 require_sesskey();
-require_capability('moodle/site:config', context_system::instance());
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
@@ -49,14 +48,15 @@ function mtpc_moodle_orb_save_history($history) {
     $SESSION->mtpc_moodle_orb_history = array_slice($history, -16);
 }
 
-function mtpc_moodle_orb_tool() {
+function mtpc_moodle_orb_tool($student) {
+    if ($student) return mtpc_orb_agent_student_moodle_tool();
     foreach (mtpc_orb_agent_tools() as $tool) {
         if (isset($tool['name']) && $tool['name'] === 'moodle_action') return $tool;
     }
     throw new moodle_exception('invalidrecord', 'error', '', null, 'Công cụ Moodle của Orb chưa được nạp.');
 }
 
-function mtpc_moodle_orb_call_gemini($contents) {
+function mtpc_moodle_orb_call_gemini($contents, $student) {
     $key = getenv('GEMINI_API_KEY');
     $path = '/home/mtpc/private/gemini-config.php';
     if (!$key && is_file($path)) {
@@ -65,15 +65,20 @@ function mtpc_moodle_orb_call_gemini($contents) {
     }
     if (!$key) throw new moodle_exception('serverconnection', 'error', '', null, 'Chưa cấu hình GEMINI_API_KEY trên máy chủ.');
 
+    $system = $student
+        ? 'Bạn là Nhi, trợ lý học tập đang trò chuyện trực tiếp trong Moodle với một học sinh. '
+        . 'Chỉ dùng công cụ moodle_student_action để tra cứu các khóa học mà chính học sinh đã ghi danh, nội dung bài học, bài tập, bài kiểm tra, điểm, tiến độ, thông báo, diễn đàn và lịch của chính em. '
+        . 'Tuyệt đối không tạo, sửa, xóa, ghi danh, chấm điểm, gửi tin, xem danh sách người dùng hoặc xem dữ liệu của học sinh khác. Nếu được yêu cầu điều khiển Moodle, hãy nói rõ Orb học sinh chỉ có quyền đọc.'
+        : 'Bạn là Nhi, trợ lý quản trị Moodle của Trường Trung cấp Miền Tây, đang trò chuyện trực tiếp trong Moodle. '
+        . 'Hiểu yêu cầu tiếng Việt tự nhiên và dùng công cụ Moodle khi cần. Tự tra khóa học, tài khoản, bài tập, quiz và hoạt động theo tên; '
+        . 'không bắt quản trị viên nhớ ID. Trả lời tiếng Việt ngắn gọn, không bịa dữ liệu. '
+        . 'Các thao tác tạo, sửa, xóa, ghi danh, chấm điểm hoặc gửi tin phải chờ hệ thống yêu cầu XÁC NHẬN; không nói đã thực hiện trước khi có kết quả.';
     $payload = array(
         'systemInstruction' => array('parts' => array(array('text' =>
-            'Bạn là Nhi, trợ lý quản trị Moodle của Trường Trung cấp Miền Tây, đang trò chuyện trực tiếp trong Moodle. '
-            . 'Hiểu yêu cầu tiếng Việt tự nhiên và dùng công cụ Moodle khi cần. Tự tra khóa học, tài khoản, bài tập, quiz và hoạt động theo tên; '
-            . 'không bắt quản trị viên nhớ ID. Trả lời tiếng Việt ngắn gọn, không bịa dữ liệu. '
-            . 'Các thao tác tạo, sửa, xóa, ghi danh, chấm điểm hoặc gửi tin phải chờ hệ thống yêu cầu XÁC NHẬN; không nói đã thực hiện trước khi có kết quả.'
+            $system
         ))),
         'contents' => $contents,
-        'tools' => array(array('functionDeclarations' => array(mtpc_moodle_orb_tool()))),
+        'tools' => array(array('functionDeclarations' => array(mtpc_moodle_orb_tool($student)))),
         'generationConfig' => array('maxOutputTokens' => 700, 'temperature' => 0.2),
     );
     $curl = curl_init('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent');
@@ -107,9 +112,15 @@ try {
     if ($text === '') mtpc_moodle_orb_response(422, array('ok' => false, 'error' => 'Bạn chưa nhập yêu cầu.'));
 
     global $USER, $SESSION;
-    $operator = array('user_id' => (string)$USER->id, 'user_name' => fullname($USER), 'role' => 'admin');
+    $isadmin = has_capability('moodle/site:config', context_system::instance());
+    $role = $isadmin ? 'admin' : 'student';
+    $operator = array('user_id' => (string)$USER->id, 'user_name' => fullname($USER), 'role' => $role);
+    if (isset($SESSION->mtpc_moodle_orb_role) && $SESSION->mtpc_moodle_orb_role !== $role) {
+        unset($SESSION->mtpc_moodle_orb_history, $SESSION->mtpc_moodle_orb_pending);
+    }
+    $SESSION->mtpc_moodle_orb_role = $role;
     $normalized = mtpc_orb_agent_normalize($text);
-    $pending = isset($SESSION->mtpc_moodle_orb_pending) && is_array($SESSION->mtpc_moodle_orb_pending)
+    $pending = $isadmin && isset($SESSION->mtpc_moodle_orb_pending) && is_array($SESSION->mtpc_moodle_orb_pending)
         ? $SESSION->mtpc_moodle_orb_pending : null;
     if ($pending) {
         if (in_array($normalized, array('xac nhan', 'xacnhan', 'dong y', 'ok', 'thuc hien'), true)) {
@@ -127,7 +138,7 @@ try {
     $contents = mtpc_moodle_orb_history();
     $contents[] = array('role' => 'user', 'parts' => array(array('text' => mtpc_zalo_admin_text($text, 4000))));
     for ($round = 0; $round < 3; $round++) {
-        $content = mtpc_moodle_orb_call_gemini($contents);
+        $content = mtpc_moodle_orb_call_gemini($contents, !$isadmin);
         $contents[] = $content;
         $calls = array();
         $reply = '';
@@ -144,6 +155,7 @@ try {
             $name = isset($call['name']) ? $call['name'] : '';
             $args = isset($call['args']) && is_array($call['args']) ? $call['args'] : array();
             try {
+                if (!$isadmin && $name !== 'moodle_student_action') throw new Exception('Orb học sinh chỉ có quyền tra cứu dữ liệu học tập của chính mình.');
                 $result = mtpc_orb_agent_execute_tool($name, $args, $operator, array(), '', '', false);
             } catch (Exception $error) {
                 $result = array('ok' => false, 'error' => $error->getMessage());

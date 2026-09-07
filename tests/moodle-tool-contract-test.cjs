@@ -13,6 +13,7 @@ const install = fs.readFileSync(path.join(root, 'moodle-plugin', 'local', 'mtpcb
 const themeConfig = fs.readFileSync(path.join(root, 'moodle-theme', 'mtpc', 'config.php'), 'utf8');
 const orbJs = fs.readFileSync(path.join(root, 'moodle-theme', 'mtpc', 'javascript', 'mtpc-orb.js'), 'utf8');
 const orbEndpoint = fs.readFileSync(path.join(root, 'moodle-plugin', 'local', 'mtpcbridge', 'moodle-orb.php'), 'utf8');
+const orbAgent = fs.readFileSync(path.join(root, 'admin', 'api', 'orb-agent.php'), 'utf8');
 
 const apiActions = [
   'courses', 'categories', 'users', 'enrolled-users', 'course-contents',
@@ -56,12 +57,14 @@ assert.ok(index.includes('mtpcResolveMoodleEvent'), 'Natural Moodle event lookup
 assert.ok(index.includes('assignment_name'), 'Moodle schema should accept assignment names');
 assert.ok(index.includes('user_query'), 'Moodle schema should accept natural user queries');
 assert.ok(index.includes('ai-file-chat.js?v=20260905-3'), 'AI file adapter cache version is stale');
-assert.ok(version.includes('$plugin->version = 2026090701;'), 'Plugin version was not bumped');
+assert.ok(version.includes('$plugin->version = 2026090702;'), 'Plugin version was not bumped');
 assert.ok(upgrade.includes('upgrade_plugin_savepoint(true, 2026090601'), 'Moodle announcement upgrade is missing');
 assert.ok(themeConfig.includes("$THEME->javascripts_footer = array('mtpc-orb');"), 'Moodle theme does not load the Orb widget');
 assert.ok(orbJs.includes('moodle-orb.php'), 'Moodle Orb widget is missing its server endpoint');
 assert.ok(orbJs.includes('aria-label="Mở trợ lý Moodle Nhi"'), 'Moodle Orb button is missing an accessible label');
-assert.ok(orbEndpoint.includes("require_capability('moodle/site:config'"), 'Moodle Orb endpoint is not admin-restricted');
+assert.ok(orbEndpoint.includes("has_capability('moodle/site:config'"), 'Moodle Orb endpoint is missing the admin/student role split');
+assert.ok(orbEndpoint.includes('moodle_student_action'), 'Moodle Orb endpoint is missing the student-safe tool');
+assert.ok(orbAgent.includes('function mtpc_orb_agent_moodle_student_tool'), 'Shared Orb agent is missing the student-safe Moodle tool');
 assert.ok(orbEndpoint.includes("'moodle_action'"), 'Moodle Orb endpoint is missing the Moodle tool');
 for (const bridge of ['create_assignment', 'create_quiz', 'manage_activity', 'list_announcements', 'delete_announcements']) {
   assert.ok(services.includes(`'local_mtpcbridge_${bridge}'`), `Plugin service declaration is missing ${bridge}`);
