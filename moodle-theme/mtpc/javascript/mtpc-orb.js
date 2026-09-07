@@ -9,6 +9,7 @@
     root.className = 'mtpc-orb';
     root.setAttribute('aria-label', 'Trợ lý Moodle Nhi');
     root.innerHTML =
+        '<div class="mtpc-orb-backdrop" aria-hidden="true"></div>' +
         '<button type="button" class="mtpc-orb-launch ai-orb-stage" data-voice-state="idle" aria-label="Bấm Orb để nói với Nhi" aria-expanded="false">' +
             '<span class="ai-orb" aria-hidden="true"><span class="ai-orb-field"><i class="ai-orb-blob"></i><i class="ai-orb-blob"></i><i class="ai-orb-blob"></i></span>' +
                 '<span class="ai-orb-rings"><i class="ai-orb-ring"></i><i class="ai-orb-ring"></i><i class="ai-orb-ring"></i></span>' +
@@ -16,6 +17,12 @@
                 '<span class="ai-orb-eq"><i class="ai-eq-bar"></i><i class="ai-eq-bar"></i><i class="ai-eq-bar"></i><i class="ai-eq-bar"></i><i class="ai-eq-bar"></i><i class="ai-eq-bar"></i><i class="ai-eq-bar"></i></span>' +
                 '<span class="ai-orb-core"></span></span>' +
         '</button>' +
+        '<div class="mtpc-orb-voice-copy" role="dialog" aria-label="Trò chuyện bằng giọng nói với Nhi">' +
+            '<strong>Nhi · Trợ lý học tập</strong><p id="mtpcOrbVoiceStatus">Chạm Orb để bắt đầu nói</p>' +
+            '<div class="mtpc-orb-voice-reply" aria-live="polite"></div>' +
+            '<button type="button" class="mtpc-orb-use-text">Nhập bằng văn bản</button>' +
+        '</div>' +
+        '<button type="button" class="mtpc-orb-voice-close" aria-label="Đóng Orb">×</button>' +
         '<button type="button" class="mtpc-orb-chat-toggle" aria-label="Mở cuộc trò chuyện với Nhi" aria-controls="mtpcOrbPanel" aria-expanded="false"><span aria-hidden="true">⌄</span></button>' +
         '<div class="mtpc-orb-panel" id="mtpcOrbPanel" hidden role="dialog" aria-labelledby="mtpcOrbTitle" aria-describedby="mtpcOrbStatus">' +
             '<header class="mtpc-orb-header"><div><h2 id="mtpcOrbTitle">Nhi · Trợ lý Moodle</h2><p>Chạm Orb để nói · tra cứu học tập của em</p></div>' +
@@ -34,6 +41,10 @@
 
     var launch = root.querySelector('.mtpc-orb-launch');
     var chatToggle = root.querySelector('.mtpc-orb-chat-toggle');
+    var voiceClose = root.querySelector('.mtpc-orb-voice-close');
+    var useText = root.querySelector('.mtpc-orb-use-text');
+    var voiceStatus = root.querySelector('#mtpcOrbVoiceStatus');
+    var voiceReply = root.querySelector('.mtpc-orb-voice-reply');
     var panel = root.querySelector('.mtpc-orb-panel');
     var close = root.querySelector('.mtpc-orb-close');
     var mic = root.querySelector('.mtpc-orb-mic');
@@ -50,7 +61,9 @@
     function setVoiceState(state, message) {
         launch.setAttribute('data-voice-state', state);
         launch.setAttribute('aria-label', state === 'listening' ? 'Đang nghe, bấm để dừng' : 'Bấm Orb để nói với Nhi');
-        status.textContent = message || (state === 'listening' ? 'Đang nghe…' : state === 'thinking' ? 'Nhi đang xử lý…' : state === 'speaking' ? 'Nhi đang trả lời…' : 'Sẵn sàng lắng nghe');
+        var stateMessage = message || (state === 'listening' ? 'Đang nghe…' : state === 'thinking' ? 'Nhi đang xử lý…' : state === 'speaking' ? 'Nhi đang trả lời…' : 'Sẵn sàng lắng nghe');
+        status.textContent = stateMessage;
+        voiceStatus.textContent = stateMessage;
         root.classList.toggle('is-thinking', state === 'thinking');
         root.classList.toggle('is-listening', state === 'listening');
         root.classList.toggle('is-speaking', state === 'speaking');
@@ -78,13 +91,28 @@
 
     function setOpen(open, focusInput) {
         panel.hidden = !open;
-        launch.setAttribute('aria-expanded', open ? 'true' : 'false');
+        launch.setAttribute('aria-expanded', open || root.classList.contains('is-voice-open') ? 'true' : 'false');
         chatToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
         root.classList.toggle('is-open', open);
         if (open) {
             ensureWelcome();
             if (focusInput !== false) input.focus();
-        } else if (!listening) {
+        } else if (!listening && focusInput !== false) {
+            launch.focus();
+        }
+    }
+
+    function setVoiceOpen(open) {
+        root.classList.toggle('is-voice-open', open);
+        document.body.classList.toggle('mtpc-orb-voice-active', open);
+        launch.setAttribute('aria-expanded', open || !panel.hidden ? 'true' : 'false');
+        if (open) {
+            setOpen(false, false);
+            ensureWelcome();
+            window.setTimeout(function() { launch.focus(); }, 0);
+        } else {
+            if (window.speechSynthesis) window.speechSynthesis.cancel();
+            setVoiceState('idle', 'Sẵn sàng lắng nghe');
             launch.focus();
         }
     }
@@ -105,13 +133,14 @@
         window.speechSynthesis.speak(utterance);
     }
 
-    async function ask(text, voiceReply) {
+    async function ask(text, shouldSpeak) {
         if (busy || !text) return;
         busy = true;
         input.disabled = true;
         mic.disabled = true;
         send.disabled = true;
         addMessage('user', text);
+        if (shouldSpeak) voiceReply.textContent = '';
         setVoiceState('thinking', 'Nhi đang xử lý…');
         try {
             var response = await fetch(M.cfg.wwwroot + '/local/mtpcbridge/moodle-orb.php?sesskey=' + encodeURIComponent(M.cfg.sesskey), {
@@ -122,12 +151,17 @@
             });
             var data = await response.json();
             if (!response.ok || !data.ok) throw new Error(data.error || 'Không nhận được phản hồi từ Nhi.');
-            if (data.reply) addMessage('assistant', data.reply);
+            if (data.reply) {
+                addMessage('assistant', data.reply);
+                if (shouldSpeak) voiceReply.textContent = data.reply;
+            }
             if (data.pending) addPendingActions();
-            if (voiceReply && data.reply && !data.pending) speakReply(data.reply);
+            if (shouldSpeak && data.reply && !data.pending && root.classList.contains('is-voice-open')) speakReply(data.reply);
             else setVoiceState('idle', data.pending ? 'Đang chờ xác nhận' : 'Sẵn sàng lắng nghe');
         } catch (error) {
-            addMessage('assistant', error.message || 'Nhi chưa kết nối được. Hãy thử lại sau ít giây.');
+            var errorMessage = error.message || 'Nhi chưa kết nối được. Hãy thử lại sau ít giây.';
+            addMessage('assistant', errorMessage);
+            if (shouldSpeak) voiceReply.textContent = errorMessage;
             setVoiceState('idle', 'Có lỗi kết nối · hãy thử lại');
         } finally {
             busy = false;
@@ -144,11 +178,10 @@
 
     function startListening() {
         if (busy) return;
-        setOpen(true, false);
+        setVoiceOpen(true);
         ensureWelcome();
         if (!SpeechRecognition) {
             setVoiceState('idle', 'Trình duyệt chưa hỗ trợ nói · hãy nhập văn bản');
-            input.focus();
             return;
         }
         if (listening) {
@@ -171,7 +204,9 @@
                 if (event.results[index].isFinal) speechText += phrase;
                 else interim += phrase;
             }
-            status.textContent = interim ? 'Nghe: ' + interim : 'Đang nghe…';
+            var heard = interim ? 'Nghe: ' + interim : 'Đang nghe…';
+            status.textContent = heard;
+            voiceStatus.textContent = heard;
         };
         recognition.onerror = function(event) {
             listening = false;
@@ -184,20 +219,37 @@
             if (text) ask(text, true);
             else if (status.textContent.indexOf('Hãy cho phép') !== 0) setVoiceState('idle', 'Sẵn sàng lắng nghe');
         };
-        try {
-            recognition.start();
-        } catch (error) {
-            listening = false;
-            setVoiceState('idle', 'Microphone đang bận · hãy thử lại');
-        }
+        setVoiceState('idle', 'Đang mở microphone…');
+        window.requestAnimationFrame(function() {
+            try {
+                recognition.start();
+            } catch (error) {
+                listening = false;
+                setVoiceState('idle', 'Microphone đang bận · hãy thử lại');
+            }
+        });
     }
 
     launch.addEventListener('click', function() {
         if (listening) stopListening();
         else startListening();
     });
-    mic.addEventListener('click', startListening);
-    chatToggle.addEventListener('click', function() { setOpen(panel.hidden); });
+    mic.addEventListener('click', function() { setOpen(false, false); startListening(); });
+    chatToggle.addEventListener('click', function() {
+        setVoiceOpen(false);
+        setOpen(panel.hidden);
+    });
+    useText.addEventListener('click', function() {
+        speechText = '';
+        if (listening) stopListening();
+        setVoiceOpen(false);
+        setOpen(true);
+    });
+    voiceClose.addEventListener('click', function() {
+        speechText = '';
+        if (listening) stopListening();
+        setVoiceOpen(false);
+    });
     close.addEventListener('click', function() { setOpen(false); });
     form.addEventListener('submit', function(event) {
         event.preventDefault();
@@ -211,8 +263,10 @@
     });
     document.addEventListener('keydown', function(event) {
         if (event.key === 'Escape') {
+            speechText = '';
             if (listening) stopListening();
             if (!panel.hidden) setOpen(false);
+            if (root.classList.contains('is-voice-open')) setVoiceOpen(false);
         }
     });
 }());

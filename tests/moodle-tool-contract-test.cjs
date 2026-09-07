@@ -64,6 +64,8 @@ assert.ok(orbJs.includes('moodle-orb.php'), 'Moodle Orb widget is missing its se
 assert.ok(orbJs.includes('aria-label="Bấm Orb để nói với Nhi"'), 'Moodle Orb button is missing an accessible label');
 assert.ok(orbJs.includes('ai-orb-stage'), 'Moodle Orb widget must use the Orb-first visual control');
 assert.ok(orbJs.includes('SpeechRecognition'), 'Moodle Orb widget must expose browser voice input');
+assert.ok(orbJs.includes('setVoiceOpen(true)'), 'Moodle Orb must expand before starting voice input');
+assert.ok(!orbJs.includes('setOpen(true, false);'), 'Voice input must not open the conventional chat panel');
 assert.ok(orbEndpoint.includes("has_capability('moodle/site:config'"), 'Moodle Orb endpoint is missing the admin/student role split');
 assert.ok(orbEndpoint.includes('moodle_student_action'), 'Moodle Orb endpoint is missing the student-safe tool');
 assert.ok(orbAgent.includes('function mtpc_orb_agent_moodle_student_tool'), 'Shared Orb agent is missing the student-safe Moodle tool');
