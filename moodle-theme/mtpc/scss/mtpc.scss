@@ -310,7 +310,7 @@ body.mtpc-orb-voice-active { overflow: hidden; }
     left: 50%;
     z-index: 3;
     width: min(51.25rem, calc(100vw - 2rem));
-    height: min(23rem, 42vh);
+    height: min(20rem, 36vh);
     max-height: calc(100vh - 18rem);
     min-height: 15rem;
     box-sizing: border-box;
@@ -423,28 +423,6 @@ body.mtpc-orb-voice-active { overflow: hidden; }
 .mtpc-orb-voice-form button:hover,
 .mtpc-orb-voice-form button:focus-visible { background: #a0f5bd; }
 .mtpc-orb-voice-form button:disabled { cursor: wait; opacity: .55; }
-.mtpc-orb-voice-hints {
-    display: flex;
-    flex: 0 0 auto;
-    flex-wrap: wrap;
-    justify-content: flex-start;
-    gap: .45rem;
-    padding: .45rem .8rem;
-    border-top: 1px solid rgba(191, 238, 202, .18);
-}
-.mtpc-orb-voice-hints button {
-    min-height: 2rem;
-    padding: .35rem .7rem;
-    border: 1px solid rgba(207, 255, 218, .3);
-    border-radius: 999px;
-    background: rgba(3, 55, 27, .34);
-    color: #effff3;
-    font-size: .75rem;
-    font-weight: 700;
-    cursor: pointer;
-}
-.mtpc-orb-voice-hints button:hover,
-.mtpc-orb-voice-hints button:focus-visible { background: rgba(20, 111, 57, .62); }
 .mtpc-orb.is-voice-open .mtpc-orb-voice-close {
     display: grid;
     position: fixed;
@@ -598,7 +576,6 @@ body.mtpc-orb-voice-active { overflow: hidden; }
 .mtpc-orb-send:focus-visible { background: var(--mtpc-green-800); }
 .mtpc-orb-mic:disabled,
 .mtpc-orb-send:disabled { cursor: wait; opacity: .65; }
-.mtpc-orb-hints,
 .mtpc-orb-confirm {
     display: flex;
     flex-wrap: wrap;
@@ -606,7 +583,6 @@ body.mtpc-orb-voice-active { overflow: hidden; }
     padding: 0 .85rem .75rem;
     background: #fff;
 }
-.mtpc-orb-hints button,
 .mtpc-orb-confirm button {
     min-height: 2.15rem;
     padding: .35rem .6rem;
@@ -618,8 +594,6 @@ body.mtpc-orb-voice-active { overflow: hidden; }
     font-weight: 700;
     cursor: pointer;
 }
-.mtpc-orb-hints button:hover,
-.mtpc-orb-hints button:focus-visible,
 .mtpc-orb-confirm button:hover,
 .mtpc-orb-confirm button:focus-visible { border-color: var(--mtpc-green-700); background: var(--mtpc-green-50); }
 .mtpc-orb-confirm { padding-top: .1rem; }
@@ -1183,7 +1157,7 @@ body.mtpc-orb-voice-active { overflow: hidden; }
     .mtpc-orb.is-voice-open .mtpc-orb-voice-copy {
         bottom: max(.6rem, env(safe-area-inset-bottom));
         width: calc(100vw - 1rem);
-        height: min(26rem, 52vh);
+        height: min(22rem, 46vh);
         max-height: calc(100vh - 12.5rem);
         min-height: 13rem;
         border-radius: 1rem;
@@ -1191,9 +1165,6 @@ body.mtpc-orb-voice-active { overflow: hidden; }
     .mtpc-orb-voice-head { padding: .65rem .75rem; }
     .mtpc-orb-voice-transcript { padding: .65rem .65rem .25rem; }
     .mtpc-orb-voice-transcript .mtpc-orb-message { max-width: 92%; font-size: .8rem; }
-    .mtpc-orb-voice-hints { flex-wrap: nowrap; overflow-x: auto; padding: .4rem .6rem; scrollbar-width: none; }
-    .mtpc-orb-voice-hints::-webkit-scrollbar { display: none; }
-    .mtpc-orb-voice-hints button { flex: 0 0 auto; }
     .mtpc-orb.is-voice-open .mtpc-orb-voice-close { top: .75rem; right: .75rem; }
     .mtpc-orb-chat-toggle { right: -.2rem; bottom: -.2rem; width: 1.8rem; height: 1.8rem; }
     .mtpc-orb-panel {

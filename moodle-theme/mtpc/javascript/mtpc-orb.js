@@ -24,8 +24,6 @@
             '<form class="mtpc-orb-voice-form"><label class="sr-only" for="mtpcOrbVoiceInput">Nhập yêu cầu cho Nhi</label>' +
                 '<input id="mtpcOrbVoiceInput" name="message" type="text" autocomplete="off" placeholder="Nhập yêu cầu nếu bạn không dùng giọng nói…">' +
                 '<button type="submit" aria-label="Gửi yêu cầu">➜</button></form>' +
-            '<div class="mtpc-orb-voice-hints" aria-label="Gợi ý yêu cầu"><button type="button" data-orb-prompt="Liệt kê các khóa học tôi đã ghi danh">Khóa học của tôi</button>' +
-                '<button type="button" data-orb-prompt="Xem điểm của tôi">Điểm của tôi</button></div>' +
         '</div>' +
         '<button type="button" class="mtpc-orb-voice-close" aria-label="Đóng Orb">×</button>' +
         '<button type="button" class="mtpc-orb-chat-toggle" aria-label="Mở Orb để nhập văn bản" aria-controls="mtpcOrbVoiceStage" aria-expanded="false"><span aria-hidden="true">⌨</span></button>' +
@@ -38,8 +36,6 @@
                 '<button type="button" class="mtpc-orb-mic" aria-label="Bắt đầu nói" title="Nói với Nhi">●</button>' +
                 '<input id="mtpcOrbInput" name="message" type="text" autocomplete="off" placeholder="Hoặc nhập yêu cầu…">' +
                 '<button type="submit" class="mtpc-orb-send" aria-label="Gửi yêu cầu">➜</button></form>' +
-            '<div class="mtpc-orb-hints" aria-label="Gợi ý yêu cầu"><button type="button" data-orb-prompt="Liệt kê các khóa học tôi đã ghi danh">Khóa học của tôi</button>' +
-                '<button type="button" data-orb-prompt="Xem điểm của tôi">Điểm của tôi</button></div>' +
             '<div class="mtpc-orb-footer"><span class="mtpc-orb-live-dot" aria-hidden="true"></span><span>Giọng nói và văn bản dùng chung một cuộc trò chuyện</span></div>' +
         '</div>';
     document.body.appendChild(root);
@@ -286,17 +282,6 @@
         ask(voiceInput.value.trim(), false, true);
     });
     root.addEventListener('click', function(event) {
-        var prompt = event.target.closest('[data-orb-prompt]');
-        if (prompt) {
-            if (prompt.closest('.mtpc-orb-voice-copy')) {
-                setVoiceOpen(true);
-                ask(prompt.getAttribute('data-orb-prompt'), false, true);
-            } else {
-                setOpen(true);
-                ask(prompt.getAttribute('data-orb-prompt'), false);
-            }
-            return;
-        }
         var confirmButton = event.target.closest('[data-orb-confirm]');
         if (confirmButton) ask(confirmButton.getAttribute('data-orb-confirm'), false);
     });

@@ -23,7 +23,7 @@ assert.ok(read('scss/mtpc.scss').includes('.path-mod-forum'), 'Forum styles must
 assert.ok(read('scss/mtpc.scss').includes('background: var(--mtpc-green-900)'), 'Navbar must use a stable MTPC green surface');
 assert.ok(!read('scss/mtpc.scss').includes('linear-gradient'), 'Theme must avoid decorative gradients that make Moodle feel synthetic');
 assert.ok(read('classes/privacy/provider.php').includes('null_provider'), 'Theme privacy provider is missing');
-assert.match(read('version.php'), /\$plugin->version\s*=\s*2026090701;/, 'Theme version must be bumped for the responsive Orb conversation revision');
+assert.match(read('version.php'), /\$plugin->version\s*=\s*2026090702;/, 'Theme version must be bumped for the compact Orb conversation revision');
 assert.ok(read('scss/mtpc.scss').includes('.navbar.fixed-top.bg-white'), 'Navbar override must cover Boost white navbar state');
 assert.ok(read('scss/mtpc.scss').includes('.drawer-toggles .drawer-toggler .btn'), 'Drawer toggle needs an explicit light-surface style');
 assert.ok(read('scss/mtpc.scss').includes('grid-template-columns: repeat(auto-fill, minmax(18rem, 22rem))'), 'Dashboard cards must not stretch into a large empty panel');
@@ -47,6 +47,8 @@ assert.ok(read('scss/mtpc.scss').includes('.mtpc-orb-voice-transcript'), 'Expand
 assert.ok(read('javascript/mtpc-orb.js').includes('Âm thanh: Bật'), 'Expanded Orb must expose an audio control');
 assert.ok(read('javascript/mtpc-orb.js').includes('window.speechSynthesis.resume()'), 'Expanded Orb must resume browser speech before playback');
 assert.ok(read('scss/mtpc.scss').includes('@media (max-height: 650px)'), 'Expanded Orb must adapt to short and landscape viewports');
+assert.ok(!read('javascript/mtpc-orb.js').includes('data-orb-prompt'), 'Moodle Orb chat must not include redundant suggestion chips');
+assert.ok(!read('scss/mtpc.scss').includes('.mtpc-orb-voice-hints'), 'Moodle Orb must not reserve layout space for removed suggestions');
 assert.ok(fs.readFileSync(path.join(root, '.cpanel.yml'), 'utf8').includes('moodle-theme/mtpc'), 'cPanel does not deploy the Moodle theme');
 
 console.log('Moodle theme contract OK: Boost inheritance, responsive cards, focus and reduced motion.');
