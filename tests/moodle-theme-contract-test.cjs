@@ -23,7 +23,7 @@ assert.ok(read('scss/mtpc.scss').includes('.path-mod-forum'), 'Forum styles must
 assert.ok(read('scss/mtpc.scss').includes('background: var(--mtpc-green-900)'), 'Navbar must use a stable MTPC green surface');
 assert.ok(!read('scss/mtpc.scss').includes('linear-gradient'), 'Theme must avoid decorative gradients that make Moodle feel synthetic');
 assert.ok(read('classes/privacy/provider.php').includes('null_provider'), 'Theme privacy provider is missing');
-assert.match(read('version.php'), /\$plugin->version\s*=\s*2026090612;/, 'Theme version must be bumped for the new visual revision');
+assert.match(read('version.php'), /\$plugin->version\s*=\s*2026090613;/, 'Theme version must be bumped for the Orb visual revision');
 assert.ok(read('scss/mtpc.scss').includes('.navbar.fixed-top.bg-white'), 'Navbar override must cover Boost white navbar state');
 assert.ok(read('scss/mtpc.scss').includes('.drawer-toggles .drawer-toggler .btn'), 'Drawer toggle needs an explicit light-surface style');
 assert.ok(read('scss/mtpc.scss').includes('grid-template-columns: repeat(auto-fill, minmax(18rem, 22rem))'), 'Dashboard cards must not stretch into a large empty panel');
@@ -39,6 +39,8 @@ assert.ok(read('scss/mtpc.scss').includes('position: fixed !important'), 'Mobile
 assert.ok(read('scss/mtpc.scss').includes('top: calc(3.75rem + .75rem)'), 'Mobile drawer toggle must sit below the navbar');
 assert.ok(read('scss/mtpc.scss').includes('.mtpc-orb'), 'Theme is missing Moodle Orb styles');
 assert.ok(read('scss/mtpc.scss').includes('.mtpc-orb-panel'), 'Theme is missing the Moodle Orb chat panel styles');
+assert.ok(read('scss/mtpc.scss').includes('.ai-orb-field'), 'Theme is missing the Orb energy field');
+assert.ok(read('scss/mtpc.scss').includes('[data-voice-state="listening"]'), 'Theme is missing the Orb listening state');
 assert.ok(fs.readFileSync(path.join(root, '.cpanel.yml'), 'utf8').includes('moodle-theme/mtpc'), 'cPanel does not deploy the Moodle theme');
 
 console.log('Moodle theme contract OK: Boost inheritance, responsive cards, focus and reduced motion.');
