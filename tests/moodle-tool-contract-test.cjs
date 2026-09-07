@@ -13,6 +13,7 @@ const install = fs.readFileSync(path.join(root, 'moodle-plugin', 'local', 'mtpcb
 const themeConfig = fs.readFileSync(path.join(root, 'moodle-theme', 'mtpc', 'config.php'), 'utf8');
 const orbJs = fs.readFileSync(path.join(root, 'moodle-theme', 'mtpc', 'javascript', 'mtpc-orb.js'), 'utf8');
 const orbEndpoint = fs.readFileSync(path.join(root, 'moodle-plugin', 'local', 'mtpcbridge', 'moodle-orb.php'), 'utf8');
+const orbLiveToken = fs.readFileSync(path.join(root, 'moodle-plugin', 'local', 'mtpcbridge', 'moodle-live-token.php'), 'utf8');
 const orbAgent = fs.readFileSync(path.join(root, 'admin', 'api', 'orb-agent.php'), 'utf8');
 
 const apiActions = [
@@ -57,16 +58,23 @@ assert.ok(index.includes('mtpcResolveMoodleEvent'), 'Natural Moodle event lookup
 assert.ok(index.includes('assignment_name'), 'Moodle schema should accept assignment names');
 assert.ok(index.includes('user_query'), 'Moodle schema should accept natural user queries');
 assert.ok(index.includes('ai-file-chat.js?v=20260905-3'), 'AI file adapter cache version is stale');
-assert.ok(version.includes('$plugin->version = 2026090704;'), 'Plugin version was not bumped');
+assert.ok(version.includes('$plugin->version = 2026090705;'), 'Plugin version was not bumped');
 assert.ok(upgrade.includes('upgrade_plugin_savepoint(true, 2026090601'), 'Moodle announcement upgrade is missing');
 assert.ok(themeConfig.includes("$THEME->javascripts_footer = array('mtpc-orb');"), 'Moodle theme does not load the Orb widget');
 assert.ok(orbJs.includes('moodle-orb.php'), 'Moodle Orb widget is missing its server endpoint');
 assert.ok(orbJs.includes('aria-label="Bấm Orb để nói với Nhi"'), 'Moodle Orb button is missing an accessible label');
 assert.ok(orbJs.includes('ai-orb-stage'), 'Moodle Orb widget must use the Orb-first visual control');
-assert.ok(orbJs.includes('SpeechRecognition'), 'Moodle Orb widget must expose browser voice input');
-assert.ok(orbJs.includes('setVoiceOpen(true)'), 'Moodle Orb must expand before starting voice input');
-assert.ok(!orbJs.includes('setOpen(true, false);'), 'Voice input must not open the conventional chat panel');
+assert.ok(orbJs.includes('moodle-live-token.php'), 'Moodle Orb widget must obtain an authenticated Gemini Live token');
+assert.ok(orbJs.includes('BidiGenerateContentConstrained'), 'Moodle Orb widget must use the same Gemini Live WebSocket transport as admin');
+assert.ok(orbJs.includes("mimeType: 'audio/pcm;rate=16000'"), 'Moodle Orb must stream microphone PCM at 16 kHz');
+assert.ok(orbJs.includes("voiceName: token.voice || 'Zephyr'"), 'Moodle Orb must use the admin Orb voice');
+assert.ok(!orbJs.includes('SpeechRecognition'), 'Moodle Orb must not use browser speech recognition');
+assert.ok(!orbJs.includes('speechSynthesis'), 'Moodle Orb must not use browser speech synthesis');
 assert.ok(orbJs.includes('mtpc-orb-voice-form'), 'Expanded Orb must support text without opening the chat panel');
+assert.ok(orbJs.includes("mode: 'tool'"), 'Gemini Live tool calls must be routed through the authenticated Moodle bridge');
+assert.ok(orbLiveToken.includes('require_login()'), 'Moodle Live token endpoint must require an authenticated user');
+assert.ok(orbLiveToken.includes('require_sesskey()'), 'Moodle Live token endpoint must verify the Moodle session key');
+assert.ok(orbLiveToken.includes('v1beta/auth_tokens'), 'Moodle Live token endpoint must issue constrained Gemini tokens');
 assert.ok(orbEndpoint.includes("$role = 'student'"), 'Moodle Orb endpoint must always use the student-safe role');
 assert.ok(orbEndpoint.includes('moodle_student_action'), 'Moodle Orb endpoint is missing the student-safe tool');
 assert.ok(orbEndpoint.includes('enrol_get_all_users_courses'), 'Moodle Orb must resolve enrolled courses from the authenticated Moodle session');

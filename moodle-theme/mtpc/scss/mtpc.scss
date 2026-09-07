@@ -338,20 +338,6 @@ body.mtpc-orb-voice-active { overflow: hidden; }
 }
 .mtpc-orb-voice-copy strong { display: block; font-size: 1rem; }
 .mtpc-orb-voice-copy p { margin: .12rem 0 0; color: #bceec9; font-size: .78rem; }
-.mtpc-orb-sound-toggle {
-    flex: 0 0 auto;
-    min-height: 2rem;
-    padding: .35rem .7rem;
-    border: 1px solid rgba(207, 255, 218, .36);
-    border-radius: 999px;
-    background: rgba(255, 255, 255, .1);
-    color: #effff3;
-    font-size: .72rem;
-    font-weight: 700;
-    cursor: pointer;
-}
-.mtpc-orb-sound-toggle:hover,
-.mtpc-orb-sound-toggle:focus-visible { background: rgba(255, 255, 255, .18); }
 .mtpc-orb-voice-transcript {
     display: flex;
     min-width: 0;
@@ -379,6 +365,18 @@ body.mtpc-orb-voice-active { overflow: hidden; }
     background: rgba(29, 151, 78, .4);
     color: #f5fff8;
 }
+.mtpc-orb-voice-transcript .mtpc-orb-role {
+    display: block;
+    margin-bottom: .22rem;
+    color: #baffca;
+    font-size: .62rem;
+    font-weight: 800;
+    letter-spacing: .1em;
+    line-height: 1.2;
+    text-transform: uppercase;
+}
+.mtpc-orb-voice-transcript .mtpc-orb-message-text { display: block; }
+.mtpc-orb-voice-transcript .mtpc-orb-message.is-draft { opacity: .88; }
 .mtpc-orb-voice-form {
     display: flex;
     width: 100%;

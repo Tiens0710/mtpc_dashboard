@@ -98,6 +98,14 @@ function mtpc_moodle_orb_courses_reply($courses) {
     return 'Hiện em có ' . count($courses) . ' khóa học: ' . implode(', ', $names) . '.';
 }
 
+function mtpc_moodle_orb_execute_student_tool($args, $operator, $sessioncourses) {
+    $action = isset($args['action']) ? (string)$args['action'] : 'status';
+    if ($action === 'courses') return array('courses' => $sessioncourses);
+    $needscourse = array('course_contents','assignments','assignment','quizzes','grades','quiz_attempts','quiz_grades','course_completion','activity_completion','forums','announcements','calendar_events');
+    $verifiedcourse = in_array($action, $needscourse, true) ? mtpc_moodle_orb_course_from_session($args, $sessioncourses) : null;
+    return mtpc_orb_agent_moodle_student_tool($args, $operator, $verifiedcourse);
+}
+
 function mtpc_moodle_orb_call_gemini($contents) {
     $key = getenv('GEMINI_API_KEY');
     $path = '/home/mtpc/private/gemini-config.php';
@@ -148,9 +156,6 @@ try {
     require_once(mtpc_moodle_orb_repo_file('zalo-admin.php'));
     require_once(mtpc_moodle_orb_repo_file('orb-agent.php'));
     $body = mtpc_moodle_orb_read_body();
-    $text = trim(isset($body['text']) ? (string)$body['text'] : '');
-    if ($text === '') mtpc_moodle_orb_response(422, array('ok' => false, 'error' => 'Bạn chưa nhập yêu cầu.'));
-
     global $USER, $SESSION;
     $role = 'student';
     $operator = array('user_id' => (string)$USER->id, 'user_name' => fullname($USER), 'role' => $role);
@@ -158,9 +163,25 @@ try {
         unset($SESSION->mtpc_moodle_orb_history, $SESSION->mtpc_moodle_orb_pending);
     }
     $SESSION->mtpc_moodle_orb_role = $role;
-    $normalized = mtpc_orb_agent_normalize($text);
     $sessionCourses = mtpc_moodle_orb_enrolled_courses();
     unset($SESSION->mtpc_moodle_orb_pending);
+
+    $mode = isset($body['mode']) ? (string)$body['mode'] : 'chat';
+    if ($mode === 'tool') {
+        $name = isset($body['name']) ? (string)$body['name'] : '';
+        if ($name !== 'moodle_student_action') mtpc_moodle_orb_response(403, array('ok' => false, 'error' => 'Orb học sinh chỉ được tra cứu dữ liệu học tập của chính mình.'));
+        $args = isset($body['args']) && is_array($body['args']) ? $body['args'] : array();
+        try {
+            $result = mtpc_moodle_orb_execute_student_tool($args, $operator, $sessionCourses);
+            mtpc_moodle_orb_response(200, array('ok' => true, 'result' => $result));
+        } catch (Throwable $toolerror) {
+            mtpc_moodle_orb_response(422, array('ok' => false, 'error' => $toolerror->getMessage()));
+        }
+    }
+
+    $text = trim(isset($body['text']) ? (string)$body['text'] : '');
+    if ($text === '') mtpc_moodle_orb_response(422, array('ok' => false, 'error' => 'Bạn chưa nhập yêu cầu.'));
+    $normalized = mtpc_orb_agent_normalize($text);
 
     if (in_array($normalized, array('chao', 'xin chao', 'hello', 'hi'), true)) {
         mtpc_moodle_orb_response(200, array('ok' => true, 'reply' => 'Chào em! Nhi có thể giúp xem khóa học, bài tập, điểm, tiến độ, thông báo và lịch học của chính em trên Moodle.'));
@@ -196,14 +217,7 @@ try {
             $args = isset($call['args']) && is_array($call['args']) ? $call['args'] : array();
             try {
                 if ($name !== 'moodle_student_action') throw new Exception('Orb học sinh chỉ có quyền tra cứu dữ liệu học tập của chính mình.');
-                $action = isset($args['action']) ? (string)$args['action'] : 'status';
-                if ($action === 'courses') {
-                    $result = array('courses' => $sessionCourses);
-                } else {
-                    $needsCourse = array('course_contents','assignments','assignment','quizzes','grades','quiz_attempts','quiz_grades','course_completion','activity_completion','forums','announcements','calendar_events');
-                    $verifiedCourse = in_array($action, $needsCourse, true) ? mtpc_moodle_orb_course_from_session($args, $sessionCourses) : null;
-                    $result = mtpc_orb_agent_moodle_student_tool($args, $operator, $verifiedCourse);
-                }
+                $result = mtpc_moodle_orb_execute_student_tool($args, $operator, $sessionCourses);
             } catch (Exception $error) {
                 $result = array('ok' => false, 'error' => $error->getMessage());
             }
