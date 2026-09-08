@@ -58,7 +58,7 @@ assert.ok(index.includes('mtpcResolveMoodleEvent'), 'Natural Moodle event lookup
 assert.ok(index.includes('assignment_name'), 'Moodle schema should accept assignment names');
 assert.ok(index.includes('user_query'), 'Moodle schema should accept natural user queries');
 assert.ok(index.includes('ai-file-chat.js?v=20260905-3'), 'AI file adapter cache version is stale');
-assert.ok(version.includes('$plugin->version = 2026090706;'), 'Plugin version was not bumped');
+assert.ok(version.includes('$plugin->version = 2026090707;'), 'Plugin version was not bumped');
 assert.ok(upgrade.includes('upgrade_plugin_savepoint(true, 2026090601'), 'Moodle announcement upgrade is missing');
 assert.ok(themeConfig.includes("$THEME->javascripts_footer = array('mtpc-orb');"), 'Moodle theme does not load the Orb widget');
 assert.ok(orbJs.includes('moodle-orb.php'), 'Moodle Orb widget is missing its server endpoint');
@@ -72,9 +72,18 @@ assert.ok(!orbJs.includes('SpeechRecognition'), 'Moodle Orb must not use browser
 assert.ok(!orbJs.includes('speechSynthesis'), 'Moodle Orb must not use browser speech synthesis');
 assert.ok(orbJs.includes('mtpc-orb-voice-form'), 'Expanded Orb must support text without opening the chat panel');
 assert.ok(orbJs.includes("mode: 'tool'"), 'Gemini Live tool calls must be routed through the authenticated Moodle bridge');
-assert.ok(orbJs.includes("enum: ['status', 'courses', 'open_course'"), 'Moodle Orb must declare the safe course navigation action');
-assert.ok(orbJs.includes('window.location.assign(result.redirect_url)'), 'Moodle Orb must navigate after a verified course-open tool result');
+for (const action of ['today_summary', 'due_work', 'open_course', 'open_activity', 'progress_summary', 'grades_summary']) {
+  assert.ok(orbJs.includes(`'${action}'`), `Moodle Orb must declare the student-safe ${action} action`);
+  assert.ok(orbEndpoint.includes(`'${action}'`), `Moodle Orb endpoint must implement the student-safe ${action} action`);
+}
+assert.ok(orbJs.includes('target.origin === base.origin'), 'Moodle Orb navigation must remain on the authenticated Moodle origin');
+assert.ok(orbJs.includes('target.pathname.indexOf(base.pathname) === 0'), 'Moodle Orb navigation must remain inside the configured Moodle path');
+assert.ok(orbJs.includes('window.location.assign(target.href)'), 'Moodle Orb must navigate after a verified open tool result');
 assert.ok(orbEndpoint.includes("$action === 'open_course'"), 'Moodle Orb endpoint must support verified course navigation');
+assert.ok(orbEndpoint.includes("$action === 'open_activity'"), 'Moodle Orb endpoint must support verified activity navigation');
+assert.ok(orbEndpoint.includes('get_fast_modinfo'), 'Moodle Orb learning tools must enforce Moodle activity visibility');
+assert.ok(orbEndpoint.includes("gg.userid = :userid"), 'Moodle Orb grades must be restricted to the current user');
+assert.ok(orbEndpoint.includes('gi.hidden = 0'), 'Moodle Orb must not expose hidden grade items');
 assert.ok(orbLiveToken.includes('require_login()'), 'Moodle Live token endpoint must require an authenticated user');
 assert.ok(orbLiveToken.includes('require_sesskey()'), 'Moodle Live token endpoint must verify the Moodle session key');
 assert.ok(orbLiveToken.includes('v1beta/auth_tokens'), 'Moodle Live token endpoint must issue constrained Gemini tokens');

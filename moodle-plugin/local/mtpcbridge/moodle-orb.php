@@ -9,6 +9,7 @@
 define('AJAX_SCRIPT', true);
 require_once(dirname(dirname(__DIR__)) . '/config.php');
 require_once($CFG->dirroot . '/lib/enrollib.php');
+require_once($CFG->libdir . '/completionlib.php');
 
 require_login();
 require_sesskey();
@@ -50,7 +51,16 @@ function mtpc_moodle_orb_save_history($history) {
 }
 
 function mtpc_moodle_orb_tool() {
-    return mtpc_orb_agent_student_moodle_tool();
+    $tool = mtpc_orb_agent_student_moodle_tool();
+    $actions = array('today_summary','due_work','open_activity','progress_summary','grades_summary');
+    foreach ($actions as $action) $tool['parameters']['properties']['action']['enum'][] = $action;
+    $tool['parameters']['properties']['days'] = array('type' => 'INTEGER', 'description' => 'Số ngày sắp tới cần xem, từ 1 đến 30.');
+    $tool['parameters']['properties']['activity_type'] = array(
+        'type' => 'STRING',
+        'enum' => array('assign', 'quiz', 'page', 'url', 'forum', 'resource'),
+        'description' => 'Loại hoạt động Moodle khi cần mở trực tiếp.',
+    );
+    return $tool;
 }
 
 function mtpc_moodle_orb_enrolled_courses() {
@@ -98,11 +108,136 @@ function mtpc_moodle_orb_courses_reply($courses) {
     return 'Hiện em có ' . count($courses) . ' khóa học: ' . implode(', ', $names) . '.';
 }
 
+function mtpc_moodle_orb_due_work($courses, $days) {
+    global $DB, $USER;
+    $days = max(1, min(30, (int)$days));
+    $now = time();
+    $todaystart = usergetmidnight($now);
+    $tomorrow = $todaystart + DAYSECS;
+    $paststart = $todaystart - (30 * DAYSECS);
+    $windowend = $now + ($days * DAYSECS);
+    $items = array();
+    foreach ((array)$courses as $course) {
+        $courseid = (int)$course['id'];
+        $modinfo = get_fast_modinfo($courseid, (int)$USER->id);
+        foreach ((array)$modinfo->get_instances_of('assign') as $cm) {
+            if (!$cm->uservisible || empty($cm->instance)) continue;
+            $assignment = $DB->get_record('assign', array('id' => (int)$cm->instance), 'id,name,duedate,cutoffdate', IGNORE_MISSING);
+            if (!$assignment) continue;
+            $due = !empty($assignment->duedate) ? (int)$assignment->duedate : (int)$assignment->cutoffdate;
+            if ($due <= 0 || $due < $paststart || $due > $windowend) continue;
+            $submissions = $DB->get_records('assign_submission', array('assignment' => (int)$assignment->id, 'userid' => (int)$USER->id), 'attemptnumber DESC', 'id,status,attemptnumber,timemodified', 0, 1);
+            $submission = $submissions ? reset($submissions) : null;
+            $completed = $submission && isset($submission->status) && $submission->status === 'submitted';
+            $items[] = array(
+                'type' => 'assignment', 'name' => format_string($assignment->name), 'course' => $course,
+                'course_module_id' => (int)$cm->id, 'due_at' => $due, 'due_text' => userdate($due),
+                'status' => $completed ? 'submitted' : ($due < $now ? 'overdue' : ($due < $tomorrow && $due >= $todaystart ? 'today' : 'upcoming')),
+                'url' => $cm->url ? $cm->url->out(false) : '',
+            );
+        }
+        foreach ((array)$modinfo->get_instances_of('quiz') as $cm) {
+            if (!$cm->uservisible || empty($cm->instance)) continue;
+            $quiz = $DB->get_record('quiz', array('id' => (int)$cm->instance), 'id,name,timeclose', IGNORE_MISSING);
+            if (!$quiz || empty($quiz->timeclose) || (int)$quiz->timeclose < $paststart || (int)$quiz->timeclose > $windowend) continue;
+            $finished = $DB->record_exists('quiz_attempts', array('quiz' => (int)$quiz->id, 'userid' => (int)$USER->id, 'state' => 'finished', 'preview' => 0));
+            $due = (int)$quiz->timeclose;
+            $items[] = array(
+                'type' => 'quiz', 'name' => format_string($quiz->name), 'course' => $course,
+                'course_module_id' => (int)$cm->id, 'due_at' => $due, 'due_text' => userdate($due),
+                'status' => $finished ? 'finished' : ($due < $now ? 'overdue' : ($due < $tomorrow && $due >= $todaystart ? 'today' : 'upcoming')),
+                'url' => $cm->url ? $cm->url->out(false) : '',
+            );
+        }
+    }
+    usort($items, function($a, $b) { return (int)$a['due_at'] - (int)$b['due_at']; });
+    $result = array('today' => array(), 'upcoming' => array(), 'overdue' => array(), 'completed' => array());
+    foreach ($items as $item) {
+        if ($item['status'] === 'today') $result['today'][] = $item;
+        else if ($item['status'] === 'overdue') $result['overdue'][] = $item;
+        else if ($item['status'] === 'submitted' || $item['status'] === 'finished') $result['completed'][] = $item;
+        else $result['upcoming'][] = $item;
+    }
+    $result['days'] = $days;
+    $result['counts'] = array('today' => count($result['today']), 'upcoming' => count($result['upcoming']), 'overdue' => count($result['overdue']), 'completed' => count($result['completed']));
+    foreach (array('today', 'upcoming', 'overdue', 'completed') as $bucket) {
+        $result[$bucket] = array_slice($result[$bucket], 0, 20);
+    }
+    return $result;
+}
+
+function mtpc_moodle_orb_find_activity($course, $args) {
+    global $USER;
+    $modinfo = get_fast_modinfo((int)$course['id'], (int)$USER->id);
+    $cmid = isset($args['course_module_id']) ? (int)$args['course_module_id'] : 0;
+    $name = trim(isset($args['activity_name']) ? (string)$args['activity_name'] : '');
+    $type = mtpc_orb_agent_normalize(isset($args['activity_type']) ? (string)$args['activity_type'] : '');
+    $aliases = array('assignment' => 'assign', 'bai tap' => 'assign', 'bai kiem tra' => 'quiz', 'kiem tra' => 'quiz', 'tai nguyen' => 'resource', 'duong dan' => 'url', 'dien dan' => 'forum');
+    if (isset($aliases[$type])) $type = $aliases[$type];
+    $needle = mtpc_orb_agent_normalize($name);
+    $exact = array(); $partial = array();
+    foreach ((array)$modinfo->get_cms() as $cm) {
+        if (!$cm->uservisible || !$cm->url || (!empty($cm->deletioninprogress))) continue;
+        if ($cmid > 0 && (int)$cm->id !== $cmid) continue;
+        if ($type !== '' && mtpc_orb_agent_normalize($cm->modname) !== $type) continue;
+        $label = mtpc_orb_agent_normalize($cm->name);
+        if ($cmid > 0 || ($needle !== '' && $label === $needle)) $exact[] = $cm;
+        else if ($needle !== '' && strpos($label, $needle) !== false) $partial[] = $cm;
+    }
+    $matches = $exact ? $exact : $partial;
+    if (count($matches) === 1) return $matches[0];
+    if (!$matches) throw new Exception('Không tìm thấy hoạt động học tập phù hợp trong khóa học này.');
+    $labels = array(); foreach (array_slice($matches, 0, 5) as $cm) $labels[] = format_string($cm->name);
+    throw new Exception('Có nhiều hoạt động phù hợp: ' . implode(', ', $labels) . '. Hãy nói rõ tên hơn.');
+}
+
+function mtpc_moodle_orb_progress_summary($course) {
+    global $USER;
+    $courseobject = get_course((int)$course['id']);
+    $completion = new completion_info($courseobject);
+    $modinfo = get_fast_modinfo((int)$course['id'], (int)$USER->id);
+    $total = 0; $completed = 0; $next = null;
+    foreach ((array)$modinfo->get_cms() as $cm) {
+        if (!$cm->uservisible || !empty($cm->deletioninprogress) || !$cm->url) continue;
+        if ($completion->is_enabled($cm) == COMPLETION_TRACKING_NONE) continue;
+        $total++;
+        $data = $completion->get_data($cm, false, (int)$USER->id);
+        if (!empty($data->completionstate)) $completed++;
+        else if ($next === null) $next = array('name' => format_string($cm->name), 'type' => $cm->modname, 'course_module_id' => (int)$cm->id, 'url' => $cm->url->out(false));
+    }
+    return array('course' => $course, 'tracked' => $total, 'completed' => $completed, 'remaining' => max(0, $total - $completed), 'percent' => $total > 0 ? (int)round(($completed * 100) / $total) : null, 'next_activity' => $next);
+}
+
+function mtpc_moodle_orb_grades_summary($course) {
+    global $DB, $USER;
+    $context = context_course::instance((int)$course['id']);
+    require_capability('moodle/grade:view', $context, (int)$USER->id);
+    $sql = 'SELECT gi.id, gi.itemname, gi.itemtype, gi.itemmodule, gi.grademin, gi.grademax, gg.finalgrade, gg.feedback '
+        . 'FROM {grade_items} gi LEFT JOIN {grade_grades} gg ON gg.itemid = gi.id AND gg.userid = :userid '
+        . 'WHERE gi.courseid = :courseid AND gi.hidden = 0 AND (gg.hidden IS NULL OR gg.hidden = 0) ORDER BY gi.sortorder ASC';
+    $rows = $DB->get_records_sql($sql, array('userid' => (int)$USER->id, 'courseid' => (int)$course['id']));
+    $items = array(); $coursegrade = null; $graded = 0;
+    foreach ($rows as $row) {
+        if ($row->itemtype === 'course' && $row->finalgrade !== null) $coursegrade = array('grade' => (float)$row->finalgrade, 'maximum' => (float)$row->grademax);
+        if ($row->itemtype !== 'mod' || trim((string)$row->itemname) === '') continue;
+        if ($row->finalgrade !== null) $graded++;
+        $items[] = array('name' => format_string($row->itemname), 'module' => (string)$row->itemmodule, 'grade' => $row->finalgrade === null ? null : (float)$row->finalgrade, 'minimum' => (float)$row->grademin, 'maximum' => (float)$row->grademax, 'feedback' => trim(strip_tags((string)$row->feedback)));
+    }
+    return array('course' => $course, 'course_grade' => $coursegrade, 'graded_count' => $graded, 'ungraded_count' => max(0, count($items) - $graded), 'items' => array_slice($items, 0, 30));
+}
+
 function mtpc_moodle_orb_execute_student_tool($args, $operator, $sessioncourses) {
     global $CFG;
     $action = isset($args['action']) ? (string)$args['action'] : 'status';
     if ($action === 'courses') return array('courses' => $sessioncourses);
-    $needscourse = array('open_course','course_contents','assignments','assignment','quizzes','grades','quiz_attempts','quiz_grades','course_completion','activity_completion','forums','announcements','calendar_events');
+    if ($action === 'today_summary' || $action === 'due_work') {
+        $selected = $sessioncourses;
+        if (!empty($args['course_id']) || trim(isset($args['course_name']) ? (string)$args['course_name'] : '') !== '') $selected = array(mtpc_moodle_orb_course_from_session($args, $sessioncourses));
+        $due = mtpc_moodle_orb_due_work($selected, isset($args['days']) ? (int)$args['days'] : ($action === 'today_summary' ? 7 : 14));
+        if ($action === 'today_summary') $due['enrolled_course_count'] = count($sessioncourses);
+        return $due;
+    }
+    $needscourse = array('open_course','open_activity','progress_summary','grades_summary','course_contents','assignments','assignment','quizzes','grades','quiz_attempts','quiz_grades','course_completion','activity_completion','forums','announcements','calendar_events');
     $verifiedcourse = in_array($action, $needscourse, true) ? mtpc_moodle_orb_course_from_session($args, $sessioncourses) : null;
     if ($action === 'open_course') {
         return array(
@@ -112,6 +247,12 @@ function mtpc_moodle_orb_execute_student_tool($args, $operator, $sessioncourses)
             'redirect_url' => rtrim($CFG->wwwroot, '/') . '/course/view.php?id=' . (int)$verifiedcourse['id'],
         );
     }
+    if ($action === 'open_activity') {
+        $activity = mtpc_moodle_orb_find_activity($verifiedcourse, $args);
+        return array('ok' => true, 'navigate' => true, 'course' => $verifiedcourse, 'activity' => array('name' => format_string($activity->name), 'type' => $activity->modname, 'course_module_id' => (int)$activity->id), 'redirect_url' => $activity->url->out(false));
+    }
+    if ($action === 'progress_summary') return mtpc_moodle_orb_progress_summary($verifiedcourse);
+    if ($action === 'grades_summary') return mtpc_moodle_orb_grades_summary($verifiedcourse);
     return mtpc_orb_agent_moodle_student_tool($args, $operator, $verifiedcourse);
 }
 
@@ -126,6 +267,7 @@ function mtpc_moodle_orb_call_gemini($contents) {
 
     $system = 'Bạn là Nhi, trợ lý học tập đang trò chuyện trực tiếp trong Moodle với một học sinh. '
         . 'Chỉ dùng công cụ moodle_student_action để tra cứu các khóa học mà chính học sinh đã ghi danh, nội dung bài học, bài tập, bài kiểm tra, điểm, tiến độ, thông báo, diễn đàn và lịch của chính em. '
+        . 'Dùng today_summary khi học sinh hỏi hôm nay hoặc sắp tới cần làm gì; due_work cho bài sắp đến hạn hoặc quá hạn; progress_summary cho tiến độ; grades_summary cho tổng kết điểm; open_activity khi học sinh yêu cầu mở một bài học, bài tập hoặc bài kiểm tra cụ thể. Chỉ nói đã mở hoặc đã chuyển trang khi kết quả công cụ trả về redirect_url. '
         . 'Tuyệt đối không tạo, sửa, xóa, ghi danh, chấm điểm, gửi tin, xem danh sách người dùng hoặc xem dữ liệu của học sinh khác. Nếu được yêu cầu điều khiển Moodle, hãy nói rõ Orb học sinh chỉ có quyền đọc.';
     $payload = array(
         'systemInstruction' => array('parts' => array(array('text' =>

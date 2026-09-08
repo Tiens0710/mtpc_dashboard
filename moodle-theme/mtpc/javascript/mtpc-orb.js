@@ -44,11 +44,13 @@
         name: 'moodle_student_action',
         description: 'Tra cứu dữ liệu Moodle chỉ thuộc tài khoản học sinh đang đăng nhập. Công cụ chỉ đọc, không quản trị hoặc thay đổi dữ liệu.',
         parameters: {type: 'OBJECT', properties: {
-            action: {type: 'STRING', enum: ['status', 'courses', 'open_course', 'course_contents', 'assignments', 'assignment', 'quizzes', 'grades', 'quiz_attempts', 'quiz_grades', 'course_completion', 'activity_completion', 'forums', 'announcements', 'calendar_events']},
+            action: {type: 'STRING', enum: ['status', 'courses', 'today_summary', 'due_work', 'open_course', 'open_activity', 'progress_summary', 'grades_summary', 'course_contents', 'assignments', 'assignment', 'quizzes', 'grades', 'quiz_attempts', 'quiz_grades', 'course_completion', 'activity_completion', 'forums', 'announcements', 'calendar_events']},
             course_name: {type: 'STRING', description: 'Tên tự nhiên của khóa học mà học sinh đã ghi danh.'},
             course_id: {type: 'INTEGER'}, assignment_name: {type: 'STRING'}, assignment_id: {type: 'INTEGER'},
             quiz_name: {type: 'STRING'}, quiz_id: {type: 'INTEGER'}, activity_name: {type: 'STRING'},
-            course_module_id: {type: 'INTEGER'}, announcement_title: {type: 'STRING'}, count: {type: 'INTEGER'}
+            course_module_id: {type: 'INTEGER'}, announcement_title: {type: 'STRING'}, count: {type: 'INTEGER'},
+            days: {type: 'INTEGER', description: 'Số ngày sắp tới cần xem, từ 1 đến 30.'},
+            activity_type: {type: 'STRING', enum: ['assign', 'quiz', 'page', 'url', 'forum', 'resource']}
         }, required: ['action']}
     }]}];
 
@@ -57,7 +59,7 @@
         'Luôn nói tiếng Việt tự nhiên, rõ dấu, thân thiện như một trợ lý nữ người Việt miền Nam. ' +
         'Trước khi phát âm, chuyển nội dung sang văn nói: câu ngắn, mỗi câu một ý, ngắt nghỉ tự nhiên, tốc độ vừa phải. ' +
         'Không đọc markdown, địa chỉ trang web, tên biến, mã kỹ thuật hoặc danh sách dài thành lời. Ưu tiên trả lời từ một đến ba câu. Không nhắc tên mô hình hay trạng thái kỹ thuật. ' +
-        'Chỉ dùng moodle_student_action để đọc các khóa học mà chính học sinh đang đăng nhập đã ghi danh, hoặc dùng action open_course khi em yêu cầu vào/mở một khóa học; action này chỉ chuyển trang tới khóa học đã ghi danh, không thay đổi dữ liệu. ' +
+        'Chỉ dùng moodle_student_action để đọc các khóa học mà chính học sinh đang đăng nhập đã ghi danh. Dùng today_summary khi em hỏi hôm nay hoặc sắp tới cần làm gì; due_work cho bài sắp đến hạn hoặc quá hạn; progress_summary cho tiến độ; grades_summary cho tổng kết điểm; open_course khi em yêu cầu mở khóa học; open_activity khi em yêu cầu mở bài học, bài tập hoặc bài kiểm tra cụ thể. Các action mở trang chỉ được dùng với dữ liệu đã xác minh và không thay đổi Moodle. Chỉ nói đã mở hoặc đã chuyển trang khi kết quả công cụ có redirect_url. ' +
         'Ưu tiên tên tự nhiên và không tự đoán dữ liệu. Tuyệt đối không tạo, sửa, xóa, ghi danh, chấm điểm, gửi tin, xem người dùng khác hoặc dữ liệu của học sinh khác. ' +
         'Nếu được yêu cầu quản trị Moodle, giải thích ngắn rằng Orb học sinh chỉ có quyền tra cứu dữ liệu học tập của chính em.';
     var REALTIME_INPUT_CONFIG = {automaticActivityDetection: {disabled: false, startOfSpeechSensitivity: 'START_SENSITIVITY_LOW', endOfSpeechSensitivity: 'END_SENSITIVITY_LOW', prefixPaddingMs: 250, silenceDurationMs: 1400}};
@@ -202,8 +204,12 @@
             try { args = typeof call.args === 'string' ? JSON.parse(call.args) : call.args || {}; }
             catch (error) { return {id: call.id, name: call.name, response: {result: {ok: false, error: 'Tham số công cụ không hợp lệ.'}}}; }
             return runStudentTool(call.name, args).then(function(result) {
-                if (result && result.open_course && result.redirect_url) {
-                    window.setTimeout(function() { window.location.assign(result.redirect_url); }, 250);
+                if (result && result.redirect_url && (result.open_course || result.navigate)) {
+                    var base = new URL(M.cfg.wwwroot.replace(/\/$/, '') + '/');
+                    var target = new URL(result.redirect_url, base);
+                    if (target.origin === base.origin && target.pathname.indexOf(base.pathname) === 0) {
+                        window.setTimeout(function() { window.location.assign(target.href); }, 350);
+                    }
                 }
                 return {id: call.id, name: call.name, response: {result: result}};
             })
