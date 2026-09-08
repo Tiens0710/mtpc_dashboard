@@ -21,6 +21,69 @@ body {
     -webkit-tap-highlight-color: rgba(8, 122, 73, .14);
 }
 
+/* Login: calm institutional layout, without the generic AI-image treatment. */
+#page-login-index { background: #f4f8f5; }
+#page-login-index #page,
+#page-login-index #page-content { min-height: 100vh; }
+#page-login-index .login-layout-left {
+    position: relative;
+    isolation: isolate;
+    background-position: center !important;
+    background-size: cover !important;
+}
+#page-login-index .login-layout-left::before {
+    position: absolute;
+    z-index: 0;
+    inset: 0;
+    background: rgba(3, 61, 39, .46);
+    content: "";
+}
+#page-login-index .login-layout-left::after { display: none !important; content: none !important; }
+#page-login-index .login-layout-left-content {
+    position: relative;
+    z-index: 1;
+    width: min(32rem, calc(100% - 4rem));
+    text-shadow: 0 2px 12px rgba(0, 25, 14, .28);
+}
+#page-login-index .login-layout-left-content h1 {
+    color: #fff;
+    font-size: clamp(2rem, 4vw, 3rem);
+    font-weight: 750;
+    letter-spacing: -.035em;
+    text-wrap: balance;
+}
+#page-login-index .login-layout-stats { gap: 1rem; }
+#page-login-index .login-layout-stat {
+    min-width: 0;
+    padding-top: .8rem;
+    border-top: 1px solid rgba(255, 255, 255, .34);
+}
+#page-login-index .login-layout-right { background: #f4f8f5; }
+#page-login-index .login-layout-right-content {
+    width: 100%;
+    max-width: 35rem;
+    padding: clamp(1rem, 4vw, 2.5rem);
+}
+#page-login-index .login-container {
+    width: 100%;
+    padding: clamp(1.4rem, 4vw, 2.25rem);
+    border: 1px solid var(--mtpc-border);
+    border-radius: 1rem;
+    background: #fff;
+    box-shadow: 0 12px 36px rgba(20, 38, 29, .09);
+}
+#page-login-index .loginform > h1 {
+    color: var(--mtpc-green-950);
+    font-size: clamp(1.75rem, 4vw, 2.25rem);
+    font-weight: 750;
+    letter-spacing: -.025em;
+}
+#page-login-index .login-languagemenu { margin-top: 2rem !important; margin-bottom: 1.5rem !important; }
+#page-login-index .btn-footer-popover {
+    right: max(1rem, env(safe-area-inset-right));
+    bottom: max(1rem, env(safe-area-inset-bottom));
+}
+
 a { text-underline-offset: .18em; }
 a:hover { color: var(--mtpc-green-900); }
 
@@ -770,7 +833,6 @@ a:hover { color: var(--mtpc-green-900); }
     min-height: 0;
     background-color: #d9eee3;
     background-blend-mode: normal;
-    background-image: none !important;
 }
 .block_myoverview .card-grid[data-region="card-deck"] .course-card .card-img-top {
     height: clamp(10rem, 24vw, 12rem);
@@ -831,26 +893,20 @@ a:hover { color: var(--mtpc-green-900); }
     flex-direction: column;
 }
 #page-my-index .block_myoverview .dashboard-card::before {
-    position: absolute;
-    z-index: 0;
-    top: 0;
-    right: 0;
-    left: 0;
-    height: 7.5rem;
-    content: "";
-    background: var(--mtpc-green-100);
-    pointer-events: none;
+    display: none;
+    content: none;
 }
 #page-my-index .block_myoverview .dashboard-card .dashboard-card-img,
 #page-my-index .block_myoverview .dashboard-card > .card-img-top {
     position: relative;
     z-index: 1;
-    height: 7.5rem;
-    min-height: 7.5rem;
+    height: clamp(10rem, 24vw, 12rem);
+    min-height: clamp(10rem, 24vw, 12rem);
     aspect-ratio: auto;
-    background-color: transparent !important;
-    background-image: none !important;
-    opacity: 0;
+    background-color: var(--mtpc-green-100) !important;
+    background-position: center;
+    background-size: cover;
+    opacity: 1;
 }
 #page-my-index .block_myoverview .dashboard-card .course-info-container {
     display: flex;
@@ -858,7 +914,7 @@ a:hover { color: var(--mtpc-green-900); }
     z-index: 1;
     min-width: 0;
     flex: 1 1 auto;
-    min-height: 7.25rem;
+    min-height: 4.75rem;
     flex-direction: column;
 }
 #page-my-index .block_myoverview .dashboard-card .morebutton {
@@ -1206,7 +1262,9 @@ a:hover { color: var(--mtpc-green-900); }
         width: 100%;
         min-width: 0;
     }
-    .block_myoverview .dashboard-card-img { min-height: 8rem; }
+    .block_myoverview .dashboard-card-img,
+    #page-my-index .block_myoverview .dashboard-card .dashboard-card-img,
+    #page-my-index .block_myoverview .dashboard-card > .card-img-top { height: 10rem; min-height: 10rem; }
     #page-my-index .block_myoverview .dashboard-card-deck { min-height: 0 !important; }
 
     #page-mod-forum-view .forumsearch,
@@ -1216,13 +1274,22 @@ a:hover { color: var(--mtpc-green-900); }
     .path-mod-forum .forumsearch form,
     .path-mod-forum .forumsearch .form-inline { width: 100%; }
     #page-mod-forum-view .forumheaderlist,
-    .path-mod-forum .forumheaderlist { display: block; overflow-x: auto; }
-    #page-mod-forum-view .forumheaderlist thead th,
+    .path-mod-forum .forumheaderlist { display: table; table-layout: fixed; overflow: visible; }
+    #page-mod-forum-view .forumheaderlist .author,
+    #page-mod-forum-view .forumheaderlist .lastpost,
+    #page-mod-forum-view .forumheaderlist .replies,
+    .path-mod-forum .forumheaderlist .author,
+    .path-mod-forum .forumheaderlist .lastpost,
+    .path-mod-forum .forumheaderlist .replies { display: none; }
     #page-mod-forum-view .forumheaderlist tbody td,
     #page-mod-forum-view .forumheaderlist tbody th,
-    .path-mod-forum .forumheaderlist thead th,
     .path-mod-forum .forumheaderlist tbody td,
-    .path-mod-forum .forumheaderlist tbody th { white-space: nowrap; }
+    .path-mod-forum .forumheaderlist tbody th { padding: .8rem .6rem; white-space: normal; }
+}
+
+@media (max-width: 991.98px) {
+    #page-login-index .login-layout-right-content { max-width: 38rem; margin: auto; }
+    #page-login-index .login-container { padding: clamp(1.25rem, 5vw, 2rem); }
 }
 
 @media (prefers-reduced-motion: reduce) {

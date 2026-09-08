@@ -2,6 +2,7 @@
     'use strict';
 
     if (!window.M || !M.cfg || !M.cfg.sesskey || document.getElementById('mtpcOrb')) return;
+    if (Number(M.cfg.userId) === 0 || document.body.classList.contains('notloggedin')) return;
 
     var root = document.createElement('section');
     root.id = 'mtpcOrb';

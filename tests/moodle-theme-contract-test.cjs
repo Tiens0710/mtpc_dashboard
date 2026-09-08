@@ -23,7 +23,9 @@ assert.ok(read('scss/mtpc.scss').includes('.path-mod-forum'), 'Forum styles must
 assert.ok(read('scss/mtpc.scss').includes('background: var(--mtpc-green-900)'), 'Navbar must use a stable MTPC green surface');
 assert.ok(!read('scss/mtpc.scss').includes('linear-gradient'), 'Theme must avoid decorative gradients that make Moodle feel synthetic');
 assert.ok(read('classes/privacy/provider.php').includes('null_provider'), 'Theme privacy provider is missing');
-assert.match(read('version.php'), /\$plugin->version\s*=\s*2026090707;/, 'Theme version must be bumped for persistent transparent Orb navigation');
+assert.match(read('version.php'), /\$plugin->version\s*=\s*2026090708;/, 'Theme version must be bumped for the Moodle UI audit fixes');
+assert.ok(read('scss/mtpc.scss').includes('#page-login-index .login-container'), 'Login page needs a branded, bounded form surface');
+assert.ok(read('scss/mtpc.scss').includes('#page-login-index .login-layout-left::after'), 'Login page must remove the generic AI-image caption');
 assert.ok(read('scss/mtpc.scss').includes('width: min(72rem, calc(100vw - 2rem))'), 'Expanded Orb conversation workspace must use the available desktop width');
 assert.ok(read('scss/mtpc.scss').includes('.navbar.fixed-top.bg-white'), 'Navbar override must cover Boost white navbar state');
 assert.ok(read('scss/mtpc.scss').includes('.drawer-toggles .drawer-toggler .btn'), 'Drawer toggle needs an explicit light-surface style');
@@ -34,6 +36,7 @@ assert.ok(read('scss/mtpc.scss').includes('min-height: 4.75rem'), 'Current Moodl
 assert.ok(read('scss/mtpc.scss').includes('background-size: cover'), 'Course artwork must fill the media area cleanly');
 assert.ok(read('scss/mtpc.scss').includes('minmax(min(100%, 18rem), 22rem)'), 'Course grid must not overflow narrow tablet widths');
 assert.ok(read('scss/mtpc.scss').includes('height: 10rem'), 'Course artwork needs a smaller mobile height');
+assert.ok(!read('scss/mtpc.scss').includes('background-image: none !important;\n    opacity: 0;'), 'Dashboard must not hide real course artwork');
 assert.ok(read('scss/mtpc.scss').includes('min-width: 0'), 'Mobile course controls must be allowed to shrink');
 assert.ok(read('scss/mtpc.scss').includes('#page.drawers > .main-inner > .drawer-toggles'), 'Mobile drawer toggle selector must match Boost markup');
 assert.ok(read('scss/mtpc.scss').includes('position: fixed !important'), 'Mobile drawer toggle must stay anchored to the viewport');
@@ -51,6 +54,7 @@ assert.ok(read('javascript/mtpc-orb.js').includes('createBuffer(1, floats.length
 assert.ok(read('javascript/mtpc-orb.js').includes("VIEW_STORAGE_KEY = 'mtpcMoodleOrbViewV1:' + M.cfg.sesskey"), 'Orb view persistence must be scoped to the authenticated Moodle session');
 assert.ok(read('javascript/mtpc-orb.js').includes('restoreOrbView();'), 'Orb must restore its expanded conversation after navigation');
 assert.ok(read('javascript/mtpc-orb.js').includes("window.addEventListener('pagehide'"), 'Orb must save its current conversation before navigation');
+assert.ok(read('javascript/mtpc-orb.js').includes("document.body.classList.contains('notloggedin')"), 'Student Orb must not appear before Moodle login');
 assert.ok(!read('javascript/mtpc-orb.js').includes('speechSynthesis'), 'Moodle Orb must not use browser speech synthesis');
 assert.ok(!read('javascript/mtpc-orb.js').includes('SpeechRecognition'), 'Moodle Orb must not use browser speech recognition');
 assert.ok(read('scss/mtpc.scss').includes('@media (max-height: 650px)'), 'Expanded Orb must adapt to short and landscape viewports');
