@@ -23,7 +23,8 @@ assert.ok(read('scss/mtpc.scss').includes('.path-mod-forum'), 'Forum styles must
 assert.ok(read('scss/mtpc.scss').includes('background: var(--mtpc-green-900)'), 'Navbar must use a stable MTPC green surface');
 assert.ok(!read('scss/mtpc.scss').includes('linear-gradient'), 'Theme must avoid decorative gradients that make Moodle feel synthetic');
 assert.ok(read('classes/privacy/provider.php').includes('null_provider'), 'Theme privacy provider is missing');
-assert.match(read('version.php'), /\$plugin->version\s*=\s*2026090703;/, 'Theme version must be bumped for the Gemini Live Orb revision');
+assert.match(read('version.php'), /\$plugin->version\s*=\s*2026090704;/, 'Theme version must be bumped for the wider Gemini Live Orb workspace');
+assert.ok(read('scss/mtpc.scss').includes('width: min(72rem, calc(100vw - 2rem))'), 'Expanded Orb conversation workspace must use the available desktop width');
 assert.ok(read('scss/mtpc.scss').includes('.navbar.fixed-top.bg-white'), 'Navbar override must cover Boost white navbar state');
 assert.ok(read('scss/mtpc.scss').includes('.drawer-toggles .drawer-toggler .btn'), 'Drawer toggle needs an explicit light-surface style');
 assert.ok(read('scss/mtpc.scss').includes('grid-template-columns: repeat(auto-fill, minmax(18rem, 22rem))'), 'Dashboard cards must not stretch into a large empty panel');

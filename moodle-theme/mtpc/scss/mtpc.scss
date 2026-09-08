@@ -309,7 +309,7 @@ body.mtpc-orb-voice-active { overflow: hidden; }
     bottom: max(1rem, env(safe-area-inset-bottom));
     left: 50%;
     z-index: 3;
-    width: min(51.25rem, calc(100vw - 2rem));
+    width: min(72rem, calc(100vw - 2rem));
     height: min(20rem, 36vh);
     max-height: calc(100vh - 18rem);
     min-height: 15rem;
