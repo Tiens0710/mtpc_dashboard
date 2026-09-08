@@ -39,6 +39,7 @@
     var liveSocket = null, liveReady = false, liveConnecting = null, audioContext = null;
     var micStream = null, micSource = null, micProcessor = null, micAnalyser = null, voiceFrame = null, silentGain = null;
     var playbackCursor = 0, playbackSources = [], greetingSent = false;
+    var groundedTurn = {required: false, toolUsed: false, retryCount: 0, userText: ''};
     var drafts = {user: {text: '', node: null}, assistant: {text: '', node: null}};
     var VIEW_STORAGE_KEY = 'mtpcMoodleOrbViewV1:' + M.cfg.sesskey;
 
@@ -61,8 +62,8 @@
         'Luôn nói tiếng Việt tự nhiên, rõ dấu, thân thiện như một trợ lý nữ người Việt miền Nam. ' +
         'Trước khi phát âm, chuyển nội dung sang văn nói: câu ngắn, mỗi câu một ý, ngắt nghỉ tự nhiên, tốc độ vừa phải. ' +
         'Không đọc markdown, địa chỉ trang web, tên biến, mã kỹ thuật hoặc danh sách dài thành lời. Ưu tiên trả lời từ một đến ba câu. Không nhắc tên mô hình hay trạng thái kỹ thuật. ' +
-        'Phạm vi duy nhất của bạn là dữ liệu và các trang nằm trong Moodle đang mở. Không hỗ trợ website trường, tư vấn tuyển sinh, email, Zalo hoặc dịch vụ bên ngoài Moodle. Nếu học sinh hỏi ngoài phạm vi, nói ngắn rằng bạn chỉ hỗ trợ việc học trong Moodle. Mọi thông tin thực tế về khóa học, thông báo, lịch, bài tập, bài kiểm tra, điểm và tiến độ phải dựa trên kết quả công cụ vừa tra cứu; không suy đoán hoặc dùng trí nhớ hội thoại thay cho dữ liệu Moodle. Không tự hướng học sinh sang website bên ngoài, kể cả khi nội dung thông báo có nhắc đến website. ' +
-        'Chỉ dùng moodle_student_action để đọc các khóa học mà chính học sinh đang đăng nhập đã ghi danh. Dùng today_summary khi em hỏi hôm nay hoặc sắp tới cần làm gì; due_work cho bài sắp đến hạn hoặc quá hạn; progress_summary cho tiến độ; grades_summary cho tổng kết điểm; open_course khi em yêu cầu mở khóa học; open_activity khi em yêu cầu mở bài học, bài tập hoặc bài kiểm tra cụ thể. Các action mở trang chỉ được dùng với dữ liệu đã xác minh và không thay đổi Moodle. Chỉ nói đã mở hoặc đã chuyển trang khi kết quả công cụ có redirect_url. ' +
+        'Phạm vi duy nhất của bạn là dữ liệu và các trang nằm trong Moodle đang mở. Không hỗ trợ website trường, tư vấn tuyển sinh, email, Zalo hoặc dịch vụ bên ngoài Moodle. Nếu học sinh hỏi ngoài phạm vi, nói ngắn rằng bạn chỉ hỗ trợ việc học trong Moodle. Mỗi lượt người dùng, kể cả câu nối tiếp như “xem hết”, “mở nó” hoặc “còn gì nữa”, đều phải gọi moodle_student_action lại trước khi trả lời. Mọi thông tin thực tế về khóa học, thông báo, lịch, bài tập, bài kiểm tra, điểm và tiến độ phải dựa duy nhất trên kết quả công cụ của chính lượt hiện tại; không suy đoán hoặc dùng trí nhớ hội thoại thay cho dữ liệu Moodle. Không tự hướng học sinh sang website bên ngoài, kể cả khi nội dung thông báo có nhắc đến website. ' +
+        'Chỉ dùng moodle_student_action để đọc các khóa học mà chính học sinh đang đăng nhập đã ghi danh. Dùng announcements không kèm khóa học khi em muốn xem thông báo trong tất cả khóa học đã ghi danh. Dùng today_summary khi em hỏi hôm nay hoặc sắp tới cần làm gì; due_work cho bài sắp đến hạn hoặc quá hạn; progress_summary cho tiến độ; grades_summary cho tổng kết điểm; open_course khi em yêu cầu mở khóa học; open_activity khi em yêu cầu mở bài học, bài tập hoặc bài kiểm tra cụ thể. Các action mở trang chỉ được dùng với dữ liệu đã xác minh và không thay đổi Moodle. Chỉ nói đã mở hoặc đã chuyển trang khi kết quả công cụ có redirect_url. ' +
         'Ưu tiên tên tự nhiên và không tự đoán dữ liệu. Tuyệt đối không tạo, sửa, xóa, ghi danh, chấm điểm, gửi tin, xem người dùng khác hoặc dữ liệu của học sinh khác. ' +
         'Nếu được yêu cầu quản trị Moodle, giải thích ngắn rằng Orb học sinh chỉ có quyền tra cứu dữ liệu học tập của chính em.';
     var REALTIME_INPUT_CONFIG = {automaticActivityDetection: {disabled: false, startOfSpeechSensitivity: 'START_SENSITIVITY_LOW', endOfSpeechSensitivity: 'END_SENSITIVITY_LOW', prefixPaddingMs: 250, silenceDurationMs: 1400}};
@@ -142,6 +143,31 @@
         draft.node.querySelector('.mtpc-orb-message-text').textContent = draft.text;
         transcript.scrollTop = transcript.scrollHeight;
         if (finished) finishTranscript(role);
+    }
+    function beginGroundedTurn(text) {
+        groundedTurn.required = true;
+        groundedTurn.toolUsed = false;
+        groundedTurn.retryCount = 0;
+        groundedTurn.userText = String(text || '').trim();
+    }
+    function removeAssistantDraft() {
+        if (drafts.assistant.node && drafts.assistant.node.parentNode) drafts.assistant.node.parentNode.removeChild(drafts.assistant.node);
+        drafts.assistant = {text: '', node: null};
+    }
+    function retryUngroundedTurn() {
+        removeAssistantDraft();
+        if (!liveSocket || liveSocket.readyState !== WebSocket.OPEN) return;
+        if (groundedTurn.retryCount < 1) {
+            groundedTurn.retryCount += 1;
+            setState('thinking', 'Nhi đang kiểm tra lại trên Moodle');
+            liveSocket.send(JSON.stringify({clientContent: {turns: [{role: 'user', parts: [{text:
+                'Bắt buộc gọi moodle_student_action để kiểm tra Moodle cho yêu cầu vừa rồi trước khi trả lời. Không được trả lời từ lịch sử. Yêu cầu cần kiểm tra: ' + (groundedTurn.userText || 'yêu cầu vừa nói')
+            }]}], turnComplete: true}}));
+            return;
+        }
+        appendTranscript('assistant', 'Nhi chưa xác minh được dữ liệu này trên Moodle nên không muốn trả lời đoán. Em thử hỏi lại rõ tên khóa học hoặc nội dung cần xem nhé.', true);
+        groundedTurn = {required: false, toolUsed: false, retryCount: 0, userText: ''};
+        setState('listening', 'Nhi đang lắng nghe');
     }
     function persistOrbView(forceOpen) {
         try {
@@ -257,16 +283,27 @@
     }
     function handleLive(message) {
         if (message.error) { console.error('[MTPC_MOODLE_GEMINI_LIVE]', message.error); setState('idle', 'Nhi đang bận · em thử lại nhé'); return; }
-        if (message.toolCall && message.toolCall.functionCalls) { setState('thinking', 'Nhi đang tra cứu Moodle'); sendToolResponses(message.toolCall.functionCalls); return; }
+        if (message.toolCall && message.toolCall.functionCalls) { groundedTurn.toolUsed = true; setState('thinking', 'Nhi đang tra cứu Moodle'); sendToolResponses(message.toolCall.functionCalls); return; }
         var content = message.serverContent; if (!content) return;
         var inputTranscription = content.inputTranscription || {}, outputTranscription = content.outputTranscription || {};
-        if (inputTranscription.text) appendTranscript('user', inputTranscription.text, Boolean(inputTranscription.finished));
+        if (inputTranscription.text) {
+            if (!groundedTurn.required) beginGroundedTurn(inputTranscription.text);
+            else groundedTurn.userText = mergeTranscript(groundedTurn.userText, inputTranscription.text);
+            appendTranscript('user', inputTranscription.text, Boolean(inputTranscription.finished));
+        }
         if (inputTranscription.finished) finishTranscript('user');
-        if (outputTranscription.text) appendTranscript('assistant', outputTranscription.text, Boolean(outputTranscription.finished));
-        if (outputTranscription.finished) finishTranscript('assistant');
+        var mayAnswer = !groundedTurn.required || groundedTurn.toolUsed;
+        if (mayAnswer && outputTranscription.text) appendTranscript('assistant', outputTranscription.text, Boolean(outputTranscription.finished));
+        if (mayAnswer && outputTranscription.finished) finishTranscript('assistant');
         var parts = content.modelTurn && content.modelTurn.parts ? content.modelTurn.parts : [];
-        parts.forEach(function(part) { if (part.inlineData && part.inlineData.data) playAudio(part.inlineData.data); if (part.text && !outputTranscription.text) appendTranscript('assistant', part.text, false); });
-        if (content.turnComplete) { finishTranscript('user'); finishTranscript('assistant'); if (!playbackSources.length) setState('listening', 'Nhi đang lắng nghe'); }
+        if (mayAnswer) parts.forEach(function(part) { if (part.inlineData && part.inlineData.data) playAudio(part.inlineData.data); if (part.text && !outputTranscription.text) appendTranscript('assistant', part.text, false); });
+        if (content.turnComplete) {
+            finishTranscript('user');
+            if (groundedTurn.required && !groundedTurn.toolUsed) { retryUngroundedTurn(); return; }
+            finishTranscript('assistant');
+            groundedTurn = {required: false, toolUsed: false, retryCount: 0, userText: ''};
+            if (!playbackSources.length) setState('listening', 'Nhi đang lắng nghe');
+        }
     }
 
     function connectLive() {
@@ -284,7 +321,9 @@
                 liveSocket.addEventListener('open', function() { liveSocket.send(JSON.stringify({setup: {
                     model: 'models/' + (token.model || 'gemini-3.1-flash-live-preview'),
                     generationConfig: {responseModalities: ['AUDIO'], speechConfig: {voiceConfig: {prebuiltVoiceConfig: {voiceName: token.voice || 'Zephyr'}}}},
-                    realtimeInputConfig: REALTIME_INPUT_CONFIG, tools: STUDENT_TOOLS, inputAudioTranscription: {}, outputAudioTranscription: {}, sessionResumption: {},
+                    realtimeInputConfig: REALTIME_INPUT_CONFIG, tools: STUDENT_TOOLS,
+                    toolConfig: {functionCallingConfig: {mode: 'VALIDATED', allowedFunctionNames: ['moodle_student_action']}},
+                    inputAudioTranscription: {}, outputAudioTranscription: {}, sessionResumption: {},
                     systemInstruction: {parts: [{text: LIVE_SYSTEM_INSTRUCTION}]}
                 }})); });
                 liveSocket.addEventListener('message', function(event) { readSocket(event.data, function(raw) {
@@ -300,19 +339,13 @@
                 liveSocket.addEventListener('close', function() { liveReady = false; liveSocket = null; stopMic(); if (root.classList.contains('is-voice-open')) setState('idle', 'Kết nối đã đóng · chạm Orb để thử lại'); });
             }); })
             .then(function() { return startMic().catch(function(error) { console.warn('[MTPC_MOODLE_MIC_FALLBACK]', error); setState('idle', 'Em có thể nhập yêu cầu bằng văn bản'); return true; }); })
-            .then(function() {
-                if (!greetingSent && liveSocket && liveSocket.readyState === WebSocket.OPEN) {
-                    greetingSent = true;
-                    liveSocket.send(JSON.stringify({clientContent: {turns: [{role: 'user', parts: [{text: 'Hãy chào học sinh bằng đúng một câu tiếng Việt ngắn, ấm áp và tự nhiên. Nói rằng bạn sẵn sàng hỗ trợ tra cứu việc học trên Moodle. Không nhắc tên mô hình hoặc trạng thái kỹ thuật.'}]}], turnComplete: true}}));
-                }
-                return true;
-            }).finally(function() { liveConnecting = null; });
+            .then(function() { return true; }).finally(function() { liveConnecting = null; });
         return liveConnecting;
     }
 
     function sendText() {
         var text = String(input.value || '').trim(); if (!text || send.disabled) return;
-        input.value = ''; input.disabled = true; send.disabled = true; appendTranscript('user', text, true); setState('thinking', 'Nhi đang xử lý');
+        input.value = ''; input.disabled = true; send.disabled = true; appendTranscript('user', text, true); beginGroundedTurn(text); setState('thinking', 'Nhi đang xử lý');
         getAudioContext().resume().catch(function() {});
         connectLive().then(function() {
             if (!liveSocket || liveSocket.readyState !== WebSocket.OPEN) throw new Error('Live socket unavailable');
@@ -323,6 +356,10 @@
     }
     function openOrb(focusInput) {
         root.classList.add('is-voice-open'); document.body.classList.add('mtpc-orb-voice-active'); launch.setAttribute('aria-expanded', 'true'); chatToggle.setAttribute('aria-expanded', 'true');
+        if (!greetingSent) {
+            greetingSent = true;
+            appendTranscript('assistant', 'Chào em! Nhi sẵn sàng hỗ trợ tra cứu việc học của em trên Moodle.', true);
+        }
         getAudioContext().resume().catch(function() {});
         connectLive().catch(function(error) { console.error('[MTPC_MOODLE_GEMINI_LIVE]', error); setState('idle', 'Nhi chưa kết nối được · em thử lại nhé'); });
         if (focusInput) window.setTimeout(function() { input.focus(); }, 0);

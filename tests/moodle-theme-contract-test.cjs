@@ -23,7 +23,7 @@ assert.ok(read('scss/mtpc.scss').includes('.path-mod-forum'), 'Forum styles must
 assert.ok(read('scss/mtpc.scss').includes('background: var(--mtpc-green-900)'), 'Navbar must use a stable MTPC green surface');
 assert.ok(!read('scss/mtpc.scss').includes('linear-gradient'), 'Theme must avoid decorative gradients that make Moodle feel synthetic');
 assert.ok(read('classes/privacy/provider.php').includes('null_provider'), 'Theme privacy provider is missing');
-assert.match(read('version.php'), /\$plugin->version\s*=\s*2026090709;/, 'Theme version must be bumped for the taller Moodle-only Orb');
+assert.match(read('version.php'), /\$plugin->version\s*=\s*2026090710;/, 'Theme version must be bumped for grounded Moodle Orb responses');
 assert.ok(read('scss/mtpc.scss').includes('#page-login-index .login-container'), 'Login page needs a branded, bounded form surface');
 assert.ok(read('scss/mtpc.scss').includes('#page-login-index .login-layout-left::after'), 'Login page must remove the generic AI-image caption');
 assert.ok(read('scss/mtpc.scss').includes('width: min(46rem, calc(100vw - 2rem))'), 'Expanded Orb must use a focused reading width instead of stretching across the page');
@@ -57,6 +57,9 @@ assert.ok(read('javascript/mtpc-orb.js').includes('restoreOrbView();'), 'Orb mus
 assert.ok(read('javascript/mtpc-orb.js').includes("window.addEventListener('pagehide'"), 'Orb must save its current conversation before navigation');
 assert.ok(read('javascript/mtpc-orb.js').includes("document.body.classList.contains('notloggedin')"), 'Student Orb must not appear before Moodle login');
 assert.ok(read('javascript/mtpc-orb.js').includes('Phạm vi duy nhất của bạn là dữ liệu và các trang nằm trong Moodle đang mở'), 'Live Orb must remain strictly within Moodle');
+assert.ok(read('javascript/mtpc-orb.js').includes("mode: 'VALIDATED'"), 'Live Orb must validate Moodle tool calls');
+assert.ok(read('javascript/mtpc-orb.js').includes('retryUngroundedTurn'), 'Live Orb must block and retry ungrounded responses');
+assert.ok(read('javascript/mtpc-orb.js').includes('groundedTurn.toolUsed = true'), 'Live Orb must record a verified Moodle lookup before answering');
 assert.ok(!read('javascript/mtpc-orb.js').includes('speechSynthesis'), 'Moodle Orb must not use browser speech synthesis');
 assert.ok(!read('javascript/mtpc-orb.js').includes('SpeechRecognition'), 'Moodle Orb must not use browser speech recognition');
 assert.ok(read('scss/mtpc.scss').includes('@media (max-height: 650px)'), 'Expanded Orb must adapt to short and landscape viewports');

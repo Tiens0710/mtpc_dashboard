@@ -226,6 +226,42 @@ function mtpc_moodle_orb_grades_summary($course) {
     return array('course' => $course, 'course_grade' => $coursegrade, 'graded_count' => $graded, 'ungraded_count' => max(0, count($items) - $graded), 'items' => array_slice($items, 0, 30));
 }
 
+function mtpc_moodle_orb_all_announcements($args, $operator, $sessioncourses) {
+    $limit = isset($args['count']) ? max(1, min(50, (int)$args['count'])) : 20;
+    $items = array();
+    foreach ($sessioncourses as $course) {
+        try {
+            $courseargs = $args;
+            $courseargs['action'] = 'announcements';
+            $courseargs['course_id'] = (int)$course['id'];
+            $courseargs['count'] = $limit;
+            $result = mtpc_orb_agent_moodle_student_tool($courseargs, $operator, $course);
+            foreach ((array)(isset($result['announcements']) ? $result['announcements'] : array()) as $announcement) {
+                if (!is_array($announcement)) continue;
+                $announcement['course_id'] = (int)$course['id'];
+                $announcement['course_name'] = isset($course['fullname']) ? $course['fullname'] : '';
+                $items[] = $announcement;
+            }
+        } catch (Throwable $error) {
+            // A course without a visible announcements forum contributes no rows.
+        }
+    }
+    usort($items, function($left, $right) {
+        $time = function($row) {
+            foreach (array('timemodified', 'timecreated', 'created', 'modified') as $key) if (isset($row[$key])) return (int)$row[$key];
+            return 0;
+        };
+        return $time($right) <=> $time($left);
+    });
+    return array(
+        'scope' => 'all_enrolled_courses',
+        'verified_at' => time(),
+        'enrolled_course_count' => count($sessioncourses),
+        'announcement_count' => min(count($items), $limit),
+        'announcements' => array_slice($items, 0, $limit),
+    );
+}
+
 function mtpc_moodle_orb_execute_student_tool($args, $operator, $sessioncourses) {
     global $CFG;
     $action = isset($args['action']) ? (string)$args['action'] : 'status';
@@ -236,6 +272,9 @@ function mtpc_moodle_orb_execute_student_tool($args, $operator, $sessioncourses)
         $due = mtpc_moodle_orb_due_work($selected, isset($args['days']) ? (int)$args['days'] : ($action === 'today_summary' ? 7 : 14));
         if ($action === 'today_summary') $due['enrolled_course_count'] = count($sessioncourses);
         return $due;
+    }
+    if ($action === 'announcements' && empty($args['course_id']) && trim(isset($args['course_name']) ? (string)$args['course_name'] : '') === '') {
+        return mtpc_moodle_orb_all_announcements($args, $operator, $sessioncourses);
     }
     $needscourse = array('open_course','open_activity','progress_summary','grades_summary','course_contents','assignments','assignment','quizzes','grades','quiz_attempts','quiz_grades','course_completion','activity_completion','forums','announcements','calendar_events');
     $verifiedcourse = in_array($action, $needscourse, true) ? mtpc_moodle_orb_course_from_session($args, $sessioncourses) : null;
@@ -256,7 +295,7 @@ function mtpc_moodle_orb_execute_student_tool($args, $operator, $sessioncourses)
     return mtpc_orb_agent_moodle_student_tool($args, $operator, $verifiedcourse);
 }
 
-function mtpc_moodle_orb_call_gemini($contents) {
+function mtpc_moodle_orb_call_gemini($contents, $requiretool = false) {
     $key = getenv('GEMINI_API_KEY');
     $path = '/home/mtpc/private/gemini-config.php';
     if (!$key && is_file($path)) {
@@ -267,7 +306,7 @@ function mtpc_moodle_orb_call_gemini($contents) {
 
     $system = 'Bạn là Nhi, trợ lý học tập đang trò chuyện trực tiếp trong Moodle với một học sinh. '
         . 'Chỉ dùng công cụ moodle_student_action để tra cứu các khóa học mà chính học sinh đã ghi danh, nội dung bài học, bài tập, bài kiểm tra, điểm, tiến độ, thông báo, diễn đàn và lịch của chính em. '
-        . 'Phạm vi duy nhất là dữ liệu và các trang trong Moodle đang mở. Không hỗ trợ website trường, tư vấn tuyển sinh, email, Zalo hoặc dịch vụ bên ngoài Moodle. Mọi thông tin thực tế phải dựa trên kết quả công cụ vừa tra cứu; không suy đoán, không dùng trí nhớ hội thoại thay cho dữ liệu Moodle và không tự hướng học sinh sang website bên ngoài. '
+        . 'Phạm vi duy nhất là dữ liệu và các trang trong Moodle đang mở. Không hỗ trợ website trường, tư vấn tuyển sinh, email, Zalo hoặc dịch vụ bên ngoài Moodle. Mỗi lượt, kể cả câu nối tiếp như “xem hết”, phải gọi công cụ lại. Mọi thông tin thực tế phải dựa duy nhất trên kết quả công cụ của lượt hiện tại; không suy đoán, không dùng trí nhớ hội thoại thay cho dữ liệu Moodle và không tự hướng học sinh sang website bên ngoài. '
         . 'Dùng today_summary khi học sinh hỏi hôm nay hoặc sắp tới cần làm gì; due_work cho bài sắp đến hạn hoặc quá hạn; progress_summary cho tiến độ; grades_summary cho tổng kết điểm; open_activity khi học sinh yêu cầu mở một bài học, bài tập hoặc bài kiểm tra cụ thể. Chỉ nói đã mở hoặc đã chuyển trang khi kết quả công cụ trả về redirect_url. '
         . 'Tuyệt đối không tạo, sửa, xóa, ghi danh, chấm điểm, gửi tin, xem danh sách người dùng hoặc xem dữ liệu của học sinh khác. Nếu được yêu cầu điều khiển Moodle, hãy nói rõ Orb học sinh chỉ có quyền đọc.';
     $payload = array(
@@ -278,6 +317,12 @@ function mtpc_moodle_orb_call_gemini($contents) {
         'tools' => array(array('functionDeclarations' => array(mtpc_moodle_orb_tool()))),
         'generationConfig' => array('maxOutputTokens' => 700, 'temperature' => 0.2),
     );
+    if ($requiretool) {
+        $payload['toolConfig'] = array('functionCallingConfig' => array(
+            'mode' => 'ANY',
+            'allowedFunctionNames' => array('moodle_student_action'),
+        ));
+    }
     $curl = curl_init('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent');
     curl_setopt_array($curl, array(
         CURLOPT_POST => true,
@@ -351,7 +396,7 @@ try {
     $contents = mtpc_moodle_orb_history();
     $contents[] = array('role' => 'user', 'parts' => array(array('text' => mtpc_zalo_admin_text($text, 4000))));
     for ($round = 0; $round < 3; $round++) {
-        $content = mtpc_moodle_orb_call_gemini($contents);
+        $content = mtpc_moodle_orb_call_gemini($contents, $round === 0);
         $contents[] = $content;
         $calls = array();
         $reply = '';

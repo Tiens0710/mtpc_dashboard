@@ -58,7 +58,7 @@ assert.ok(index.includes('mtpcResolveMoodleEvent'), 'Natural Moodle event lookup
 assert.ok(index.includes('assignment_name'), 'Moodle schema should accept assignment names');
 assert.ok(index.includes('user_query'), 'Moodle schema should accept natural user queries');
 assert.ok(index.includes('ai-file-chat.js?v=20260905-3'), 'AI file adapter cache version is stale');
-assert.ok(version.includes('$plugin->version = 2026090708;'), 'Plugin version was not bumped');
+assert.ok(version.includes('$plugin->version = 2026090709;'), 'Plugin version was not bumped');
 assert.ok(upgrade.includes('upgrade_plugin_savepoint(true, 2026090601'), 'Moodle announcement upgrade is missing');
 assert.ok(themeConfig.includes("$THEME->javascripts_footer = array('mtpc-orb');"), 'Moodle theme does not load the Orb widget');
 assert.ok(orbJs.includes('moodle-orb.php'), 'Moodle Orb widget is missing its server endpoint');
@@ -92,6 +92,8 @@ assert.ok(orbEndpoint.includes("$role = 'student'"), 'Moodle Orb endpoint must a
 assert.ok(orbEndpoint.includes('moodle_student_action'), 'Moodle Orb endpoint is missing the student-safe tool');
 assert.ok(orbEndpoint.includes('enrol_get_all_users_courses'), 'Moodle Orb must resolve enrolled courses from the authenticated Moodle session');
 assert.ok(orbEndpoint.includes('mtpc_moodle_orb_course_from_session'), 'Moodle Orb must validate requested courses against the current Moodle session');
+assert.ok(orbEndpoint.includes('mtpc_moodle_orb_all_announcements'), 'Moodle Orb must ground cross-course announcement questions');
+assert.ok(orbEndpoint.includes("'mode' => 'ANY'"), 'Text fallback must require a Moodle tool call before answering');
 assert.ok(!orbEndpoint.includes("mtpc_moodle_orb_tool($student)"), 'Moodle Orb endpoint must not expose the admin Moodle tool');
 assert.ok(orbAgent.includes('function mtpc_orb_agent_moodle_student_tool'), 'Shared Orb agent is missing the student-safe Moodle tool');
 assert.ok(orbAgent.includes('$verifiedCourse = null'), 'Student Moodle tool must accept a server-verified enrolled course');
