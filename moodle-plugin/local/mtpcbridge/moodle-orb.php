@@ -99,10 +99,19 @@ function mtpc_moodle_orb_courses_reply($courses) {
 }
 
 function mtpc_moodle_orb_execute_student_tool($args, $operator, $sessioncourses) {
+    global $CFG;
     $action = isset($args['action']) ? (string)$args['action'] : 'status';
     if ($action === 'courses') return array('courses' => $sessioncourses);
-    $needscourse = array('course_contents','assignments','assignment','quizzes','grades','quiz_attempts','quiz_grades','course_completion','activity_completion','forums','announcements','calendar_events');
+    $needscourse = array('open_course','course_contents','assignments','assignment','quizzes','grades','quiz_attempts','quiz_grades','course_completion','activity_completion','forums','announcements','calendar_events');
     $verifiedcourse = in_array($action, $needscourse, true) ? mtpc_moodle_orb_course_from_session($args, $sessioncourses) : null;
+    if ($action === 'open_course') {
+        return array(
+            'ok' => true,
+            'open_course' => true,
+            'course' => $verifiedcourse,
+            'redirect_url' => rtrim($CFG->wwwroot, '/') . '/course/view.php?id=' . (int)$verifiedcourse['id'],
+        );
+    }
     return mtpc_orb_agent_moodle_student_tool($args, $operator, $verifiedcourse);
 }
 

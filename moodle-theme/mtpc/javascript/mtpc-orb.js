@@ -44,7 +44,7 @@
         name: 'moodle_student_action',
         description: 'Tra cứu dữ liệu Moodle chỉ thuộc tài khoản học sinh đang đăng nhập. Công cụ chỉ đọc, không quản trị hoặc thay đổi dữ liệu.',
         parameters: {type: 'OBJECT', properties: {
-            action: {type: 'STRING', enum: ['status', 'courses', 'course_contents', 'assignments', 'assignment', 'quizzes', 'grades', 'quiz_attempts', 'quiz_grades', 'course_completion', 'activity_completion', 'forums', 'announcements', 'calendar_events']},
+            action: {type: 'STRING', enum: ['status', 'courses', 'open_course', 'course_contents', 'assignments', 'assignment', 'quizzes', 'grades', 'quiz_attempts', 'quiz_grades', 'course_completion', 'activity_completion', 'forums', 'announcements', 'calendar_events']},
             course_name: {type: 'STRING', description: 'Tên tự nhiên của khóa học mà học sinh đã ghi danh.'},
             course_id: {type: 'INTEGER'}, assignment_name: {type: 'STRING'}, assignment_id: {type: 'INTEGER'},
             quiz_name: {type: 'STRING'}, quiz_id: {type: 'INTEGER'}, activity_name: {type: 'STRING'},
@@ -57,7 +57,7 @@
         'Luôn nói tiếng Việt tự nhiên, rõ dấu, thân thiện như một trợ lý nữ người Việt miền Nam. ' +
         'Trước khi phát âm, chuyển nội dung sang văn nói: câu ngắn, mỗi câu một ý, ngắt nghỉ tự nhiên, tốc độ vừa phải. ' +
         'Không đọc markdown, địa chỉ trang web, tên biến, mã kỹ thuật hoặc danh sách dài thành lời. Ưu tiên trả lời từ một đến ba câu. Không nhắc tên mô hình hay trạng thái kỹ thuật. ' +
-        'Chỉ dùng moodle_student_action để đọc các khóa học mà chính học sinh đang đăng nhập đã ghi danh, bài học, bài tập, bài kiểm tra, điểm, tiến độ, thông báo, diễn đàn và lịch của chính em. ' +
+        'Chỉ dùng moodle_student_action để đọc các khóa học mà chính học sinh đang đăng nhập đã ghi danh, hoặc dùng action open_course khi em yêu cầu vào/mở một khóa học; action này chỉ chuyển trang tới khóa học đã ghi danh, không thay đổi dữ liệu. ' +
         'Ưu tiên tên tự nhiên và không tự đoán dữ liệu. Tuyệt đối không tạo, sửa, xóa, ghi danh, chấm điểm, gửi tin, xem người dùng khác hoặc dữ liệu của học sinh khác. ' +
         'Nếu được yêu cầu quản trị Moodle, giải thích ngắn rằng Orb học sinh chỉ có quyền tra cứu dữ liệu học tập của chính em.';
     var REALTIME_INPUT_CONFIG = {automaticActivityDetection: {disabled: false, startOfSpeechSensitivity: 'START_SENSITIVITY_LOW', endOfSpeechSensitivity: 'END_SENSITIVITY_LOW', prefixPaddingMs: 250, silenceDurationMs: 1400}};
@@ -201,7 +201,12 @@
             var args = {};
             try { args = typeof call.args === 'string' ? JSON.parse(call.args) : call.args || {}; }
             catch (error) { return {id: call.id, name: call.name, response: {result: {ok: false, error: 'Tham số công cụ không hợp lệ.'}}}; }
-            return runStudentTool(call.name, args).then(function(result) { return {id: call.id, name: call.name, response: {result: result}}; })
+            return runStudentTool(call.name, args).then(function(result) {
+                if (result && result.open_course && result.redirect_url) {
+                    window.setTimeout(function() { window.location.assign(result.redirect_url); }, 250);
+                }
+                return {id: call.id, name: call.name, response: {result: result}};
+            })
                 .catch(function(error) { return {id: call.id, name: call.name, response: {result: {ok: false, error: error.message || 'Không thể tra cứu Moodle.'}}}; });
         })).then(function(functionResponses) {
             if (liveSocket && liveSocket.readyState === WebSocket.OPEN) liveSocket.send(JSON.stringify({toolResponse: {functionResponses: functionResponses}}));
