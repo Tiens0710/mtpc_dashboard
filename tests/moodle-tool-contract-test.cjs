@@ -58,7 +58,7 @@ assert.ok(index.includes('mtpcResolveMoodleEvent'), 'Natural Moodle event lookup
 assert.ok(index.includes('assignment_name'), 'Moodle schema should accept assignment names');
 assert.ok(index.includes('user_query'), 'Moodle schema should accept natural user queries');
 assert.ok(index.includes('ai-file-chat.js?v=20260905-3'), 'AI file adapter cache version is stale');
-assert.ok(version.includes('$plugin->version = 2026090707;'), 'Plugin version was not bumped');
+assert.ok(version.includes('$plugin->version = 2026090708;'), 'Plugin version was not bumped');
 assert.ok(upgrade.includes('upgrade_plugin_savepoint(true, 2026090601'), 'Moodle announcement upgrade is missing');
 assert.ok(themeConfig.includes("$THEME->javascripts_footer = array('mtpc-orb');"), 'Moodle theme does not load the Orb widget');
 assert.ok(orbJs.includes('moodle-orb.php'), 'Moodle Orb widget is missing its server endpoint');
@@ -84,6 +84,7 @@ assert.ok(orbEndpoint.includes("$action === 'open_activity'"), 'Moodle Orb endpo
 assert.ok(orbEndpoint.includes('get_fast_modinfo'), 'Moodle Orb learning tools must enforce Moodle activity visibility');
 assert.ok(orbEndpoint.includes("gg.userid = :userid"), 'Moodle Orb grades must be restricted to the current user');
 assert.ok(orbEndpoint.includes('gi.hidden = 0'), 'Moodle Orb must not expose hidden grade items');
+assert.ok(orbEndpoint.includes('Phạm vi duy nhất là dữ liệu và các trang trong Moodle đang mở'), 'Moodle text fallback must remain strictly within Moodle');
 assert.ok(orbLiveToken.includes('require_login()'), 'Moodle Live token endpoint must require an authenticated user');
 assert.ok(orbLiveToken.includes('require_sesskey()'), 'Moodle Live token endpoint must verify the Moodle session key');
 assert.ok(orbLiveToken.includes('v1beta/auth_tokens'), 'Moodle Live token endpoint must issue constrained Gemini tokens');

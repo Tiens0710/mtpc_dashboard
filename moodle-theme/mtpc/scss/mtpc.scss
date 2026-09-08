@@ -373,10 +373,10 @@ a:hover { color: var(--mtpc-green-900); }
     bottom: max(1rem, env(safe-area-inset-bottom));
     left: 50%;
     z-index: 3;
-    width: min(72rem, calc(100vw - 2rem));
-    height: min(20rem, 36vh);
-    max-height: calc(100vh - 18rem);
-    min-height: 15rem;
+    width: min(46rem, calc(100vw - 2rem));
+    height: min(30rem, 52vh);
+    max-height: calc(100vh - 14rem);
+    min-height: 22rem;
     box-sizing: border-box;
     flex-direction: column;
     gap: 0;
@@ -1212,9 +1212,9 @@ a:hover { color: var(--mtpc-green-900); }
     .mtpc-orb.is-voice-open .mtpc-orb-voice-copy {
         bottom: max(.6rem, env(safe-area-inset-bottom));
         width: calc(100vw - 1rem);
-        height: min(22rem, 46vh);
-        max-height: calc(100vh - 12.5rem);
-        min-height: 13rem;
+        height: min(28rem, 56vh);
+        max-height: calc(100vh - 10.5rem);
+        min-height: 16rem;
         border-radius: 1rem;
     }
     .mtpc-orb-voice-head { padding: .65rem .75rem; }
