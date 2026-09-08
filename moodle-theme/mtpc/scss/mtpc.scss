@@ -90,7 +90,6 @@ a:hover { color: var(--mtpc-green-900); }
     font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 .mtpc-orb [hidden] { display: none !important; }
-body.mtpc-orb-voice-active { overflow: hidden; }
 .mtpc-orb-backdrop,
 .mtpc-orb-voice-copy,
 .mtpc-orb-voice-close { display: none; }
@@ -286,8 +285,10 @@ body.mtpc-orb-voice-active { overflow: hidden; }
     position: fixed;
     inset: 0;
     z-index: 1;
-    background: rgba(2, 37, 22, .52);
-    backdrop-filter: blur(8px);
+    background: rgba(2, 37, 22, .12);
+    backdrop-filter: blur(1.5px);
+    -webkit-backdrop-filter: blur(1.5px);
+    pointer-events: none;
 }
 .mtpc-orb.is-voice-open .mtpc-orb-launch.ai-orb-stage {
     position: fixed;
@@ -319,7 +320,7 @@ body.mtpc-orb-voice-active { overflow: hidden; }
     overflow: hidden;
     border: 1px solid rgba(191, 238, 202, .58);
     border-radius: 1.35rem;
-    background: rgba(4, 51, 27, .62);
+    background: rgba(4, 51, 27, .54);
     box-shadow: 0 18px 48px rgba(0, 39, 18, .2);
     color: #effff3;
     transform: translateX(-50%);

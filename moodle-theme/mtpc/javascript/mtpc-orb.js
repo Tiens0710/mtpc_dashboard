@@ -16,7 +16,7 @@
                 '<span class="ai-orb-eq"><i class="ai-eq-bar"></i><i class="ai-eq-bar"></i><i class="ai-eq-bar"></i><i class="ai-eq-bar"></i><i class="ai-eq-bar"></i><i class="ai-eq-bar"></i><i class="ai-eq-bar"></i></span>' +
                 '<span class="ai-orb-core"></span></span>' +
         '</button>' +
-        '<div class="mtpc-orb-voice-copy" id="mtpcOrbVoiceStage" role="dialog" aria-modal="true" aria-label="Trò chuyện với Nhi">' +
+        '<div class="mtpc-orb-voice-copy" id="mtpcOrbVoiceStage" role="dialog" aria-modal="false" aria-label="Trò chuyện với Nhi">' +
             '<div class="mtpc-orb-voice-head"><div><strong>Nhi · Trợ lý học tập</strong><p id="mtpcOrbVoiceStatus" role="status">Chạm Orb để bắt đầu nói</p></div></div>' +
             '<div class="mtpc-orb-voice-transcript" aria-live="polite" aria-label="Nội dung cuộc trò chuyện"></div>' +
             '<form class="mtpc-orb-voice-form"><label class="sr-only" for="mtpcOrbVoiceInput">Nhập yêu cầu cho Nhi</label>' +
@@ -39,6 +39,7 @@
     var micStream = null, micSource = null, micProcessor = null, micAnalyser = null, voiceFrame = null, silentGain = null;
     var playbackCursor = 0, playbackSources = [], greetingSent = false;
     var drafts = {user: {text: '', node: null}, assistant: {text: '', node: null}};
+    var VIEW_STORAGE_KEY = 'mtpcMoodleOrbViewV1:' + M.cfg.sesskey;
 
     var STUDENT_TOOLS = [{functionDeclarations: [{
         name: 'moodle_student_action',
@@ -140,6 +141,39 @@
         transcript.scrollTop = transcript.scrollHeight;
         if (finished) finishTranscript(role);
     }
+    function persistOrbView(forceOpen) {
+        try {
+            var messages = Array.prototype.slice.call(transcript.querySelectorAll('.mtpc-orb-message:not(.is-draft)')).slice(-12).map(function(node) {
+                var content = node.querySelector('.mtpc-orb-message-text');
+                return {role: node.classList.contains('user') ? 'user' : 'assistant', text: String(content ? content.textContent : '').slice(0, 2000)};
+            }).filter(function(message) { return message.text !== ''; });
+            window.sessionStorage.setItem(VIEW_STORAGE_KEY, JSON.stringify({
+                open: forceOpen === true || root.classList.contains('is-voice-open'),
+                messages: messages,
+                savedAt: Date.now()
+            }));
+        } catch (error) {}
+    }
+    function restoreOrbView() {
+        var saved;
+        try { saved = JSON.parse(window.sessionStorage.getItem(VIEW_STORAGE_KEY) || 'null'); }
+        catch (error) { window.sessionStorage.removeItem(VIEW_STORAGE_KEY); return; }
+        if (!saved || !saved.open || !saved.savedAt || Date.now() - saved.savedAt > 15 * 60 * 1000) {
+            window.sessionStorage.removeItem(VIEW_STORAGE_KEY);
+            return;
+        }
+        (Array.isArray(saved.messages) ? saved.messages : []).forEach(function(message) {
+            if (!message || (message.role !== 'user' && message.role !== 'assistant')) return;
+            appendTranscript(message.role, String(message.text || '').slice(0, 2000), true);
+        });
+        greetingSent = Boolean(saved.messages && saved.messages.length);
+        root.classList.add('is-voice-open');
+        document.body.classList.add('mtpc-orb-voice-active');
+        launch.setAttribute('aria-expanded', 'true');
+        chatToggle.setAttribute('aria-expanded', 'true');
+        setState('idle', 'Đã mở trang mới · nhập hoặc chạm Orb để tiếp tục');
+        transcript.scrollTop = transcript.scrollHeight;
+    }
 
     function meter(analyser) {
         if (voiceFrame) window.cancelAnimationFrame(voiceFrame);
@@ -208,6 +242,7 @@
                     var base = new URL(M.cfg.wwwroot.replace(/\/$/, '') + '/');
                     var target = new URL(result.redirect_url, base);
                     if (target.origin === base.origin && target.pathname.indexOf(base.pathname) === 0) {
+                        persistOrbView(true);
                         window.setTimeout(function() { window.location.assign(target.href); }, 350);
                     }
                 }
@@ -294,6 +329,7 @@
         stopMic(); liveReady = false; playbackSources.forEach(function(source) { try { source.stop(); } catch (error) {} }); playbackSources = []; playbackCursor = 0;
         if (liveSocket) { try { liveSocket.close(); } catch (error) {} liveSocket = null; }
         root.classList.remove('is-voice-open'); document.body.classList.remove('mtpc-orb-voice-active'); launch.setAttribute('aria-expanded', 'false'); chatToggle.setAttribute('aria-expanded', 'false');
+        try { window.sessionStorage.removeItem(VIEW_STORAGE_KEY); } catch (error) {}
         setState('idle', 'Chạm Orb để bắt đầu nói'); launch.focus();
     }
 
@@ -302,4 +338,6 @@
     closeButton.addEventListener('click', closeLive);
     form.addEventListener('submit', function(event) { event.preventDefault(); sendText(); });
     document.addEventListener('keydown', function(event) { if (event.key === 'Escape' && root.classList.contains('is-voice-open')) closeLive(); });
+    window.addEventListener('pagehide', function() { if (root.classList.contains('is-voice-open')) persistOrbView(true); });
+    restoreOrbView();
 }());
