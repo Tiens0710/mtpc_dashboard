@@ -23,7 +23,7 @@ const apiActions = [
   'course-completion', 'activity-completion',
   'groups', 'calendar-events', 'post-lecture', 'post-lecture-file',
   'post-announcement', 'delete-announcements', 'create-assignment', 'create-quiz', 'manage-activity',
-  'save-grade', 'bulk-save-grades', 'create-group', 'add-group-member',
+  'save-grade', 'bulk-save-grades', 'ai-grade-assignment', 'create-group', 'add-group-member',
   'remove-group-member', 'delete-group', 'create-calendar-event',
   'delete-calendar-event', 'send-message', 'create-course', 'update-course',
   'delete-course', 'create-user', 'update-user', 'delete-user',
@@ -55,10 +55,16 @@ assert.ok(index.includes('mtpcResolveMoodleGroup'), 'Natural Moodle group lookup
 assert.ok(index.includes('mtpcResolveMoodleQuiz'), 'Natural Moodle quiz lookup is missing');
 assert.ok(index.includes('mtpcResolveMoodleActivity'), 'Natural Moodle activity lookup is missing');
 assert.ok(index.includes('mtpcResolveMoodleEvent'), 'Natural Moodle event lookup is missing');
+assert.ok(index.includes("'ai_grade_assignment'"), 'Admin Orb must expose AI grading drafts');
+assert.ok(index.includes("'create_online_class'"), 'Admin Orb must expose the Google Meet workflow');
+assert.ok(api.includes("$action === 'ai-grade-assignment'"), 'Moodle bridge must generate AI grading drafts');
+assert.ok(api.includes("'requires_teacher_review'=>true"), 'AI grades must require teacher review before saving');
+assert.ok(api.includes("'saved'=>false"), 'AI grading drafts must not silently write official grades');
 assert.ok(index.includes('assignment_name'), 'Moodle schema should accept assignment names');
 assert.ok(index.includes('user_query'), 'Moodle schema should accept natural user queries');
 assert.ok(index.includes('ai-file-chat.js?v=20260905-3'), 'AI file adapter cache version is stale');
-assert.ok(version.includes('$plugin->version = 2026090709;'), 'Plugin version was not bumped');
+assert.ok(version.includes('$plugin->version = 2026090901;'), 'Plugin version was not bumped');
+assert.ok(upgrade.includes('upgrade_plugin_savepoint(true, 2026090901'), 'AI grading service upgrade is missing');
 assert.ok(upgrade.includes('upgrade_plugin_savepoint(true, 2026090601'), 'Moodle announcement upgrade is missing');
 assert.ok(themeConfig.includes("$THEME->javascripts_footer = array('mtpc-orb');"), 'Moodle theme does not load the Orb widget');
 assert.ok(orbJs.includes('moodle-orb.php'), 'Moodle Orb widget is missing its server endpoint');

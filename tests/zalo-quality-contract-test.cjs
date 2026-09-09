@@ -37,6 +37,10 @@ assert.ok(agent.includes("'zalo_orb_agent_fast'"), 'Common Zalo commands do not 
 assert.ok(agent.includes('CURLOPT_TIMEOUT => 15'), 'Gemini timeout is too long for the Zalo webhook worker');
 assert.ok(agent.includes('$round<3'), 'Zalo agent can still hold the worker for too many Gemini rounds');
 assert.ok(agent.includes("$write && !$confirmed"), 'Moodle writes can bypass Zalo confirmation');
+assert.ok(oa.includes("$action === 'create-online-class'"), 'Google Meet to Moodle/Zalo workflow is missing');
+assert.ok(oa.includes('conferenceDataVersion=1'), 'Google Calendar event creation must enable Meet conference data');
+assert.ok(oa.includes("'hangoutsMeet'"), 'Online classes must request a Google Meet conference');
+assert.ok(oa.includes("'online_class_notification'"), 'Online class Zalo notifications must be audited');
 assert.ok(agent.includes('mtpc_orb_agent_group_identifier'), 'Follow-up Zalo group commands cannot resolve the only managed group');
 assert.ok(agent.includes('mtpc_orb_agent_plain_text'), 'Agent replies are not cleaned for Zalo plain-text rendering');
 

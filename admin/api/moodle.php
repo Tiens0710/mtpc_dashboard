@@ -37,7 +37,7 @@ $writePermissions = array(
     'create-group' => 'moodle.group.write', 'add-group-member' => 'moodle.group.write',
     'remove-group-member' => 'moodle.group.write', 'delete-group' => 'moodle.group.write',
     'create-calendar-event' => 'moodle.calendar.write', 'delete-calendar-event' => 'moodle.calendar.write',
-    'bulk-enrol' => 'moodle.write', 'bulk-save-grades' => 'moodle.grade.write', 'send-message' => 'moodle.message.write'
+    'bulk-enrol' => 'moodle.write', 'bulk-save-grades' => 'moodle.grade.write', 'ai-grade-assignment' => 'moodle.grade.write', 'send-message' => 'moodle.message.write'
 );
 mtpc_require_permission(isset($writePermissions[$action]) ? $writePermissions[$action] : 'moodle.read');
 
@@ -99,6 +99,35 @@ function mtpc_moodle_body()
 {
     $body = json_decode(file_get_contents('php://input'), true);
     return is_array($body) ? $body : array();
+}
+
+function mtpc_moodle_gemini_key()
+{
+    $key = getenv('GEMINI_API_KEY');
+    $path = '/home/mtpc/private/gemini-config.php';
+    if (!$key && is_file($path)) { require $path; $key = isset($GEMINI_API_KEY) ? $GEMINI_API_KEY : ''; }
+    if (!$key) throw new Exception('Máy chủ chưa cấu hình GEMINI_API_KEY.');
+    return trim((string)$key);
+}
+
+function mtpc_moodle_ai_grade($rows, $rubric, $maxScore)
+{
+    $system = 'Bạn là trợ lý chấm bài cho giáo viên. Chỉ đánh giá theo rubric được cung cấp và nội dung bài nộp. Không suy đoán kiến thức không xuất hiện trong bài. Trả về JSON hợp lệ với khóa grades là mảng; mỗi phần tử gồm user_id số nguyên, score số, feedback tiếng Việt ngắn, evidence là trích dẫn rất ngắn từ bài, confidence từ 0 đến 1. Điểm phải từ 0 đến max_score. Đây chỉ là điểm nháp để giáo viên duyệt, không phải điểm chính thức.';
+    $payload = array(
+        'systemInstruction' => array('parts' => array(array('text' => $system))),
+        'contents' => array(array('role' => 'user', 'parts' => array(array('text' => json_encode(array('max_score'=>$maxScore,'rubric'=>$rubric,'submissions'=>$rows), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES))))),
+        'generationConfig' => array('temperature' => 0.1, 'maxOutputTokens' => 5000, 'responseMimeType' => 'application/json'),
+    );
+    $curl = curl_init('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent');
+    curl_setopt_array($curl, array(CURLOPT_POST=>true,CURLOPT_RETURNTRANSFER=>true,CURLOPT_CONNECTTIMEOUT=>10,CURLOPT_TIMEOUT=>60,CURLOPT_HTTPHEADER=>array('Content-Type: application/json','x-goog-api-key: '.mtpc_moodle_gemini_key()),CURLOPT_POSTFIELDS=>json_encode($payload,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES)));
+    $raw = curl_exec($curl); $status = (int)curl_getinfo($curl, CURLINFO_HTTP_CODE); $error = curl_error($curl); curl_close($curl);
+    $response = json_decode((string)$raw, true);
+    if ($raw === false || $status < 200 || $status >= 300 || empty($response['candidates'][0]['content']['parts'][0]['text'])) throw new Exception('AI chấm bài tạm thời không phản hồi (HTTP '.$status.').'.($error!==''?' '.$error:''));
+    $text = trim((string)$response['candidates'][0]['content']['parts'][0]['text']);
+    $text = preg_replace('/^```(?:json)?\s*|\s*```$/i', '', $text);
+    $graded = json_decode($text, true);
+    if (!is_array($graded) || !isset($graded['grades']) || !is_array($graded['grades'])) throw new Exception('AI trả về bảng điểm nháp không hợp lệ.');
+    return $graded['grades'];
 }
 
 function mtpc_moodle_course($course)
@@ -213,6 +242,7 @@ try {
         'manage-activity' => array('local_mtpcbridge_manage_activity'),
         'save-grade' => array('mod_assign_save_grade'),
         'bulk-save-grades' => array('mod_assign_save_grade'),
+        'ai-grade-assignment' => array('mod_assign_get_submissions', 'core_user_get_users_by_field'),
         'create-group' => array('core_group_create_groups'),
         'add-group-member' => array('core_group_add_group_members'),
         'remove-group-member' => array('core_group_delete_group_members'),
@@ -564,6 +594,36 @@ try {
         $result = $moodle->deleteAnnouncements($courseId, (int)$forum['id'], $ids);
         mtpc_audit('moodle.announcement.delete', 'moodle_course', $courseId, null, array('forumid'=>(int)$forum['id'], 'discussionids'=>$ids));
         mtpc_moodle_response(200, array('ok'=>true, 'message'=>'Đã xóa ' . count($ids) . ' thông báo Moodle.', 'result'=>$result));
+    }
+
+    if ($action === 'ai-grade-assignment') {
+        $assignmentId = isset($body['assignmentid']) ? (int)$body['assignmentid'] : 0;
+        $maxScore = isset($body['max_score']) ? max(1, min(1000, (float)$body['max_score'])) : 10;
+        $rubric = mtpc_moodle_text(isset($body['rubric']) ? $body['rubric'] : '', 12000);
+        if ($assignmentId <= 0 || $rubric === '') mtpc_moodle_response(422, array('ok'=>false,'error'=>'Cần bài tập và tiêu chí chấm điểm rõ ràng.'));
+        $submissions = array_slice((array)$moodle->getSubmissions($assignmentId), 0, 60);
+        $userIds = array(); $gradeInput = array(); $unsupported = array();
+        foreach ($submissions as $submission) {
+            $userId = isset($submission['userid']) ? (int)$submission['userid'] : 0;
+            $status = isset($submission['status']) ? (string)$submission['status'] : '';
+            if ($userId <= 0 || ($status !== '' && $status !== 'submitted')) continue;
+            $text = $moodle->extractOnlinetext($submission);
+            if ($text === '') { if ($moodle->extractSubmissionFiles($submission)) $unsupported[] = array('user_id'=>$userId,'reason'=>'Bài nộp file cần giáo viên xem hoặc chuyển thành văn bản trước khi chấm AI.'); continue; }
+            $userIds[] = $userId;
+            $gradeInput[] = array('user_id'=>$userId,'submission'=>mtpc_moodle_text($text,6000));
+        }
+        if (!$gradeInput) mtpc_moodle_response(422, array('ok'=>false,'error'=>'Không tìm thấy bài nộp dạng văn bản trực tuyến để chấm.','unsupported'=>$unsupported));
+        $users = $moodle->getUsersByIds(array_values(array_unique($userIds))); $names = array();
+        foreach ((array)$users as $user) if (!empty($user['id'])) $names[(int)$user['id']] = isset($user['fullname']) ? $user['fullname'] : trim((isset($user['firstname'])?$user['firstname']:'').' '.(isset($user['lastname'])?$user['lastname']:''));
+        $drafts = mtpc_moodle_ai_grade($gradeInput, $rubric, $maxScore); $clean = array();
+        foreach ($drafts as $draft) {
+            $userId = isset($draft['user_id']) ? (int)$draft['user_id'] : 0;
+            if ($userId <= 0 || !in_array($userId, $userIds, true)) continue;
+            $score = isset($draft['score']) ? max(0, min($maxScore, (float)$draft['score'])) : 0;
+            $clean[] = array('user_id'=>$userId,'full_name'=>isset($names[$userId])?$names[$userId]:'User #'.$userId,'grade'=>$score,'feedback'=>mtpc_moodle_text(isset($draft['feedback'])?$draft['feedback']:'',2000),'evidence'=>mtpc_moodle_text(isset($draft['evidence'])?$draft['evidence']:'',500),'confidence'=>isset($draft['confidence'])?max(0,min(1,(float)$draft['confidence'])):null);
+        }
+        mtpc_audit('moodle.assignment.ai_grade_draft', 'moodle_assignment', $assignmentId, null, array('count'=>count($clean),'max_score'=>$maxScore,'saved'=>false));
+        mtpc_moodle_response(200, array('ok'=>true,'message'=>'Đã tạo bảng điểm AI dạng nháp. Giáo viên phải kiểm tra trước khi lưu.','assignmentid'=>$assignmentId,'max_score'=>$maxScore,'requires_teacher_review'=>true,'saved'=>false,'grades'=>$clean,'unsupported'=>$unsupported));
     }
 
     if ($action === 'save-grade') {

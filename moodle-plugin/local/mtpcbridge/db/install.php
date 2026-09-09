@@ -9,7 +9,7 @@ function xmldb_local_mtpcbridge_install() {
         'local_mtpcbridge_create_assignment', 'local_mtpcbridge_create_quiz', 'local_mtpcbridge_manage_activity',
         'core_course_get_courses', 'core_course_get_categories', 'core_course_get_contents',
         'core_course_create_courses', 'core_course_update_courses', 'core_course_delete_courses',
-        'core_user_get_users', 'core_user_create_users', 'core_user_update_users', 'core_user_delete_users',
+        'core_user_get_users', 'core_user_get_users_by_field', 'core_user_create_users', 'core_user_update_users', 'core_user_delete_users',
         'core_enrol_get_enrolled_users', 'enrol_manual_enrol_users', 'enrol_manual_unenrol_users',
         'mod_assign_get_assignments', 'mod_assign_get_submissions', 'mod_assign_get_grades', 'mod_assign_save_grade',
         'mod_quiz_get_quizzes_by_courses', 'mod_quiz_get_user_attempts', 'mod_quiz_get_user_best_grade',

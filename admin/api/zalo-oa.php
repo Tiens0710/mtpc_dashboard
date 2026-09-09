@@ -162,7 +162,7 @@ function mtpc_zalo_same_origin() {
     $requestHost = isset($_SERVER['HTTP_HOST']) ? preg_replace('/:\d+$/', '', $_SERVER['HTTP_HOST']) : '';
     return $originHost && ($requestHost && strcasecmp($originHost, $requestHost) === 0 || strcasecmp($originHost, 'admin.mtpc.edu.vn') === 0);
 }
-function mtpc_zalo_dashboard_admin() {
+function mtpc_zalo_dashboard_admin($allowTeachingRoles = false) {
     if (empty($_SERVER['REMOTE_USER'])) mtpc_zalo_out(401, array('ok' => false, 'error' => 'Bạn chưa đăng nhập Directory Privacy.'));
     $configPath = '/home/mtpc/private/db-config.php';
     if (!is_file($configPath)) mtpc_zalo_out(500, array('ok' => false, 'error' => 'Chưa tìm thấy cấu hình database.'));
@@ -176,7 +176,8 @@ function mtpc_zalo_dashboard_admin() {
     } catch (Exception $error) {
         mtpc_zalo_out(503, array('ok' => false, 'error' => 'Chưa chạy database/student_management_v2.sql.'));
     }
-    if (!$actor || $actor['status'] !== 'active' || $actor['role'] !== 'admin') mtpc_zalo_out(403, array('ok' => false, 'error' => 'Chỉ quản trị viên mới được quản lý quyền điều khiển qua Zalo.'));
+    $allowed = $actor && $actor['status'] === 'active' && ($actor['role'] === 'admin' || ($allowTeachingRoles && in_array($actor['role'], array('training', 'teacher'), true)));
+    if (!$allowed) mtpc_zalo_out(403, array('ok' => false, 'error' => $allowTeachingRoles ? 'Vai trò hiện tại không được tạo lớp học trực tuyến.' : 'Chỉ quản trị viên mới được quản lý quyền điều khiển qua Zalo.'));
     return array('pdo' => $pdo, 'actor' => $actor);
 }
 function mtpc_zalo_save_operator($path, $body) {
@@ -666,6 +667,80 @@ function mtpc_zalo_group_member_ids($value) {
     return array_values(array_unique($result));
 }
 
+function mtpc_google_base64url($value) {
+    return rtrim(strtr(base64_encode($value), '+/', '-_'), '=');
+}
+function mtpc_google_calendar_config() {
+    $path = '/home/mtpc/private/google-calendar-config.php';
+    if (!is_file($path) || !is_readable($path)) throw new Exception('Chưa cấu hình Google Calendar. Tạo /home/mtpc/private/google-calendar-config.php.');
+    $settings = require $path;
+    if (!is_array($settings)) throw new Exception('google-calendar-config.php phải return một mảng cấu hình.');
+    foreach (array('client_email', 'private_key', 'calendar_id') as $key) if (empty($settings[$key])) throw new Exception('Cấu hình Google Calendar thiếu ' . $key . '.');
+    return $settings;
+}
+function mtpc_google_access_token($settings) {
+    $now = time();
+    $header = array('alg' => 'RS256', 'typ' => 'JWT');
+    $claims = array(
+        'iss' => trim((string)$settings['client_email']),
+        'scope' => 'https://www.googleapis.com/auth/calendar.events',
+        'aud' => 'https://oauth2.googleapis.com/token',
+        'iat' => $now,
+        'exp' => $now + 3500,
+    );
+    if (!empty($settings['impersonate_user'])) $claims['sub'] = trim((string)$settings['impersonate_user']);
+    $unsigned = mtpc_google_base64url(json_encode($header)) . '.' . mtpc_google_base64url(json_encode($claims));
+    $signature = '';
+    if (!openssl_sign($unsigned, $signature, (string)$settings['private_key'], OPENSSL_ALGO_SHA256)) throw new Exception('Không ký được yêu cầu Google bằng service account.');
+    $assertion = $unsigned . '.' . mtpc_google_base64url($signature);
+    $curl = curl_init('https://oauth2.googleapis.com/token');
+    curl_setopt_array($curl, array(
+        CURLOPT_POST => true, CURLOPT_RETURNTRANSFER => true, CURLOPT_CONNECTTIMEOUT => 10, CURLOPT_TIMEOUT => 25,
+        CURLOPT_HTTPHEADER => array('Content-Type: application/x-www-form-urlencoded'),
+        CURLOPT_POSTFIELDS => http_build_query(array('grant_type' => 'urn:ietf:params:oauth:grant-type:jwt-bearer', 'assertion' => $assertion)),
+    ));
+    $raw = curl_exec($curl); $status = (int)curl_getinfo($curl, CURLINFO_HTTP_CODE); $error = curl_error($curl); curl_close($curl);
+    $response = json_decode((string)$raw, true);
+    if ($raw === false || $status < 200 || $status >= 300 || empty($response['access_token'])) throw new Exception('Google từ chối cấp quyền tạo Meet (HTTP ' . $status . ').' . ($error !== '' ? ' ' . $error : '') . (!empty($response['error_description']) ? ' ' . $response['error_description'] : ''));
+    return (string)$response['access_token'];
+}
+function mtpc_google_create_meet($settings, $name, $description, $start, $end, $timezone) {
+    $token = mtpc_google_access_token($settings);
+    $calendar = rawurlencode((string)$settings['calendar_id']);
+    $requestId = 'mtpc-' . gmdate('YmdHis') . '-' . substr(sha1(uniqid('', true)), 0, 12);
+    $eventTimezone = new DateTimeZone($timezone);
+    $startDate = new DateTime('@' . $start); $startDate->setTimezone($eventTimezone);
+    $endDate = new DateTime('@' . $end); $endDate->setTimezone($eventTimezone);
+    $event = array(
+        'summary' => $name,
+        'description' => $description,
+        'start' => array('dateTime' => $startDate->format('Y-m-d\TH:i:sP'), 'timeZone' => $timezone),
+        'end' => array('dateTime' => $endDate->format('Y-m-d\TH:i:sP'), 'timeZone' => $timezone),
+        'conferenceData' => array('createRequest' => array('requestId' => $requestId, 'conferenceSolutionKey' => array('type' => 'hangoutsMeet'))),
+    );
+    $curl = curl_init('https://www.googleapis.com/calendar/v3/calendars/' . $calendar . '/events?conferenceDataVersion=1&sendUpdates=none');
+    curl_setopt_array($curl, array(
+        CURLOPT_POST => true, CURLOPT_RETURNTRANSFER => true, CURLOPT_CONNECTTIMEOUT => 10, CURLOPT_TIMEOUT => 30,
+        CURLOPT_HTTPHEADER => array('Content-Type: application/json', 'Authorization: Bearer ' . $token),
+        CURLOPT_POSTFIELDS => json_encode($event, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+    ));
+    $raw = curl_exec($curl); $status = (int)curl_getinfo($curl, CURLINFO_HTTP_CODE); $error = curl_error($curl); curl_close($curl);
+    $created = json_decode((string)$raw, true);
+    if ($raw === false || $status < 200 || $status >= 300 || !is_array($created)) throw new Exception('Không tạo được sự kiện Google Meet (HTTP ' . $status . ').' . ($error !== '' ? ' ' . $error : '') . (!empty($created['error']['message']) ? ' ' . $created['error']['message'] : ''));
+    $meetUrl = isset($created['hangoutLink']) ? (string)$created['hangoutLink'] : '';
+    if ($meetUrl === '' && !empty($created['conferenceData']['entryPoints'])) foreach ($created['conferenceData']['entryPoints'] as $entry) if (isset($entry['entryPointType']) && $entry['entryPointType'] === 'video' && !empty($entry['uri'])) { $meetUrl = (string)$entry['uri']; break; }
+    if ($meetUrl === '') throw new Exception('Google đã tạo sự kiện nhưng chưa trả về đường dẫn Meet. Hãy kiểm tra quyền Google Workspace của service account.');
+    return array('event_id' => isset($created['id']) ? $created['id'] : '', 'event_url' => isset($created['htmlLink']) ? $created['htmlLink'] : '', 'meet_url' => $meetUrl);
+}
+function mtpc_online_class_student_role($user) {
+    if (empty($user['roles']) || !is_array($user['roles'])) return false;
+    foreach ($user['roles'] as $role) {
+        $name = strtolower((string)(isset($role['shortname']) ? $role['shortname'] : ''));
+        if ($name === 'student' || $name === 'hocvien' || $name === 'learner') return true;
+    }
+    return false;
+}
+
 $action = isset($_GET['action']) ? (string)$_GET['action'] : '';
 if (defined('MTPC_ZALO_PUBLIC_ENTRYPOINT') && MTPC_ZALO_PUBLIC_ENTRYPOINT && $action !== 'webhook') {
     mtpc_zalo_out(404, array('ok' => false, 'error' => 'API công khai này chỉ nhận webhook Zalo.'));
@@ -1052,6 +1127,69 @@ if ($action === 'send-student-notifications') {
         usleep(120000);
     }
     mtpc_zalo_out(200, array('ok' => true, 'sent' => $sent, 'skipped' => $skipped, 'failed' => $failed, 'total' => count($students), 'errors' => $errors, 'message' => 'Đã gửi ' . $sent . '/' . count($students) . ' thông báo riêng qua Zalo OA.'));
+}
+
+if ($action === 'create-online-class') {
+    if (!mtpc_zalo_same_origin()) mtpc_zalo_out(403, array('ok' => false, 'error' => 'Nguồn yêu cầu không hợp lệ.'));
+    $dashboard = mtpc_zalo_dashboard_admin(true);
+    $body = mtpc_zalo_body();
+    $courseId = isset($body['courseid']) ? (int)$body['courseid'] : 0;
+    $name = mtpc_zalo_cut(isset($body['name']) ? $body['name'] : '', 254);
+    $description = mtpc_zalo_cut(isset($body['description']) ? $body['description'] : '', 3000);
+    $start = isset($body['timestart']) ? (int)$body['timestart'] : 0;
+    $duration = isset($body['timeduration']) ? max(900, min(28800, (int)$body['timeduration'])) : 3600;
+    $timezone = isset($body['timezone']) && in_array($body['timezone'], timezone_identifiers_list(), true) ? $body['timezone'] : 'Asia/Ho_Chi_Minh';
+    if ($courseId <= 0 || $name === '' || $start <= time() - 300) mtpc_zalo_out(422, array('ok' => false, 'error' => 'Cần khóa học, tên buổi học và thời gian bắt đầu hợp lệ.'));
+    if (empty($body['confirm'])) mtpc_zalo_out(422, array('ok' => false, 'error' => 'Cần xác nhận trước khi tạo Meet và gửi thông báo.'));
+    try {
+        $moodlePath = '/home/mtpc/private/moodle-config.php';
+        if (!is_file($moodlePath)) throw new Exception('Chưa cấu hình Moodle.');
+        $moodleConfig = require $moodlePath;
+        if (!is_array($moodleConfig) || empty($moodleConfig['moodle_url']) || empty($moodleConfig['moodle_token'])) throw new Exception('Cấu hình Moodle chưa hợp lệ.');
+        require_once __DIR__ . '/moodle-client/MoodleFullClient.php';
+        $moodle = new MoodleFullClient($moodleConfig['moodle_url'], $moodleConfig['moodle_token']);
+        $members = array();
+        foreach ((array)$moodle->getEnrolledUsers($courseId) as $member) if (is_array($member) && mtpc_online_class_student_role($member)) $members[] = $member;
+        $meet = mtpc_google_create_meet(mtpc_google_calendar_config(), $name, $description, $start, $start + $duration, $timezone);
+        $when = new DateTime('@' . $start); $when->setTimezone(new DateTimeZone($timezone));
+        $message = $name . "\nThời gian: " . $when->format('d/m/Y H:i') . "\nTham gia: " . $meet['meet_url'];
+        if ($description !== '') $message .= "\n" . $description;
+        $warnings = array(); $moodleMessages = 0;
+        try {
+            $moodle->createCalendarEvents(array(array('name' => $name, 'description' => nl2br(htmlspecialchars($message, ENT_QUOTES, 'UTF-8')), 'eventtype' => 'course', 'courseid' => $courseId, 'timestart' => $start, 'timeduration' => $duration, 'visible' => 1)));
+        } catch (Exception $calendarError) { $warnings[] = 'Không ghi được lịch Moodle: ' . $calendarError->getMessage(); }
+        $moodleRows = array();
+        foreach ($members as $member) if (!empty($member['id'])) $moodleRows[] = array('touserid' => (int)$member['id'], 'text' => $message, 'textformat' => 0);
+        if ($moodleRows) {
+            try { $moodle->sendMessages($moodleRows); $moodleMessages = count($moodleRows); }
+            catch (Exception $messageError) { $warnings[] = 'Không gửi được tin Moodle: ' . $messageError->getMessage(); }
+        }
+        $emails = array(); $codes = array();
+        foreach ($members as $member) {
+            if (!empty($member['email'])) $emails[strtolower(trim((string)$member['email']))] = true;
+            if (!empty($member['idnumber'])) $codes[trim((string)$member['idnumber'])] = true;
+        }
+        $where = array(); $params = array();
+        if ($emails) { $marks = array(); $i = 0; foreach (array_keys($emails) as $email) { $key = ':email_' . $i++; $marks[] = $key; $params[$key] = $email; } $where[] = 'LOWER(email) IN (' . implode(',', $marks) . ')'; }
+        if ($codes) { $marks = array(); $i = 0; foreach (array_keys($codes) as $code) { $key = ':code_' . $i++; $marks[] = $key; $params[$key] = $code; } $where[] = 'student_code IN (' . implode(',', $marks) . ')'; }
+        $students = array();
+        if ($where) { $statement = $dashboard['pdo']->prepare('SELECT id,student_code,full_name,zalo_user_id FROM students WHERE (' . implode(' OR ', $where) . ')'); $statement->execute($params); $students = $statement->fetchAll(); }
+        $zaloSent = 0; $zaloSkipped = 0; $zaloFailed = 0;
+        foreach ($students as $student) {
+            $zaloId = trim((string)$student['zalo_user_id']);
+            if (!preg_match('/^[0-9]{6,160}$/', $zaloId)) { $zaloSkipped++; continue; }
+            try {
+                mtpc_zalo_send($config, $zaloId, 'Chào ' . $student['full_name'] . ",\n" . $message);
+                $zaloSent++;
+                mtpc_zalo_append($messagesPath, array('id' => mtpc_zalo_id(), 'direction' => 'outbound', 'event_name' => 'online_class_notification', 'user_id' => $zaloId, 'user_name' => $student['full_name'], 'student_id' => (int)$student['id'], 'student_code' => $student['student_code'], 'text' => $message, 'received_at' => gmdate('c'), 'read' => true));
+            } catch (Exception $sendError) { $zaloFailed++; $warnings[] = 'Không gửi được Zalo cho ' . $student['full_name'] . ': ' . $sendError->getMessage(); }
+            usleep(120000);
+        }
+        try { $audit = $dashboard['pdo']->prepare('INSERT INTO system_audit_logs(actor_username,actor_role,action,entity_type,entity_id,before_data,after_data,ip_address) VALUES(:u,:r,:a,:t,:i,:b,:n,:ip)'); $audit->execute(array(':u'=>$dashboard['actor']['username'],':r'=>$dashboard['actor']['role'],':a'=>'online_class.create',':t'=>'moodle_course',':i'=>(string)$courseId,':b'=>null,':n'=>json_encode(array('name'=>$name,'meet_url'=>$meet['meet_url'],'moodle_messages'=>$moodleMessages,'zalo_sent'=>$zaloSent),JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES),':ip'=>isset($_SERVER['REMOTE_ADDR'])?$_SERVER['REMOTE_ADDR']:'')); } catch (Exception $auditError) {}
+        mtpc_zalo_out(201, array('ok'=>true,'message'=>'Đã tạo Google Meet, ghi lịch Moodle và gửi thông báo.','meet'=>$meet,'courseid'=>$courseId,'enrolled_students'=>count($members),'moodle_sent'=>$moodleMessages,'zalo_matched'=>count($students),'zalo_sent'=>$zaloSent,'zalo_skipped'=>$zaloSkipped,'zalo_failed'=>$zaloFailed,'warnings'=>$warnings));
+    } catch (Exception $error) {
+        mtpc_zalo_out(502, array('ok' => false, 'error' => $error->getMessage()));
+    }
 }
 
 if ($action === 'operator-upsert') {
