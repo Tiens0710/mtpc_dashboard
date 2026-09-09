@@ -243,7 +243,7 @@ class local_mtpcbridge_external extends external_api {
         $context = context_course::instance($course->id);
         self::validate_context($context);
         require_capability('moodle/course:manageactivities', $context);
-        if (!get_config('assign', 'version')) throw new moodle_exception('modulerequirementsnotmet', 'error', '', 'assign');
+        if (!get_config('mod_assign', 'version')) throw new moodle_exception('modulerequirementsnotmet', 'error', '', 'assign');
         $name = trim(clean_param($params['name'], PARAM_TEXT));
         if ($name === '') throw new invalid_parameter_exception('Assignment name is required.');
         $allowfrom = max(0, (int)$params['allowsubmissionsfromdate']);
@@ -306,7 +306,7 @@ class local_mtpcbridge_external extends external_api {
         $context = context_course::instance($course->id);
         self::validate_context($context);
         require_capability('moodle/course:manageactivities', $context);
-        if (!get_config('quiz', 'version')) throw new moodle_exception('modulerequirementsnotmet', 'error', '', 'quiz');
+        if (!get_config('mod_quiz', 'version')) throw new moodle_exception('modulerequirementsnotmet', 'error', '', 'quiz');
         $name = trim(clean_param($params['name'], PARAM_TEXT));
         if ($name === '') throw new invalid_parameter_exception('Quiz name is required.');
         $timeopen = max(0, (int)$params['timeopen']);

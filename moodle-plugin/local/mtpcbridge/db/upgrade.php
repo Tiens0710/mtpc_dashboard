@@ -215,5 +215,11 @@ function xmldb_local_mtpcbridge_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2026090903, 'local', 'mtpcbridge');
     }
 
+    if ($oldversion < 2026090904) {
+        // Refresh the plugin after correcting activity component checks to use
+        // Moodle's Frankenstyle component names (mod_quiz and mod_assign).
+        upgrade_plugin_savepoint(true, 2026090904, 'local', 'mtpcbridge');
+    }
+
     return true;
 }

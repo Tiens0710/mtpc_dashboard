@@ -72,7 +72,7 @@ assert.ok(api.includes("'saved'=>false"), 'AI grading drafts must not silently w
 assert.ok(index.includes('assignment_name'), 'Moodle schema should accept assignment names');
 assert.ok(index.includes('user_query'), 'Moodle schema should accept natural user queries');
 assert.ok(index.includes('ai-file-chat.js?v=20260905-3'), 'AI file adapter cache version is stale');
-assert.ok(version.includes('$plugin->version = 2026090903;'), 'Plugin version was not bumped');
+assert.ok(version.includes('$plugin->version = 2026090904;'), 'Plugin version was not bumped');
 assert.ok(upgrade.includes('upgrade_plugin_savepoint(true, 2026090901'), 'AI grading service upgrade is missing');
 assert.ok(upgrade.includes('upgrade_plugin_savepoint(true, 2026090902'), 'Zalo notification queue upgrade is missing');
 assert.ok(events.includes('\\\\core\\\\event\\\\notification_sent'), 'Moodle course notifications are not observed');
@@ -85,6 +85,10 @@ assert.ok(installXml.includes('notificationid_uix'), 'Zalo notification queue ne
 assert.ok(privacyProvider.includes('delete_data_for_user'), 'Zalo delivery records must support Moodle privacy deletion');
 assert.ok(cleanupTask.includes('90 * DAYSECS'), 'Old Zalo delivery records must be cleaned automatically');
 assert.ok(upgrade.includes('upgrade_plugin_savepoint(true, 2026090903'), 'Online class reminder service upgrade is missing');
+assert.ok(upgrade.includes('upgrade_plugin_savepoint(true, 2026090904'), 'Activity component check upgrade is missing');
+assert.ok(external.includes("get_config('mod_quiz', 'version')"), 'Quiz availability must use the mod_quiz component name');
+assert.ok(external.includes("get_config('mod_assign', 'version')"), 'Assignment availability must use the mod_assign component name');
+assert.ok(!external.includes("get_config('quiz', 'version')"), 'Legacy quiz component check would reject an installed Quiz module');
 assert.ok(external.includes('schedule_online_class_reminder'), 'Moodle bridge must queue online class reminders');
 assert.ok(reminderTask.includes('timestart - 900') || external.includes("['timestart'] - 900"), 'Online class reminder must run 15 minutes before class');
 assert.ok(reminderTask.includes('message_send($message)'), 'Online class reminder must create a Moodle notification for Zalo mirroring');
