@@ -1,25 +1,28 @@
 # Lớp học trực tuyến và chấm bài AI
 
-## Google Meet → Moodle → Zalo
+## Link Google Meet của giáo viên → Moodle → Zalo
 
-1. Bật Google Calendar API trong Google Cloud.
-2. Tạo service account và khóa JSON.
-3. Chia sẻ lịch Google dùng cho nhà trường với email service account, quyền sửa sự kiện.
-4. Sao chép `docs/google-calendar-config.example.php` thành
-   `/home/mtpc/private/google-calendar-config.php` và điền thông tin thật.
-5. Nếu Google Workspace yêu cầu tạo Meet thay mặt giáo viên, bật domain-wide
-   delegation và đặt `impersonate_user` là email giáo viên/đơn vị được ủy quyền.
-6. Bảo đảm hồ sơ học viên có email trùng với tài khoản Moodle và đã gắn
-   `zalo_user_id`.
+Điều kiện duy nhất cho luồng mặc định là hồ sơ học viên có email/mã sinh viên
+trùng với tài khoản Moodle và đã gắn `zalo_user_id`.
+
+Luồng mặc định là giáo viên môn học tự tạo Meet bằng tài khoản Google của mình,
+sau đó dán link vào Orb quản trị. Tài khoản vai trò giáo viên chỉ được đăng link
+cho khóa mà username Moodle tương ứng đang có vai trò `teacher`,
+`editingteacher` hoặc `manager`.
 
 Trong Orb quản trị, giáo viên có thể nói:
 
-> Tạo lớp Google Meet môn Lập trình Python cơ bản lúc 19:00 ngày 10/09/2026,
-> thời lượng 90 phút.
+> Lên lịch học môn Lập trình Python cơ bản lúc 19:00 ngày 10/09/2026, thời lượng
+> 90 phút, link https://meet.google.com/abc-defg-hij.
 
-Hệ thống sẽ tạo một Meet riêng, ghi sự kiện vào lịch khóa học Moodle, gửi tin
+Hệ thống sẽ kiểm tra link `meet.google.com`, ghi sự kiện vào lịch khóa học Moodle, gửi tin
 Moodle cho học viên đã ghi danh và gửi Zalo cho các hồ sơ khớp email/mã sinh viên.
 Kết quả trả về có số lượng đã gửi, bỏ qua và lỗi để không báo thành công giả.
+
+Khả năng tự tạo Meet qua Google Calendar API vẫn còn làm phương án dự phòng cho
+quản trị/đào tạo, nhưng Orb sẽ ưu tiên yêu cầu link do giáo viên cung cấp. Chỉ
+khi muốn dùng phương án dự phòng này mới cần bật Google Calendar API, tạo service
+account và cấu hình `/home/mtpc/private/google-calendar-config.php` theo file mẫu.
 
 ## Tự động chuyển tiếp thông báo khóa học qua Zalo OA
 

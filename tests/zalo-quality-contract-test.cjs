@@ -41,6 +41,9 @@ assert.ok(oa.includes("$action === 'create-online-class'"), 'Google Meet to Mood
 assert.ok(oa.includes('conferenceDataVersion=1'), 'Google Calendar event creation must enable Meet conference data');
 assert.ok(oa.includes("'hangoutsMeet'"), 'Online classes must request a Google Meet conference');
 assert.ok(oa.includes("'online_class_notification'"), 'Online class Zalo notifications must be audited');
+assert.ok(oa.includes('function mtpc_online_class_meet_url'), 'Teacher-provided Meet links must be validated');
+assert.ok(oa.includes("'source'=>'teacher_link'"), 'Teacher-provided Meet links must bypass Google API creation');
+assert.ok(oa.includes('function mtpc_online_class_teaching_role'), 'Teachers must be limited to courses they teach');
 assert.ok(agent.includes('mtpc_orb_agent_group_identifier'), 'Follow-up Zalo group commands cannot resolve the only managed group');
 assert.ok(agent.includes('mtpc_orb_agent_plain_text'), 'Agent replies are not cleaned for Zalo plain-text rendering');
 
