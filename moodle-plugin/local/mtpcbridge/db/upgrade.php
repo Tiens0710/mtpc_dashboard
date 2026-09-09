@@ -181,5 +181,24 @@ function xmldb_local_mtpcbridge_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2026090901, 'local', 'mtpcbridge');
     }
 
+    if ($oldversion < 2026090902) {
+        $dbman = $DB->get_manager();
+        $table = new xmldb_table('local_mtpcbridge_zalo');
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('notificationid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('userid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('courseid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('status', XMLDB_TYPE_CHAR, '20', null, XMLDB_NOTNULL, null, 'queued');
+        $table->add_field('attempts', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('lasterror', XMLDB_TYPE_TEXT, null, null, null, null, null);
+        $table->add_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('timemodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, array('id'));
+        $table->add_index('notificationid_uix', XMLDB_INDEX_UNIQUE, array('notificationid'));
+        $table->add_index('status_ix', XMLDB_INDEX_NOTUNIQUE, array('status'));
+        if (!$dbman->table_exists($table)) $dbman->create_table($table);
+        upgrade_plugin_savepoint(true, 2026090902, 'local', 'mtpcbridge');
+    }
+
     return true;
 }

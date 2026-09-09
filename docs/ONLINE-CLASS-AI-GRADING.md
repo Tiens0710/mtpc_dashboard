@@ -21,6 +21,19 @@ Hệ thống sẽ tạo một Meet riêng, ghi sự kiện vào lịch khóa h�
 Moodle cho học viên đã ghi danh và gửi Zalo cho các hồ sơ khớp email/mã sinh viên.
 Kết quả trả về có số lượng đã gửi, bỏ qua và lỗi để không báo thành công giả.
 
+## Tự động chuyển tiếp thông báo khóa học qua Zalo OA
+
+Plugin theo dõi các thông báo Moodle có gắn với khóa học. Nếu người nhận đang
+được ghi danh với vai trò học viên và hồ sơ được liên kết bằng `idnumber`/mã sinh
+viên hoặc email, thông báo sẽ được đưa vào hàng đợi và gửi bằng Zalo OA của
+trường. Hàng đợi lưu `notificationid` duy nhất để tránh gửi trùng.
+
+Tác vụ này phản chiếu những thông báo Moodle thực sự phát sinh (ví dụ thông báo
+diễn đàn, bài tập, điểm và lời nhắc do module hỗ trợ), không tự tạo thông báo cho
+những thay đổi mà Moodle vốn không thông báo. Có thể bật/tắt tại **Site
+administration → Plugins → Local plugins → MTPC teaching bridge**. Cron Moodle
+cần chạy ít nhất mỗi phút để tác vụ nền được gửi sớm.
+
 ## Chấm bài AI có giáo viên duyệt
 
 Trong Orb quản trị, giáo viên có thể nói:

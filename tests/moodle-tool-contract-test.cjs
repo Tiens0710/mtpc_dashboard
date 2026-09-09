@@ -15,6 +15,13 @@ const orbJs = fs.readFileSync(path.join(root, 'moodle-theme', 'mtpc', 'javascrip
 const orbEndpoint = fs.readFileSync(path.join(root, 'moodle-plugin', 'local', 'mtpcbridge', 'moodle-orb.php'), 'utf8');
 const orbLiveToken = fs.readFileSync(path.join(root, 'moodle-plugin', 'local', 'mtpcbridge', 'moodle-live-token.php'), 'utf8');
 const orbAgent = fs.readFileSync(path.join(root, 'admin', 'api', 'orb-agent.php'), 'utf8');
+const events = fs.readFileSync(path.join(root, 'moodle-plugin', 'local', 'mtpcbridge', 'db', 'events.php'), 'utf8');
+const observer = fs.readFileSync(path.join(root, 'moodle-plugin', 'local', 'mtpcbridge', 'classes', 'observer.php'), 'utf8');
+const zaloTask = fs.readFileSync(path.join(root, 'moodle-plugin', 'local', 'mtpcbridge', 'classes', 'task', 'send_zalo_notification.php'), 'utf8');
+const zaloClient = fs.readFileSync(path.join(root, 'moodle-plugin', 'local', 'mtpcbridge', 'classes', 'local', 'zalo_client.php'), 'utf8');
+const installXml = fs.readFileSync(path.join(root, 'moodle-plugin', 'local', 'mtpcbridge', 'db', 'install.xml'), 'utf8');
+const privacyProvider = fs.readFileSync(path.join(root, 'moodle-plugin', 'local', 'mtpcbridge', 'classes', 'privacy', 'provider.php'), 'utf8');
+const cleanupTask = fs.readFileSync(path.join(root, 'moodle-plugin', 'local', 'mtpcbridge', 'classes', 'task', 'cleanup_zalo_queue.php'), 'utf8');
 
 const apiActions = [
   'courses', 'categories', 'users', 'enrolled-users', 'course-contents',
@@ -63,8 +70,18 @@ assert.ok(api.includes("'saved'=>false"), 'AI grading drafts must not silently w
 assert.ok(index.includes('assignment_name'), 'Moodle schema should accept assignment names');
 assert.ok(index.includes('user_query'), 'Moodle schema should accept natural user queries');
 assert.ok(index.includes('ai-file-chat.js?v=20260905-3'), 'AI file adapter cache version is stale');
-assert.ok(version.includes('$plugin->version = 2026090901;'), 'Plugin version was not bumped');
+assert.ok(version.includes('$plugin->version = 2026090902;'), 'Plugin version was not bumped');
 assert.ok(upgrade.includes('upgrade_plugin_savepoint(true, 2026090901'), 'AI grading service upgrade is missing');
+assert.ok(upgrade.includes('upgrade_plugin_savepoint(true, 2026090902'), 'Zalo notification queue upgrade is missing');
+assert.ok(events.includes('\\\\core\\\\event\\\\notification_sent'), 'Moodle course notifications are not observed');
+assert.ok(observer.includes("queue_adhoc_task($task, true)"), 'Zalo delivery must be queued with duplicate protection');
+assert.ok(observer.includes("is_enrolled($context, $userid, '', true)"), 'Only actively enrolled students may receive course notifications');
+assert.ok(zaloTask.includes("'skipped'"), 'Unlinked or unenrolled students must be skipped safely');
+assert.ok(zaloClient.includes("'moodle_course_notification'"), 'Mirrored Moodle notifications must be logged');
+assert.ok(zaloClient.includes('mtpc-zalo-oa/token-state.json'), 'Moodle must share the rotated school Zalo OA token');
+assert.ok(installXml.includes('notificationid_uix'), 'Zalo notification queue needs persistent duplicate protection');
+assert.ok(privacyProvider.includes('delete_data_for_user'), 'Zalo delivery records must support Moodle privacy deletion');
+assert.ok(cleanupTask.includes('90 * DAYSECS'), 'Old Zalo delivery records must be cleaned automatically');
 assert.ok(upgrade.includes('upgrade_plugin_savepoint(true, 2026090601'), 'Moodle announcement upgrade is missing');
 assert.ok(themeConfig.includes("$THEME->javascripts_footer = array('mtpc-orb');"), 'Moodle theme does not load the Orb widget');
 assert.ok(orbJs.includes('moodle-orb.php'), 'Moodle Orb widget is missing its server endpoint');
