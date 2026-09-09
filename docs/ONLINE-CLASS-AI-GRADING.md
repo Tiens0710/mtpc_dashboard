@@ -18,6 +18,8 @@ Trong Orb quản trị, giáo viên có thể nói:
 Hệ thống sẽ kiểm tra link `meet.google.com`, ghi sự kiện vào lịch khóa học Moodle, gửi tin
 Moodle cho học viên đã ghi danh và gửi Zalo cho các hồ sơ khớp email/mã sinh viên.
 Kết quả trả về có số lượng đã gửi, bỏ qua và lỗi để không báo thành công giả.
+Plugin đồng thời xếp một tác vụ nhắc trước giờ học 15 phút. Tác vụ tạo thông báo
+Moodle cho học viên và thông báo đó tiếp tục được chuyển qua Zalo OA của trường.
 
 Khả năng tự tạo Meet qua Google Calendar API vẫn còn làm phương án dự phòng cho
 quản trị/đào tạo, nhưng Orb sẽ ưu tiên yêu cầu link do giáo viên cung cấp. Chỉ

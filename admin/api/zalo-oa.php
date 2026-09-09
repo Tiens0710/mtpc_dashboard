@@ -1186,6 +1186,11 @@ if ($action === 'create-online-class') {
         try {
             $moodle->createCalendarEvents(array(array('name' => $name, 'description' => nl2br(htmlspecialchars($message, ENT_QUOTES, 'UTF-8')), 'eventtype' => 'course', 'courseid' => $courseId, 'timestart' => $start, 'timeduration' => $duration, 'visible' => 1)));
         } catch (Exception $calendarError) { $warnings[] = 'Không ghi được lịch Moodle: ' . $calendarError->getMessage(); }
+        $reminderQueued = false;
+        try {
+            $moodle->scheduleOnlineClassReminder($courseId, $name, $meet['meet_url'], $start);
+            $reminderQueued = true;
+        } catch (Exception $reminderError) { $warnings[] = 'Không xếp được lịch nhắc trước 15 phút: ' . $reminderError->getMessage(); }
         $moodleRows = array();
         foreach ($members as $member) if (!empty($member['id'])) $moodleRows[] = array('touserid' => (int)$member['id'], 'text' => $message, 'textformat' => 0);
         if ($moodleRows) {
@@ -1214,7 +1219,7 @@ if ($action === 'create-online-class') {
             usleep(120000);
         }
         try { $audit = $dashboard['pdo']->prepare('INSERT INTO system_audit_logs(actor_username,actor_role,action,entity_type,entity_id,before_data,after_data,ip_address) VALUES(:u,:r,:a,:t,:i,:b,:n,:ip)'); $audit->execute(array(':u'=>$dashboard['actor']['username'],':r'=>$dashboard['actor']['role'],':a'=>'online_class.create',':t'=>'moodle_course',':i'=>(string)$courseId,':b'=>null,':n'=>json_encode(array('name'=>$name,'meet_url'=>$meet['meet_url'],'meet_source'=>$meet['source'],'moodle_messages'=>$moodleMessages,'zalo_sent'=>$zaloSent),JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES),':ip'=>isset($_SERVER['REMOTE_ADDR'])?$_SERVER['REMOTE_ADDR']:'')); } catch (Exception $auditError) {}
-        mtpc_zalo_out(201, array('ok'=>true,'message'=>$meet['source']==='teacher_link'?'Đã lưu link Meet, ghi lịch Moodle và gửi thông báo.':'Đã tạo Google Meet, ghi lịch Moodle và gửi thông báo.','meet'=>$meet,'courseid'=>$courseId,'enrolled_students'=>count($members),'moodle_sent'=>$moodleMessages,'zalo_matched'=>count($students),'zalo_sent'=>$zaloSent,'zalo_skipped'=>$zaloSkipped,'zalo_failed'=>$zaloFailed,'warnings'=>$warnings));
+        mtpc_zalo_out(201, array('ok'=>true,'message'=>$meet['source']==='teacher_link'?'Đã lưu link Meet, ghi lịch Moodle và gửi thông báo.':'Đã tạo Google Meet, ghi lịch Moodle và gửi thông báo.','meet'=>$meet,'courseid'=>$courseId,'enrolled_students'=>count($members),'moodle_sent'=>$moodleMessages,'zalo_matched'=>count($students),'zalo_sent'=>$zaloSent,'zalo_skipped'=>$zaloSkipped,'zalo_failed'=>$zaloFailed,'reminder_15m_queued'=>$reminderQueued,'warnings'=>$warnings));
     } catch (Exception $error) {
         mtpc_zalo_out(502, array('ok' => false, 'error' => $error->getMessage()));
     }

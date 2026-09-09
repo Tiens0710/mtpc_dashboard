@@ -603,4 +603,39 @@ class local_mtpcbridge_external extends external_api {
             'discussionids'=>new external_multiple_structure(new external_value(PARAM_INT)),
         ));
     }
+
+    public static function schedule_online_class_reminder_parameters() {
+        return new external_function_parameters(array(
+            'courseid' => new external_value(PARAM_INT, 'Course ID', VALUE_REQUIRED),
+            'name' => new external_value(PARAM_TEXT, 'Online class name', VALUE_REQUIRED),
+            'meeturl' => new external_value(PARAM_URL, 'Teacher-provided Google Meet URL', VALUE_REQUIRED),
+            'timestart' => new external_value(PARAM_INT, 'Class start timestamp', VALUE_REQUIRED),
+        ));
+    }
+
+    public static function schedule_online_class_reminder($courseid, $name, $meeturl, $timestart) {
+        $params = self::validate_parameters(self::schedule_online_class_reminder_parameters(), compact('courseid', 'name', 'meeturl', 'timestart'));
+        $course = get_course($params['courseid']);
+        $context = context_course::instance($course->id);
+        self::validate_context($context);
+        require_capability('moodle/course:manageactivities', $context);
+        if ((int)$params['timestart'] <= time()) throw new invalid_parameter_exception('The online class start time must be in the future.');
+        $task = new \local_mtpcbridge\task\send_online_class_reminder();
+        $task->set_custom_data((object)array(
+            'courseid' => (int)$course->id,
+            'name' => (string)$params['name'],
+            'meeturl' => (string)$params['meeturl'],
+            'timestart' => (int)$params['timestart'],
+        ));
+        $task->set_next_run_time(max(time() + 1, (int)$params['timestart'] - 900));
+        \core\task\manager::queue_adhoc_task($task, true);
+        return array('queued'=>true, 'remindertime'=>max(time() + 1, (int)$params['timestart'] - 900));
+    }
+
+    public static function schedule_online_class_reminder_returns() {
+        return new external_single_structure(array(
+            'queued' => new external_value(PARAM_BOOL),
+            'remindertime' => new external_value(PARAM_INT),
+        ));
+    }
 }

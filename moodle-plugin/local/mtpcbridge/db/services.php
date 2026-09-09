@@ -50,4 +50,11 @@ $functions = array(
         'description' => 'Rename, show, hide, move, or delete a course activity.', 'type' => 'write',
         'capabilities' => 'moodle/course:manageactivities',
     ),
+    'local_mtpcbridge_schedule_online_class_reminder' => array(
+        'classname' => 'local_mtpcbridge_external',
+        'methodname' => 'schedule_online_class_reminder',
+        'description' => 'Queue a Moodle and Zalo reminder 15 minutes before an online class.',
+        'type' => 'write',
+        'capabilities' => 'moodle/course:manageactivities',
+    ),
 );

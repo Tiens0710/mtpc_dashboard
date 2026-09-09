@@ -861,4 +861,14 @@ class MoodleFullClient extends MoodleClient
         }
         throw $lastEx;
     }
+
+    public function scheduleOnlineClassReminder($courseId, $name, $meetUrl, $timeStart)
+    {
+        return $this->call('local_mtpcbridge_schedule_online_class_reminder', array(
+            'courseid' => (int)$courseId,
+            'name' => (string)$name,
+            'meeturl' => (string)$meetUrl,
+            'timestart' => (int)$timeStart,
+        ));
+    }
 }
