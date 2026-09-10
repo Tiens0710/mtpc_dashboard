@@ -6,6 +6,7 @@ function mtpc_zalo_apply_env($config) {
         'webhook_token' => array('MTPC_ZALO_OA_WEBHOOK_TOKEN', 'ZALO_OA_WEBHOOK_TOKEN', 'ZALO_WEBHOOK_TOKEN'),
         'oa_id' => array('MTPC_ZALO_OA_ID', 'ZALO_OA_ID'),
         'gmf_asset_id' => array('MTPC_ZALO_OA_ASSET_ID', 'ZALO_OA_ASSET_ID', 'ZALO_GMF_ASSET_ID'),
+        'gmf_asset_ids' => array('MTPC_ZALO_OA_ASSET_IDS', 'ZALO_OA_ASSET_IDS', 'ZALO_GMF_ASSET_IDS'),
         'app_id' => array('MTPC_ZALO_OA_APP_ID', 'ZALO_OA_APP_ID', 'ZALO_APP_ID'),
         'secret_key' => array('MTPC_ZALO_OA_SECRET_KEY', 'ZALO_OA_SECRET_KEY', 'ZALO_SECRET_KEY'),
         'refresh_token' => array('MTPC_ZALO_OA_REFRESH_TOKEN', 'ZALO_OA_REFRESH_TOKEN', 'ZALO_REFRESH_TOKEN'),

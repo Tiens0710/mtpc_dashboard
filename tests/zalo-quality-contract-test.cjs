@@ -46,5 +46,10 @@ assert.ok(oa.includes("'source'=>'teacher_link'"), 'Teacher-provided Meet links 
 assert.ok(oa.includes('function mtpc_online_class_teaching_role'), 'Teachers must be limited to courses they teach');
 assert.ok(agent.includes('mtpc_orb_agent_group_identifier'), 'Follow-up Zalo group commands cannot resolve the only managed group');
 assert.ok(agent.includes('mtpc_orb_agent_plain_text'), 'Agent replies are not cleaned for Zalo plain-text rendering');
+assert.ok(oa.includes('function mtpc_zalo_group_asset_candidates'), 'GMF group creation cannot select an unused configured asset');
+assert.ok(oa.includes('used-gmf-assets.json'), 'Used GMF assets are not persisted');
+assert.ok(oa.includes("array(-238, -241)"), 'Zalo used or disabled GMF asset errors are not recognized');
+assert.ok(oa.includes('ZALO_GMF_ASSET_UNAVAILABLE'), 'GMF asset exhaustion needs an actionable conflict response');
+assert.ok(oa.includes("group_name']) ? $body['group_name'] : '', 30"), 'GMF group names must respect Zalo\'s 30-character limit');
 
 console.log('Zalo quality contract OK: shared Orb agent, confirmation, Moodle names, email, groups, concise replies and stickers.');

@@ -36,6 +36,7 @@ $config = array(
     'oa_id' => '',
     'auto_reply' => false,
     'gmf_asset_id' => '',
+    'gmf_asset_ids' => array(),
     'app_id' => '',
     'secret_key' => '',
     'refresh_token' => ''
@@ -52,6 +53,7 @@ if (is_file($configPath)) {
     if (isset($MTPC_ZALO_OA_ID)) $config['oa_id'] = trim((string)$MTPC_ZALO_OA_ID);
     if (isset($MTPC_ZALO_OA_AUTO_REPLY)) $config['auto_reply'] = (bool)$MTPC_ZALO_OA_AUTO_REPLY;
     if (isset($MTPC_ZALO_OA_ASSET_ID)) $config['gmf_asset_id'] = trim((string)$MTPC_ZALO_OA_ASSET_ID);
+    if (isset($MTPC_ZALO_OA_ASSET_IDS)) $config['gmf_asset_ids'] = $MTPC_ZALO_OA_ASSET_IDS;
     if (isset($MTPC_ZALO_OA_APP_ID)) $config['app_id'] = trim((string)$MTPC_ZALO_OA_APP_ID);
     if (isset($MTPC_ZALO_OA_SECRET_KEY)) $config['secret_key'] = trim((string)$MTPC_ZALO_OA_SECRET_KEY);
     if (isset($MTPC_ZALO_OA_REFRESH_TOKEN)) $config['refresh_token'] = trim((string)$MTPC_ZALO_OA_REFRESH_TOKEN);
@@ -64,6 +66,7 @@ $config = mtpc_zalo_apply_env($config);
 $storageDir = '/home/mtpc/private/mtpc-zalo-oa';
 $messagesPath = $storageDir . '/messages.jsonl';
 $groupsPath = $storageDir . '/groups.json';
+$usedGroupAssetsPath = $storageDir . '/used-gmf-assets.json';
 $operatorsPath = $storageDir . '/operators.json';
 $pendingCommandsPath = $storageDir . '/pending-commands.json';
 $linkRequestsPath = $storageDir . '/link-requests.json';
@@ -637,7 +640,7 @@ function mtpc_zalo_group_api($config, $method, $endpoint, $body, $query) {
     $errorCode = isset($response['error']) ? (int)$response['error'] : (isset($response['error_code']) ? (int)$response['error_code'] : 0);
     if ($errorCode !== 0) {
         $message = isset($response['message']) ? (string)$response['message'] : '';
-        throw new Exception('Zalo GMF trả về lỗi' . ($message !== '' ? ': ' . $message : ' (mã ' . $errorCode . ').'));
+        throw new Exception('Zalo GMF trả về lỗi' . ($message !== '' ? ': ' . $message : ' (mã ' . $errorCode . ').'), $errorCode);
     }
     return $response;
 }
@@ -665,6 +668,56 @@ function mtpc_zalo_group_member_ids($value) {
         if ($item !== '' && preg_match('/^[0-9]{6,160}$/', $item)) $result[] = $item;
     }
     return array_values(array_unique($result));
+}
+
+function mtpc_zalo_group_asset_ids($value) {
+    if (is_array($value)) $values = $value;
+    else $values = preg_split('/[\s,;]+/', trim((string)$value));
+    $result = array();
+    foreach ((array)$values as $item) {
+        $item = mtpc_zalo_cut($item, 180);
+        if ($item !== '' && preg_match('/^[A-Za-z0-9._:-]{4,180}$/', $item)) $result[$item] = $item;
+    }
+    return array_values($result);
+}
+
+function mtpc_zalo_group_used_assets($groupsPath, $usedAssetsPath) {
+    $used = array();
+    foreach (mtpc_zalo_group_read($groupsPath) as $group) {
+        if (is_array($group) && !empty($group['asset_id'])) $used[(string)$group['asset_id']] = true;
+    }
+    if (is_file($usedAssetsPath)) {
+        $stored = json_decode((string)@file_get_contents($usedAssetsPath), true);
+        if (is_array($stored)) foreach ($stored as $assetId => $details) $used[(string)$assetId] = true;
+    }
+    return $used;
+}
+
+function mtpc_zalo_group_mark_asset_used($usedAssetsPath, $assetId, $reason) {
+    $stored = array();
+    if (is_file($usedAssetsPath)) {
+        $decoded = json_decode((string)@file_get_contents($usedAssetsPath), true);
+        if (is_array($decoded)) $stored = $decoded;
+    }
+    $stored[(string)$assetId] = array('reason' => (string)$reason, 'updated_at' => gmdate('c'));
+    @file_put_contents($usedAssetsPath, json_encode($stored, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT) . "\n", LOCK_EX);
+}
+
+function mtpc_zalo_group_asset_candidates($config, $requestedAssetId, $groupsPath, $usedAssetsPath) {
+    $requestedAssetId = trim((string)$requestedAssetId);
+    $configured = $requestedAssetId !== '' ? array($requestedAssetId) : array_merge(
+        mtpc_zalo_group_asset_ids(isset($config['gmf_asset_ids']) ? $config['gmf_asset_ids'] : array()),
+        mtpc_zalo_group_asset_ids(isset($config['gmf_asset_id']) ? $config['gmf_asset_id'] : '')
+    );
+    $used = mtpc_zalo_group_used_assets($groupsPath, $usedAssetsPath);
+    $available = array();
+    foreach (mtpc_zalo_group_asset_ids($configured) as $assetId) if (empty($used[$assetId])) $available[] = $assetId;
+    return array('configured' => mtpc_zalo_group_asset_ids($configured), 'available' => $available);
+}
+
+function mtpc_zalo_group_asset_is_used_error($error) {
+    $code = (int)$error->getCode();
+    return in_array($code, array(-238, -241), true) || stripos($error->getMessage(), 'asset_id is already used') !== false || stripos($error->getMessage(), 'asset_id is disabled') !== false;
 }
 
 function mtpc_google_base64url($value) {
@@ -943,17 +996,30 @@ if ($action === 'group-create') {
     $dashboard = mtpc_zalo_dashboard_admin();
     try {
         $body = mtpc_zalo_body();
-        $groupName = mtpc_zalo_cut(isset($body['group_name']) ? $body['group_name'] : '', 100);
-        $assetId = mtpc_zalo_cut(isset($body['asset_id']) ? $body['asset_id'] : '', 180);
-        if ($assetId === '' && !empty($config['gmf_asset_id'])) $assetId = mtpc_zalo_cut($config['gmf_asset_id'], 180);
+        $groupName = mtpc_zalo_cut(isset($body['group_name']) ? $body['group_name'] : '', 30);
+        $requestedAssetId = mtpc_zalo_cut(isset($body['asset_id']) ? $body['asset_id'] : '', 180);
         $description = mtpc_zalo_cut(isset($body['group_description']) ? $body['group_description'] : '', 500);
         $members = mtpc_zalo_group_member_ids(isset($body['member_user_ids']) ? $body['member_user_ids'] : array());
         if ($groupName === '') throw new Exception('Vui lòng nhập tên nhóm.');
-        if ($assetId === '') throw new Exception('Chưa có asset_id GMF. Hãy cấu hình env ZALO_OA_ASSET_ID cho PHP của admin.mtpc.edu.vn hoặc đặt $MTPC_ZALO_OA_ASSET_ID trong /home/mtpc/private/zalo-oa-config.php.');
         if (count($members) < 1) throw new Exception('Cần ít nhất một Zalo User ID làm thành viên nhóm.');
-        $payload = array('group_name' => $groupName, 'asset_id' => $assetId, 'member_user_ids' => $members);
-        if ($description !== '') $payload['group_description'] = $description;
-        $response = mtpc_zalo_group_api($config, 'POST', 'creategroupwithoa', $payload, array());
+        $assets = mtpc_zalo_group_asset_candidates($config, $requestedAssetId, $groupsPath, $usedGroupAssetsPath);
+        if (!$assets['configured']) throw new Exception('Chưa cấu hình asset_id GMF. Hãy thêm một mã còn khả dụng vào $MTPC_ZALO_OA_ASSET_IDS trong /home/mtpc/private/zalo-oa-config.php.');
+        if (!$assets['available']) throw new Exception('Không còn asset_id GMF khả dụng. Mỗi asset trong gói chỉ tạo được một nhóm; hãy mua/lấy asset mới trong OA Manager rồi thêm vào $MTPC_ZALO_OA_ASSET_IDS, hoặc kết nối nhóm đã tạo bằng Group ID.', -241);
+        $response = null; $assetId = '';
+        foreach ($assets['available'] as $candidate) {
+            $payload = array('group_name' => $groupName, 'asset_id' => $candidate, 'member_user_ids' => $members);
+            if ($description !== '') $payload['group_description'] = $description;
+            try {
+                $response = mtpc_zalo_group_api($config, 'POST', 'creategroupwithoa', $payload, array());
+                $assetId = $candidate;
+                mtpc_zalo_group_mark_asset_used($usedGroupAssetsPath, $assetId, 'group_created');
+                break;
+            } catch (Exception $assetError) {
+                if (!mtpc_zalo_group_asset_is_used_error($assetError)) throw $assetError;
+                mtpc_zalo_group_mark_asset_used($usedGroupAssetsPath, $candidate, 'zalo_reported_unavailable');
+            }
+        }
+        if ($response === null || $assetId === '') throw new Exception('Tất cả asset_id GMF đã cấu hình đều đã được dùng hoặc không còn khả dụng. Hãy lấy asset mới trong OA Manager rồi cập nhật $MTPC_ZALO_OA_ASSET_IDS; đổi tên nhóm hoặc thử lại sẽ không khắc phục lỗi này.', -241);
         $info = mtpc_zalo_group_info($response);
         if (empty($info['group_id']) && isset($response['data']['group_id'])) $info['group_id'] = $response['data']['group_id'];
         if (empty($info['group_id'])) throw new Exception('Zalo tạo nhóm thành công nhưng không trả về group_id.');
@@ -961,7 +1027,10 @@ if ($action === 'group-create') {
         mtpc_zalo_group_save($groupsPath, $info, array('asset_id' => $assetId, 'group_description' => $description, 'member_user_ids' => $members));
         try { $audit = $dashboard['pdo']->prepare('INSERT INTO system_audit_logs(actor_username,actor_role,action,entity_type,entity_id,before_data,after_data,ip_address) VALUES(:u,:r,:a,:t,:i,:b,:n,:ip)'); $audit->execute(array(':u' => $dashboard['actor']['username'], ':r' => $dashboard['actor']['role'], ':a' => 'zalo.group_create', ':t' => 'zalo_group', ':i' => (string)$info['group_id'], ':b' => null, ':n' => json_encode($info, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), ':ip' => isset($_SERVER['REMOTE_ADDR']) ? $_SERVER['REMOTE_ADDR'] : '')); } catch (Exception $ignore) {}
         mtpc_zalo_out(200, array('ok' => true, 'message' => 'Đã tạo nhóm chat GMF.', 'group' => $info, 'response' => $response));
-    } catch (Exception $error) { mtpc_zalo_out(422, array('ok' => false, 'error' => $error->getMessage())); }
+    } catch (Exception $error) {
+        $assetError = mtpc_zalo_group_asset_is_used_error($error);
+        mtpc_zalo_out($assetError ? 409 : 422, array('ok' => false, 'error' => $error->getMessage(), 'code' => $assetError ? 'ZALO_GMF_ASSET_UNAVAILABLE' : 'ZALO_GMF_CREATE_FAILED'));
+    }
 }
 
 if ($action === 'group-register') {
