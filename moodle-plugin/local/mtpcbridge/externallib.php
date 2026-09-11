@@ -7,6 +7,7 @@ require_once($CFG->dirroot . '/course/modlib.php');
 require_once($CFG->libdir . '/resourcelib.php');
 require_once($CFG->dirroot . '/mod/assign/lib.php');
 require_once($CFG->dirroot . '/mod/quiz/lib.php');
+require_once($CFG->libdir . '/questionlib.php');
 
 /**
  * Minimal Moodle-side bridge used by the MTPC Admin dashboard.
@@ -349,6 +350,130 @@ class local_mtpcbridge_external extends external_api {
 
     public static function create_quiz_returns() {
         return self::activity_returns();
+    }
+
+    public static function create_quiz_from_questions_parameters() {
+        $answer = new external_single_structure(array(
+            'text' => new external_value(PARAM_RAW, 'Answer text', VALUE_REQUIRED),
+            'fraction' => new external_value(PARAM_FLOAT, 'Score fraction, 0 to 1', VALUE_DEFAULT, 0),
+            'feedback' => new external_value(PARAM_RAW, 'Optional answer feedback', VALUE_DEFAULT, ''),
+        ));
+        $question = new external_single_structure(array(
+            'type' => new external_value(PARAM_ALPHA, 'multichoice, truefalse, or shortanswer', VALUE_REQUIRED),
+            'name' => new external_value(PARAM_TEXT, 'Question name', VALUE_REQUIRED),
+            'questiontext' => new external_value(PARAM_RAW, 'Question text', VALUE_REQUIRED),
+            'defaultmark' => new external_value(PARAM_FLOAT, 'Question mark', VALUE_DEFAULT, 1),
+            'answers' => new external_multiple_structure($answer, 'Question answers', VALUE_DEFAULT, array()),
+        ));
+        return new external_function_parameters(array(
+            'courseid' => new external_value(PARAM_INT, 'Course ID', VALUE_REQUIRED),
+            'sectionnum' => new external_value(PARAM_INT, 'Course section number', VALUE_DEFAULT, 0),
+            'name' => new external_value(PARAM_TEXT, 'Quiz name', VALUE_REQUIRED),
+            'intro' => new external_value(PARAM_RAW, 'Quiz instructions', VALUE_DEFAULT, ''),
+            'timeopen' => new external_value(PARAM_INT, 'Opening timestamp', VALUE_DEFAULT, 0),
+            'timeclose' => new external_value(PARAM_INT, 'Closing timestamp', VALUE_DEFAULT, 0),
+            'timelimit' => new external_value(PARAM_INT, 'Time limit in seconds', VALUE_DEFAULT, 0),
+            'attempts' => new external_value(PARAM_INT, 'Allowed attempts, zero means unlimited', VALUE_DEFAULT, 0),
+            'grade' => new external_value(PARAM_FLOAT, 'Maximum grade', VALUE_DEFAULT, 10),
+            'questions' => new external_multiple_structure($question, 'Questions to import', VALUE_REQUIRED),
+        ));
+    }
+
+    private static function quiz_xml_escape($value) {
+        return htmlspecialchars((string)$value, ENT_XML1 | ENT_QUOTES, 'UTF-8');
+    }
+
+    private static function quiz_question_xml($question) {
+        $type = strtolower(trim($question['type']));
+        if (!in_array($type, array('multichoice', 'truefalse', 'shortanswer'), true)) {
+            throw new invalid_parameter_exception('Chỉ hỗ trợ câu hỏi trắc nghiệm, đúng/sai và trả lời ngắn.');
+        }
+        $name = self::quiz_xml_escape(trim($question['name']));
+        $text = self::quiz_xml_escape(trim($question['questiontext']));
+        if ($name === '' || $text === '') throw new invalid_parameter_exception('Câu hỏi phải có tên và nội dung.');
+        $mark = max(0.01, min(1000, (float)$question['defaultmark']));
+        $xml = '<question type="' . $type . '">';
+        $xml .= '<name><text>' . $name . '</text></name>';
+        $xml .= '<questiontext format="html"><text>' . $text . '</text></questiontext>';
+        $xml .= '<generalfeedback format="html"><text></text></generalfeedback>';
+        $xml .= '<defaultgrade>' . number_format($mark, 7, '.', '') . '</defaultgrade>';
+        $xml .= '<penalty>0.3333333</penalty><hidden>0</hidden>';
+        if ($type === 'multichoice') {
+            $xml .= '<single>true</single><shuffleanswers>true</shuffleanswers><answernumbering>abc</answernumbering>';
+            $xml .= '<correctfeedback format="html"><text></text></correctfeedback><partiallycorrectfeedback format="html"><text></text></partiallycorrectfeedback><incorrectfeedback format="html"><text></text></incorrectfeedback>';
+        } else if ($type === 'shortanswer') {
+            $xml .= '<usecase>0</usecase>';
+        }
+        $answers = isset($question['answers']) && is_array($question['answers']) ? $question['answers'] : array();
+        if ($type === 'multichoice' && count($answers) < 2) throw new invalid_parameter_exception('Câu trắc nghiệm cần ít nhất 2 phương án.');
+        if ($type === 'truefalse') {
+            $falseIsCorrect = false;
+            foreach ($answers as $answer) if (strtolower(trim((string)$answer['text'])) === 'false' && (float)(isset($answer['fraction']) ? $answer['fraction'] : 0) > 0) $falseIsCorrect = true;
+            $answers = array(array('text'=>'true','fraction'=>$falseIsCorrect ? 0 : 1), array('text'=>'false','fraction'=>$falseIsCorrect ? 1 : 0));
+        }
+        if ($type === 'shortanswer' && !$answers) throw new invalid_parameter_exception('Câu trả lời ngắn cần ít nhất một đáp án đúng.');
+        $correct = false;
+        foreach ($answers as $answer) {
+            $fraction = max(-1, min(1, (float)(isset($answer['fraction']) ? $answer['fraction'] : 0)));
+            if ($type === 'truefalse') $fraction = (float)$answer['fraction'];
+            if ($fraction > 0) $correct = true;
+            $xml .= '<answer fraction="' . number_format($fraction * 100, 7, '.', '') . '" format="html"><text>' . self::quiz_xml_escape(trim($answer['text'])) . '</text><feedback format="html"><text>' . self::quiz_xml_escape(isset($answer['feedback']) ? $answer['feedback'] : '') . '</text></feedback></answer>';
+        }
+        if (!$correct) throw new invalid_parameter_exception('Mỗi câu hỏi phải có ít nhất một đáp án đúng.');
+        return $xml . '</question>';
+    }
+
+    public static function create_quiz_from_questions($courseid, $sectionnum, $name, $intro, $timeopen, $timeclose, $timelimit, $attempts, $grade, $questions) {
+        global $CFG, $DB;
+        $params = self::validate_parameters(self::create_quiz_from_questions_parameters(), compact('courseid', 'sectionnum', 'name', 'intro', 'timeopen', 'timeclose', 'timelimit', 'attempts', 'grade', 'questions'));
+        if (count($params['questions']) < 1 || count($params['questions']) > 100) throw new invalid_parameter_exception('Bài kiểm tra cần từ 1 đến 100 câu hỏi.');
+        $created = self::create_quiz($params['courseid'], $params['sectionnum'], $params['name'], $params['intro'], $params['timeopen'], $params['timeclose'], $params['timelimit'], $params['attempts'], $params['grade']);
+        $temp = false;
+        try {
+            $temp = tempnam($CFG->tempdir, 'mtpc-quiz-');
+            if ($temp === false) throw new moodle_exception('cannotcreatetempdir', 'error');
+            $xml = '<?xml version="1.0" encoding="UTF-8"?><quiz><question type="category"><category><text>$course$/' . self::quiz_xml_escape($params['name']) . '</text></category></question>';
+            foreach ($params['questions'] as $question) $xml .= self::quiz_question_xml($question);
+            $xml .= '</quiz>';
+            if (file_put_contents($temp, $xml) === false) throw new moodle_exception('cannotwritefile', 'error');
+            $quiz = $DB->get_record('quiz', array('id'=>(int)$created['instanceid']), '*', MUST_EXIST);
+            $cm = get_coursemodule_from_instance('quiz', $quiz->id, $params['courseid'], true, MUST_EXIST);
+            $questioncontext = context_module::instance($cm->id);
+            self::validate_context($questioncontext);
+            require_capability('moodle/question:add', $questioncontext);
+            $category = question_get_default_category($questioncontext->id, true);
+            require_once($CFG->dirroot . '/question/format/xml/format.php');
+            $format = new qformat_xml();
+            $format->setCategory($category);
+            $format->setCourse(get_course($params['courseid']));
+            $format->setFilename($temp);
+            $format->setMatchgrades('error');
+            $format->setCatfromfile(false);
+            $format->setStoponerror(true);
+            $format->set_display_progress(false);
+            if (!$format->importpreprocess() || !$format->importprocess() || !$format->importpostprocess()) throw new moodle_exception('importerror', 'question');
+            $questionids = array_values(array_unique(array_map('intval', $format->questionids)));
+            if (count($questionids) !== count($params['questions'])) throw new moodle_exception('importerror', 'question');
+            foreach ($questionids as $questionid) quiz_add_quiz_question($questionid, $quiz);
+            $quizobj = \mod_quiz\quiz_settings::create($quiz->id);
+            $quizobj->get_grade_calculator()->recompute_quiz_sumgrades();
+            @unlink($temp);
+            return array('coursemoduleid'=>(int)$created['coursemoduleid'], 'instanceid'=>(int)$quiz->id, 'courseid'=>(int)$params['courseid'], 'sectionnum'=>(int)$params['sectionnum'], 'module'=>'quiz', 'name'=>(string)$params['name'], 'visible'=>1, 'action'=>'create', 'questioncount'=>count($questionids));
+        } catch (Exception $e) {
+            if ($temp && is_file($temp)) @unlink($temp);
+            course_delete_module((int)$created['coursemoduleid']);
+            throw $e;
+        }
+    }
+
+    public static function create_quiz_from_questions_returns() {
+        return new external_single_structure(array(
+            'coursemoduleid'=>new external_value(PARAM_INT), 'instanceid'=>new external_value(PARAM_INT),
+            'courseid'=>new external_value(PARAM_INT), 'sectionnum'=>new external_value(PARAM_INT),
+            'module'=>new external_value(PARAM_ALPHANUMEXT), 'name'=>new external_value(PARAM_TEXT),
+            'visible'=>new external_value(PARAM_INT), 'action'=>new external_value(PARAM_ALPHA),
+            'questioncount'=>new external_value(PARAM_INT),
+        ));
     }
 
     public static function manage_activity_parameters() {

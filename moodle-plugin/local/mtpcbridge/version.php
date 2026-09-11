@@ -2,7 +2,7 @@
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = 'local_mtpcbridge';
-$plugin->version = 2026090904;
+$plugin->version = 2026091101;
 $plugin->requires = 2022041900;
 $plugin->maturity = MATURITY_STABLE;
-$plugin->release = '1.5.1';
+$plugin->release = '1.6.0';

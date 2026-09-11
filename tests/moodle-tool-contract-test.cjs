@@ -30,7 +30,7 @@ const apiActions = [
   'quizzes', 'quiz-attempts', 'quiz-grades', 'grade-items',
   'course-completion', 'activity-completion',
   'groups', 'calendar-events', 'post-lecture', 'post-lecture-file',
-  'post-announcement', 'delete-announcements', 'create-assignment', 'create-quiz', 'manage-activity',
+  'post-announcement', 'delete-announcements', 'create-assignment', 'create-quiz', 'create-quiz-from-questions', 'manage-activity',
   'save-grade', 'bulk-save-grades', 'ai-grade-assignment', 'create-group', 'add-group-member',
   'remove-group-member', 'delete-group', 'create-calendar-event',
   'delete-calendar-event', 'send-message', 'create-course', 'update-course',
@@ -71,8 +71,8 @@ assert.ok(api.includes("'requires_teacher_review'=>true"), 'AI grades must requi
 assert.ok(api.includes("'saved'=>false"), 'AI grading drafts must not silently write official grades');
 assert.ok(index.includes('assignment_name'), 'Moodle schema should accept assignment names');
 assert.ok(index.includes('user_query'), 'Moodle schema should accept natural user queries');
-assert.ok(index.includes('ai-file-chat.js?v=20260905-3'), 'AI file adapter cache version is stale');
-assert.ok(version.includes('$plugin->version = 2026090904;'), 'Plugin version was not bumped');
+assert.ok(index.includes('ai-file-chat.js?v=20260911-1'), 'AI file adapter cache version is stale');
+assert.ok(version.includes('$plugin->version = 2026091101;'), 'Plugin version was not bumped');
 assert.ok(upgrade.includes('upgrade_plugin_savepoint(true, 2026090901'), 'AI grading service upgrade is missing');
 assert.ok(upgrade.includes('upgrade_plugin_savepoint(true, 2026090902'), 'Zalo notification queue upgrade is missing');
 assert.ok(events.includes('\\\\core\\\\event\\\\notification_sent'), 'Moodle course notifications are not observed');
@@ -136,5 +136,9 @@ for (const bridge of ['create_assignment', 'create_quiz', 'manage_activity', 'li
   assert.ok(external.includes(`function ${bridge}(`), `Plugin implementation is missing ${bridge}`);
   assert.ok(install.includes(`'local_mtpcbridge_${bridge}'`), `Fresh installation does not grant ${bridge}`);
 }
+assert.ok(services.includes("'local_mtpcbridge_create_quiz_from_questions'"), 'Plugin service declaration is missing create_quiz_from_questions');
+assert.ok(external.includes('create_quiz_from_questions'), 'Plugin implementation is missing create_quiz_from_questions');
+assert.ok(install.includes("'local_mtpcbridge_create_quiz_from_questions'"), 'Fresh installation does not grant create_quiz_from_questions');
+assert.ok(upgrade.includes('upgrade_plugin_savepoint(true, 2026091101'), 'Quiz question import upgrade is missing');
 
 console.log(`Moodle tool contract OK: ${apiActions.length} actions, ${new Set(requiredFunctions).size} Web Service functions.`);

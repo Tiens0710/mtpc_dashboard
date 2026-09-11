@@ -45,6 +45,11 @@ $functions = array(
         'description' => 'Create a standard empty Quiz activity in a course.', 'type' => 'write',
         'capabilities' => 'moodle/course:manageactivities',
     ),
+    'local_mtpcbridge_create_quiz_from_questions' => array(
+        'classname' => 'local_mtpcbridge_external', 'methodname' => 'create_quiz_from_questions',
+        'description' => 'Create a quiz and import reviewed questions into its question bank.', 'type' => 'write',
+        'capabilities' => 'moodle/course:manageactivities,moodle/question:add',
+    ),
     'local_mtpcbridge_manage_activity' => array(
         'classname' => 'local_mtpcbridge_external', 'methodname' => 'manage_activity',
         'description' => 'Rename, show, hide, move, or delete a course activity.', 'type' => 'write',

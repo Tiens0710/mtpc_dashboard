@@ -221,5 +221,19 @@ function xmldb_local_mtpcbridge_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2026090904, 'local', 'mtpcbridge');
     }
 
+    if ($oldversion < 2026091101) {
+        $functionname = 'local_mtpcbridge_create_quiz_from_questions';
+        foreach ($DB->get_records('external_services') as $service) {
+            $name = core_text::strtolower(trim((string)$service->name));
+            $shortname = core_text::strtolower(trim((string)$service->shortname));
+            if ($name !== 'dashboard' && $shortname !== 'dashboard') continue;
+            if (!$DB->record_exists('external_services_functions', array('externalserviceid'=>$service->id, 'functionname'=>$functionname))) {
+                $record = new stdClass(); $record->externalserviceid = $service->id; $record->functionname = $functionname;
+                $DB->insert_record('external_services_functions', $record);
+            }
+        }
+        upgrade_plugin_savepoint(true, 2026091101, 'local', 'mtpcbridge');
+    }
+
     return true;
 }

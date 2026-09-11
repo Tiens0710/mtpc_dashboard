@@ -33,7 +33,7 @@ $writePermissions = array(
     'enrol-user' => 'moodle.write', 'unenrol-user' => 'moodle.write', 'create-user' => 'moodle.write',
     'update-user' => 'moodle.write', 'delete-user' => 'moodle.write',
     'post-announcement' => 'moodle.content.write', 'delete-announcements' => 'moodle.content.write', 'post-lecture' => 'moodle.content.write', 'post-lecture-file' => 'moodle.content.write', 'save-grade' => 'moodle.grade.write',
-    'create-assignment' => 'moodle.content.write', 'create-quiz' => 'moodle.content.write', 'manage-activity' => 'moodle.content.write',
+    'create-assignment' => 'moodle.content.write', 'create-quiz' => 'moodle.content.write', 'create-quiz-from-questions' => 'moodle.content.write', 'manage-activity' => 'moodle.content.write',
     'create-group' => 'moodle.group.write', 'add-group-member' => 'moodle.group.write',
     'remove-group-member' => 'moodle.group.write', 'delete-group' => 'moodle.group.write',
     'create-calendar-event' => 'moodle.calendar.write', 'delete-calendar-event' => 'moodle.calendar.write',
@@ -239,6 +239,7 @@ try {
         'delete-announcements' => array('mod_forum_get_forums_by_courses', 'local_mtpcbridge_delete_announcements'),
         'create-assignment' => array('local_mtpcbridge_create_assignment'),
         'create-quiz' => array('local_mtpcbridge_create_quiz'),
+        'create-quiz-from-questions' => array('local_mtpcbridge_create_quiz_from_questions'),
         'manage-activity' => array('local_mtpcbridge_manage_activity'),
         'save-grade' => array('mod_assign_save_grade'),
         'bulk-save-grades' => array('mod_assign_save_grade'),
@@ -665,6 +666,26 @@ try {
         $result = $moodle->createQuiz($courseId, isset($body['sectionnum'])?(int)$body['sectionnum']:0, $name, mtpc_moodle_text(isset($body['intro'])?$body['intro']:'', 12000), isset($body['timeopen'])?(int)$body['timeopen']:0, isset($body['timeclose'])?(int)$body['timeclose']:0, isset($body['timelimit'])?(int)$body['timelimit']:0, isset($body['attempts'])?(int)$body['attempts']:0, isset($body['grade'])?(float)$body['grade']:10);
         mtpc_audit('moodle.quiz.create', 'moodle_course', $courseId, null, array('name'=>$name));
         mtpc_moodle_response(201, array('ok'=>true, 'message'=>'Đã tạo bài kiểm tra Moodle. Có thể thêm câu hỏi trong Moodle.', 'quiz'=>$result));
+    }
+
+    if ($action === 'create-quiz-from-questions') {
+        $courseId = isset($body['courseid']) ? (int)$body['courseid'] : 0;
+        $name = mtpc_moodle_text(isset($body['name']) ? $body['name'] : '', 254);
+        $questions = isset($body['questions']) && is_array($body['questions']) ? array_slice($body['questions'], 0, 100) : array();
+        if ($courseId <= 0 || $name === '' || !$questions) mtpc_moodle_response(422, array('ok'=>false, 'error'=>'Cần khóa học, tên bài kiểm tra và danh sách câu hỏi.'));
+        $clean = array();
+        foreach ($questions as $question) {
+            if (!is_array($question)) continue;
+            $answers = array();
+            foreach (isset($question['answers']) && is_array($question['answers']) ? array_slice($question['answers'], 0, 10) : array() as $answer) {
+                if (!is_array($answer) || trim((string)(isset($answer['text']) ? $answer['text'] : '')) === '') continue;
+                $answers[] = array('text'=>mtpc_moodle_text($answer['text'], 4000), 'fraction'=>isset($answer['fraction']) ? (float)$answer['fraction'] : 0, 'feedback'=>mtpc_moodle_text(isset($answer['feedback']) ? $answer['feedback'] : '', 1000));
+            }
+            $clean[] = array('type'=>strtolower((string)(isset($question['type']) ? $question['type'] : '')), 'name'=>mtpc_moodle_text(isset($question['name']) ? $question['name'] : '', 254), 'questiontext'=>mtpc_moodle_text(isset($question['questiontext']) ? $question['questiontext'] : '', 12000), 'defaultmark'=>isset($question['defaultmark']) ? (float)$question['defaultmark'] : 1, 'answers'=>$answers);
+        }
+        $result = $moodle->createQuizFromQuestions($courseId, isset($body['sectionnum']) ? (int)$body['sectionnum'] : 0, $name, mtpc_moodle_text(isset($body['intro']) ? $body['intro'] : '', 12000), isset($body['timeopen']) ? (int)$body['timeopen'] : 0, isset($body['timeclose']) ? (int)$body['timeclose'] : 0, isset($body['timelimit']) ? (int)$body['timelimit'] : 0, isset($body['attempts']) ? (int)$body['attempts'] : 0, isset($body['grade']) ? (float)$body['grade'] : 10, $clean);
+        mtpc_audit('moodle.quiz.create_from_questions', 'moodle_course', $courseId, null, array('name'=>$name, 'questioncount'=>count($clean)));
+        mtpc_moodle_response(201, array('ok'=>true, 'message'=>'Đã tạo bài kiểm tra Moodle và nhập '.count($clean).' câu hỏi.', 'quiz'=>$result, 'questioncount'=>count($clean)));
     }
 
     if ($action === 'manage-activity') {

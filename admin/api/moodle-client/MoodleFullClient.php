@@ -609,6 +609,17 @@ class MoodleFullClient extends MoodleClient
         ));
     }
 
+    public function createQuizFromQuestions($courseId, $sectionNum, $name, $intro, $timeOpen, $timeClose, $timeLimit, $attempts, $grade, $questions)
+    {
+        return $this->call('local_mtpcbridge_create_quiz_from_questions', array(
+            'courseid' => (int)$courseId, 'sectionnum' => (int)$sectionNum,
+            'name' => (string)$name, 'intro' => (string)$intro,
+            'timeopen' => (int)$timeOpen, 'timeclose' => (int)$timeClose,
+            'timelimit' => (int)$timeLimit, 'attempts' => (int)$attempts,
+            'grade' => (float)$grade, 'questions' => $questions,
+        ));
+    }
+
     public function manageActivity($courseModuleId, $action, $name = '', $sectionNum = -1)
     {
         return $this->call('local_mtpcbridge_manage_activity', array(
