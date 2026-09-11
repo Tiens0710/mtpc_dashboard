@@ -69,6 +69,8 @@ assert.ok(index.includes('parameters.properties.meet_url'), 'Online classes must
 assert.ok(api.includes("$action === 'ai-grade-assignment'"), 'Moodle bridge must generate AI grading drafts');
 assert.ok(api.includes("'requires_teacher_review'=>true"), 'AI grades must require teacher review before saving');
 assert.ok(api.includes("'saved'=>false"), 'AI grading drafts must not silently write official grades');
+assert.ok(api.includes('mtpc_moodle_submission_file_part'), 'AI grading must read supported Moodle submission files');
+assert.ok(api.includes('downloadSubmissionFileBytes'), 'AI grading must download binary Moodle submissions safely');
 assert.ok(index.includes('assignment_name'), 'Moodle schema should accept assignment names');
 assert.ok(index.includes('user_query'), 'Moodle schema should accept natural user queries');
 assert.ok(index.includes('ai-file-chat.js?v=20260911-2'), 'AI file adapter cache version is stale');

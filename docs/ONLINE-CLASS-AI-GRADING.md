@@ -46,7 +46,8 @@ Trong Orb quản trị, giáo viên có thể nói:
 > Chấm nháp bài tập Python vòng lặp theo rubric: đúng thuật toán 5 điểm, kết quả
 > 3 điểm, trình bày 2 điểm; thang điểm 10.
 
-AI chỉ chấm các bài nộp bằng văn bản trực tuyến và trả về điểm, nhận xét, dẫn
-chứng ngắn cùng độ tin cậy. Kết quả chưa được ghi vào sổ điểm. Giáo viên cần xem
-lại rồi yêu cầu Orb lưu danh sách điểm. Bài nộp dạng file được đánh dấu để giáo
-viên xử lý riêng, không bị chấm đoán.
+AI chấm bài nộp bằng văn bản trực tuyến hoặc tệp DOCX, PDF, TXT, Markdown,
+CSV, HTML và ảnh PNG/JPEG/WebP. Mỗi bài tối đa 3 tệp, mỗi tệp tối đa 5 MB; tệp
+không hỗ trợ được báo riêng. AI trả về điểm, nhận xét, dẫn chứng ngắn cùng độ
+tin cậy. Kết quả chưa được ghi vào sổ điểm; giáo viên cần xem lại rồi yêu
+cầu Orb lưu danh sách điểm.

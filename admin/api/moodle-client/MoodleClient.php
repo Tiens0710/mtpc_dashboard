@@ -298,6 +298,24 @@ class MoodleClient
      */
     public function downloadSubmissionFile($fileUrl, $maxBytes = 500000)
     {
+        $data = $this->downloadSubmissionFileBytes($fileUrl, $maxBytes);
+        if ($data === null) return null;
+        // Thử decode nếu là text.
+        if (function_exists('mb_check_encoding')) {
+            if (mb_check_encoding($data, 'UTF-8')) return $data;
+        } else if (preg_match('//u', $data)) {
+            return $data;
+        }
+        return null;
+    }
+
+    /** Tải nguyên nội dung file để bộ đọc DOCX/PDF xử lý. */
+    public function downloadSubmissionFileBytes($fileUrl, $maxBytes = 5242880)
+    {
+        $file = parse_url((string)$fileUrl);
+        $endpoint = parse_url($this->endpoint);
+        if (!$file || !$endpoint || empty($file['host']) || empty($endpoint['host']) || strcasecmp($file['host'], $endpoint['host']) !== 0) return null;
+        if (isset($file['scheme']) && isset($endpoint['scheme']) && strcasecmp($file['scheme'], $endpoint['scheme']) !== 0) return null;
         $url = $fileUrl . (strpos($fileUrl, '?') !== false ? '&' : '?') . 'token=' . urlencode($this->token);
         $ch = curl_init($url);
         curl_setopt_array($ch, array(
@@ -313,21 +331,7 @@ class MoodleClient
         if ($data === false || $httpCode !== 200) {
             return null;
         }
-        if (strlen($data) > $maxBytes) {
-            $data = substr($data, 0, $maxBytes);
-        }
-        // Thử decode nếu là text
-        if (function_exists('mb_check_encoding')) {
-            if (mb_check_encoding($data, 'UTF-8')) {
-                return $data;
-            }
-        } else {
-            // fallback nếu không có mbstring
-            if (preg_match('//u', $data)) {
-                return $data;
-            }
-        }
-        // Nếu không phải UTF-8 text, có thể là binary (PDF/DOCX) -> không parse được bằng pure PHP
-        return null;
+        if (strlen($data) > $maxBytes) return null;
+        return $data;
     }
 }
