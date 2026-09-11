@@ -10,7 +10,7 @@ let selectedFile = null, pendingMoodle = '';
 const host = {
   getFile() { return selectedFile; }, setFile(file) { selectedFile = file; },
   getPendingMoodle() { return pendingMoodle; }, setPendingMoodle(value) { pendingMoodle = value; },
-  extension(file) { return file.name.split('.').pop(); }, renderAttachment() {}, showPrompt() {}, status() {}, sendContext() {},
+  extension(file) { return file.name.split('.').pop(); }, renderAttachment() {}, showPrompt() {}, hidePrompt() {}, status() {}, sendContext() {},
   transcript(role, text) { messages.push(text); }, liveSocket() { return null; }, toolDeclarations: [], flash(text) { messages.push(text); }
 };
 const context = {
@@ -30,7 +30,7 @@ const context = {
     }
     if (url === 'api/moodle.php?action=create-quiz-from-questions') {
       const body=JSON.parse(options.body);assert.equal(body.courseid,7);assert.equal(body.questions.length,2);calls.push('quiz-create');
-      return {ok:true,async json(){return{ok:true,message:'Đã tạo bài kiểm tra Moodle và nhập 2 câu hỏi.'}}};
+      return {ok:true,status:201,async text(){return JSON.stringify({ok:true,message:'Đã tạo bài kiểm tra Moodle và nhập 2 câu hỏi.',questioncount:2,quiz:{instanceid:9,questioncount:2}})}};
     }
     throw new Error('Unexpected URL '+url);
   }
@@ -49,7 +49,7 @@ vm.createContext(context); vm.runInContext(fs.readFileSync('admin/ai-file-chat.j
   assert.equal(cards[0].children[2].download, 'result.txt');
   context.window.MTPC_ADMIN_FILE_CHAT.onSelectFile(new File(['original document'], 'questions.txt'));
   await context.window.MTPC_ADMIN_FILE_CHAT.runTool('draft_quiz_from_file',{instruction:'Tạo bài kiểm tra',course_id:7,quiz_name:'Kiểm tra Python'});
-  assert.equal(calls.at(-1),'quiz-draft');assert.equal(cards.length,2);await cards[1].children[5].onclick();assert.equal(calls.at(-1),'quiz-create');assert.equal(selectedFile,null);
+  assert.equal(calls.at(-1),'quiz-draft');assert.equal(cards.length,2);await sendText('Xác nhận, đăng bài đi nhé');assert.equal(calls.at(-1),'quiz-create');assert.equal(selectedFile,null);assert(!calls.includes('original-send'));
   await sendText('đăng file này lên Moodle');
   assert.equal(calls.at(-1), 'original-send');
   assert.equal(context.window.MTPC_ADMIN_FILE_CHAT.handlesTool('zalo_group_action'), false);

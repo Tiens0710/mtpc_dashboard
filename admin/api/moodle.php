@@ -684,6 +684,9 @@ try {
             $clean[] = array('type'=>strtolower((string)(isset($question['type']) ? $question['type'] : '')), 'name'=>mtpc_moodle_text(isset($question['name']) ? $question['name'] : '', 254), 'questiontext'=>mtpc_moodle_text(isset($question['questiontext']) ? $question['questiontext'] : '', 12000), 'defaultmark'=>isset($question['defaultmark']) ? (float)$question['defaultmark'] : 1, 'answers'=>$answers);
         }
         $result = $moodle->createQuizFromQuestions($courseId, isset($body['sectionnum']) ? (int)$body['sectionnum'] : 0, $name, mtpc_moodle_text(isset($body['intro']) ? $body['intro'] : '', 12000), isset($body['timeopen']) ? (int)$body['timeopen'] : 0, isset($body['timeclose']) ? (int)$body['timeclose'] : 0, isset($body['timelimit']) ? (int)$body['timelimit'] : 0, isset($body['attempts']) ? (int)$body['attempts'] : 0, isset($body['grade']) ? (float)$body['grade'] : 10, $clean);
+        if (!is_array($result) || empty($result['instanceid']) || !isset($result['questioncount']) || (int)$result['questioncount'] !== count($clean)) {
+            mtpc_moodle_response(502, array('ok'=>false, 'error'=>'Moodle không xác nhận đã nhập đủ câu hỏi. Không thể báo tạo bài kiểm tra thành công.', 'detail'=>$result));
+        }
         mtpc_audit('moodle.quiz.create_from_questions', 'moodle_course', $courseId, null, array('name'=>$name, 'questioncount'=>count($clean)));
         mtpc_moodle_response(201, array('ok'=>true, 'message'=>'Đã tạo bài kiểm tra Moodle và nhập '.count($clean).' câu hỏi.', 'quiz'=>$result, 'questioncount'=>count($clean)));
     }

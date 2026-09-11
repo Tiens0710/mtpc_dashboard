@@ -71,7 +71,7 @@ assert.ok(api.includes("'requires_teacher_review'=>true"), 'AI grades must requi
 assert.ok(api.includes("'saved'=>false"), 'AI grading drafts must not silently write official grades');
 assert.ok(index.includes('assignment_name'), 'Moodle schema should accept assignment names');
 assert.ok(index.includes('user_query'), 'Moodle schema should accept natural user queries');
-assert.ok(index.includes('ai-file-chat.js?v=20260911-1'), 'AI file adapter cache version is stale');
+assert.ok(index.includes('ai-file-chat.js?v=20260911-2'), 'AI file adapter cache version is stale');
 assert.ok(version.includes('$plugin->version = 2026091101;'), 'Plugin version was not bumped');
 assert.ok(upgrade.includes('upgrade_plugin_savepoint(true, 2026090901'), 'AI grading service upgrade is missing');
 assert.ok(upgrade.includes('upgrade_plugin_savepoint(true, 2026090902'), 'Zalo notification queue upgrade is missing');

@@ -170,14 +170,13 @@
   </style>
   <style id="admin-orb-attachment">
     #adminOrbFile{display:none!important}
-    #adminOrbAttach{display:inline-flex!important;align-items:center;justify-content:center;gap:6px;flex:0 0 auto;width:auto!important;min-width:100px;height:40px!important;padding:0 12px;border:1px solid #8bc6a5;border-radius:12px;background:#d0ecda;color:#155b3b;font-size:13px;font-weight:700;box-shadow:none;cursor:pointer}
-    #adminOrbAttach::after{content:'Chọn file'}
+    #adminOrbAttach{display:inline-flex!important;align-items:center;justify-content:center;flex:0 0 40px;width:40px!important;min-width:40px;height:40px!important;padding:0;border:1px solid #8bc6a5;border-radius:50%;background:#d0ecda;color:#155b3b;font-size:16px;box-shadow:none;cursor:pointer}
     #adminOrbAttach:hover{background:#e1f5e6}
-    #adminOrbAttachment{display:inline-block;flex:0 1 150px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#18733e;font-size:11px;cursor:pointer}
+    #adminOrbAttachment{display:inline-block;flex:0 1 210px;min-width:0;max-width:210px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:7px 10px;border:1px solid rgba(205,255,220,.3);border-radius:999px;background:rgba(226,255,235,.1);color:#dcffe7;font-size:11px;cursor:pointer}
     #adminOrbAttachment[hidden]{display:none}
-    .admin-orb-file-prompt{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 15px 8px;padding:9px 11px;border:1px solid #b9e6c4;border-radius:11px;background:#effcf1;color:#14632f;font-size:11px}
+    .admin-orb-file-prompt{display:block;margin:0 15px 8px;padding:9px 11px;border:1px solid #b9e6c4;border-radius:11px;background:#effcf1;color:#14632f;font-size:11px}
     .admin-orb-file-prompt[hidden]{display:none}
-    .admin-orb-file-prompt button{flex:0 0 auto;padding:7px 10px;border:0;border-radius:8px;background:#168047;color:#fff;font-size:11px;font-weight:800;cursor:pointer}
+    #adminOrbSelectFile{display:none!important}
   </style>
   <style id="admin-orb-chat-workspace-fix">
     /* Keep the conversation in a bounded workspace below the orb. Tool cards must
@@ -315,7 +314,7 @@
     #adminOrbAttach{background:rgba(226,255,235,.14)!important;border-color:rgba(205,255,220,.38)!important;color:#effff4!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.14)!important;backdrop-filter:blur(12px)}
     #adminOrbAttach:hover{background:rgba(226,255,235,.24)!important}
     #adminOrbAttach:focus-visible{outline:3px solid #83f49a;outline-offset:2px}
-    #adminAiWelcome~#adminOrbWidget #adminOrbPanel #adminOrbAttachment{order:-1;flex:1 0 100%;color:#dcffe7;padding:3px 4px}
+    #adminAiWelcome~#adminOrbWidget #adminOrbPanel #adminOrbAttachment{order:0;flex:0 1 210px;color:#dcffe7}
     #adminAiWelcome~#adminOrbWidget #adminOrbPanel #adminOrbFilePrompt{background:rgba(229,255,237,.16);color:#effff4;border-color:rgba(205,255,220,.34);backdrop-filter:blur(14px)}
     #adminAiWelcome~#adminOrbWidget #adminOrbPanel .admin-file-result{background:rgba(232,255,239,.18);color:#f3fff7;border-color:rgba(205,255,220,.34);backdrop-filter:blur(14px)}
     #adminAiWelcome~#adminOrbWidget #adminOrbPanel .admin-file-result a,
@@ -569,7 +568,7 @@
     function adminSendMoodleAttachmentContext(){if(!adminPendingMoodleFile||!adminLiveSocket||adminLiveSocket.readyState!==WebSocket.OPEN)return;adminLiveSocket.send(JSON.stringify({clientContent:{turns:[{role:'user',parts:[{text:adminMoodleAttachmentContextText(adminPendingMoodleFile)}]}],turnComplete:false}}))}
     function adminRenderMoodleAttachment(){var label=$('#adminOrbAttachment'),file=adminPendingMoodleFile;if(!label)return;label.hidden=!file;if(file){label.textContent='📎 '+file.name;label.title='Bấm để bỏ file '+file.name}}
     function adminClearMoodleAttachment(){adminPendingMoodleFile=null;if(window.MTPC_ADMIN_FILE_CHAT&&typeof window.MTPC_ADMIN_FILE_CHAT.onClear==='function')window.MTPC_ADMIN_FILE_CHAT.onClear();adminRenderMoodleAttachment();var input=$('#adminOrbFile');if(input)input.value='';if(adminPendingMoodleCommand)adminShowMoodleFilePrompt('Chọn file cần đăng rồi nói “đăng”.')}
-    function adminSetMoodleAttachment(file){if(window.MTPC_ADMIN_FILE_CHAT&&typeof window.MTPC_ADMIN_FILE_CHAT.onSelectFile==='function'&&window.MTPC_ADMIN_FILE_CHAT.onSelectFile(file))return;var allowed=['pdf','doc','docx','ppt','pptx','xls','xlsx','csv','txt','md','html','jpg','jpeg','png','webp'];if(!file)return;if(allowed.indexOf(adminMoodleFileExtension(file))===-1){adminClearMoodleAttachment();flash('File đính kèm phải là PDF, Office, CSV, TXT/Markdown/HTML hoặc ảnh JPG/PNG/WebP.');return}if(file.size>20*1024*1024){adminClearMoodleAttachment();flash('File đính kèm tối đa 20 MB.');return}adminPendingMoodleFile=file;adminRenderMoodleAttachment();adminOrbStatus('Đã nhận '+file.name,'idle');if(adminPendingMoodleCommand){adminShowMoodleFilePrompt('Đã nhận '+file.name+'. Bây giờ nói “đăng” để thực hiện.')}else{adminShowMoodleFilePrompt('Đã nhận '+file.name+'. Bạn có thể nói yêu cầu đăng file.')}adminSendMoodleAttachmentContext()}
+    function adminSetMoodleAttachment(file){if(window.MTPC_ADMIN_FILE_CHAT&&typeof window.MTPC_ADMIN_FILE_CHAT.onSelectFile==='function'&&window.MTPC_ADMIN_FILE_CHAT.onSelectFile(file))return;var allowed=['pdf','doc','docx','ppt','pptx','xls','xlsx','csv','txt','md','html','jpg','jpeg','png','webp'];if(!file)return;if(allowed.indexOf(adminMoodleFileExtension(file))===-1){adminClearMoodleAttachment();flash('File đính kèm phải là PDF, Office, CSV, TXT/Markdown/HTML hoặc ảnh JPG/PNG/WebP.');return}if(file.size>20*1024*1024){adminClearMoodleAttachment();flash('File đính kèm tối đa 20 MB.');return}adminPendingMoodleFile=file;adminRenderMoodleAttachment();adminHideMoodleFilePrompt();adminOrbStatus('Đã đính kèm '+file.name,'idle');adminSendMoodleAttachmentContext()}
     async function adminUploadAttachedMoodleFile(args){
       var file=adminPendingMoodleFile,courseid=Number(args.course_id||args.courseid||0),sectionnum=Math.max(0,Number(args.section_num||args.sectionnum||0)),name=String(args.lecture_title||args.name||'').trim();
       if(!file){adminPendingMoodleCommand=adminPendingMoodleCommand||('Đăng file lên khoá học '+(args.course_name||('Course '+(args.course_id||'')))+(args.lecture_title?' với tên '+args.lecture_title:''));adminShowMoodleFilePrompt('Nhi cần file để tiếp tục. Chọn file bên dưới rồi nói “đăng”.');return{ok:false,needs_attachment:true,error:'Chưa có file đính kèm. Hãy chọn file trong khung chat rồi nói “đăng”.'};}
@@ -1220,6 +1219,7 @@
        extension:adminMoodleFileExtension,
        renderAttachment:adminRenderMoodleAttachment,
        showPrompt:adminShowMoodleFilePrompt,
+       hidePrompt:adminHideMoodleFilePrompt,
        status:adminOrbStatus,
        transcript:adminTranscript,
        sendContext:adminSendMoodleAttachmentContext,
@@ -1265,6 +1265,6 @@
       document.addEventListener('click',function(event){var button=event.target.closest('[data-moodle-card-detail]');if(button&&window.MTPC_MOODLE_OPEN_DETAIL)window.MTPC_MOODLE_OPEN_DETAIL(button.getAttribute('data-moodle-card-detail'),button.getAttribute('data-course-id'))});
     })();
   </script>
-   <script src="ai-file-chat.js?v=20260911-1"></script>
+   <script src="ai-file-chat.js?v=20260911-2"></script>
 </body>
 </html>

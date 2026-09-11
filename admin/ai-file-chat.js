@@ -19,9 +19,13 @@
   function selectFile(file) {
     if(!file)return true;var ext=host.extension(file);
     if(!/^(pdf|doc|docx|ppt|pptx|xls|xlsx|txt|md|csv|html|jpg|jpeg|png|webp)$/.test(ext)||file.size>20*1024*1024){host.flash('Chọn PDF, Office, văn bản hoặc ảnh; tối đa 20 MB khi đính kèm, 10 MB khi AI đọc.');return true}
-    host.setFile(file);host.renderAttachment();host.showPrompt('Đã chọn '+file.name+'. Hãy nói “đọc file”, “tóm tắt”, hoặc “tạo bài kiểm tra từ file này”.');host.status('Đã chọn '+file.name,'idle');host.sendContext();return true;
+    pendingQuizDraft=null;host.setFile(file);host.renderAttachment();if(host.hidePrompt)host.hidePrompt();host.status('Đã đính kèm '+file.name,'idle');host.sendContext();return true;
   }
-  function quizConfirmation(text) { return /^(tao|tao di|xuat ban|xac nhan|dong y|ok|duoc|publish|create)(\s+(di|nhe|luon))?[.!\s]*$/.test(normalize(text)); }
+  function quizConfirmation(text) {
+    var value=normalize(text).replace(/[^a-z0-9\s]/g,' ').replace(/\s+/g,' ').trim();
+    if(!value||/\b(khong|huy|khoan|dung|chua)\b/.test(value))return false;
+    return /\b(xac nhan|dong y|ok|duoc|tao|dang|xuat ban|publish|create)\b/.test(value);
+  }
   function quizTimestamp(value) {
     if (Number(value) > 0) return Number(value);
     if (!value) return 0;
@@ -59,7 +63,7 @@
     if (!pendingQuizDraft) return {ok:false,error:'Chưa có bản nháp bài kiểm tra để tạo.'};
     if (busy || publishingQuiz) return {ok:false,error:'Đang xử lý yêu cầu, hãy chờ một chút.'};
     var draft=pendingQuizDraft.draft,args=pendingQuizDraft.args||{};publishingQuiz=true;host.status('Đang tạo bài kiểm tra trên Moodle','thinking');
-    try{var courseid=await resolveCourse(args),name=String(args.quiz_name||args.name||draft.title||'Bài kiểm tra mới').trim();var body={courseid:courseid,sectionnum:Number(args.section_num||args.sectionnum||0),name:name,intro:String(args.description||args.intro||draft.intro||''),timeopen:quizTimestamp(args.open_date||args.open_date_text),timeclose:quizTimestamp(args.close_date||args.close_date_text),timelimit:Number(args.time_limit||0),attempts:Number(args.attempts||0),grade:Number(args.grade||10),questions:draft.questions};var response=await fetch('api/moodle.php?action=create-quiz-from-questions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}),data=await response.json();if(!response.ok||!data.ok)throw new Error(data.error||'Moodle chưa tạo được bài kiểm tra.');pendingQuizDraft=null;host.setFile(null);host.renderAttachment();host.status('Đã tạo bài kiểm tra trên Moodle','idle');host.transcript('assistant',data.message||'Đã tạo bài kiểm tra và nhập câu hỏi vào Moodle.',true);return data}finally{publishingQuiz=false;if(pendingQuizDraft)host.status('Chưa tạo được bài kiểm tra','idle')}
+    try{var courseid=await resolveCourse(args),name=String(args.quiz_name||args.name||draft.title||'Bài kiểm tra mới').trim();var expected=(draft.questions||[]).length;var body={courseid:courseid,sectionnum:Number(args.section_num||args.sectionnum||0),name:name,intro:String(args.description||args.intro||draft.intro||''),timeopen:quizTimestamp(args.open_date||args.open_date_text),timeclose:quizTimestamp(args.close_date||args.close_date_text),timelimit:Number(args.time_limit||0),attempts:Number(args.attempts||0),grade:Number(args.grade||10),questions:draft.questions};var response=await fetch('api/moodle.php?action=create-quiz-from-questions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}),raw=await response.text(),data={};try{data=raw?JSON.parse(raw):{}}catch(ignore){throw new Error('Moodle trả về dữ liệu không hợp lệ (HTTP '+response.status+').')}if(!response.ok||!data.ok)throw new Error(data.error||'Moodle chưa tạo được bài kiểm tra.');var createdCount=Number(data.questioncount||(data.quiz&&data.quiz.questioncount)||0);if(!data.quiz||Number(data.quiz.instanceid||0)<=0||createdCount!==expected)throw new Error('Moodle chưa xác nhận đủ '+expected+' câu hỏi. Bài kiểm tra chưa được ghi nhận là thành công.');pendingQuizDraft=null;host.setFile(null);host.renderAttachment();if(host.hidePrompt)host.hidePrompt();host.status('Đã tạo bài kiểm tra trên Moodle','idle');host.transcript('assistant','Đã tạo “'+name+'” trên Moodle và nhập đủ '+createdCount+' câu hỏi.',true);return data}finally{publishingQuiz=false;if(pendingQuizDraft)host.status('Chưa tạo được bài kiểm tra','idle')}
   }
   async function draftQuizFromFile(args) {
     args=args||{};var file=host.getFile();if(!file)return askForFile(String(args.instruction||'Đọc file câu hỏi và tạo bản nháp bài kiểm tra.'));if(file.size>10*1024*1024)throw new Error('AI đọc file tối đa 10 MB. Hãy chia nhỏ file.');
