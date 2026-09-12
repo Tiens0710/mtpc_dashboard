@@ -65,6 +65,7 @@ assert.ok(index.includes('mtpcResolveMoodleQuiz'), 'Natural Moodle quiz lookup i
 assert.ok(index.includes('mtpcResolveMoodleActivity'), 'Natural Moodle activity lookup is missing');
 assert.ok(index.includes('mtpcResolveMoodleEvent'), 'Natural Moodle event lookup is missing');
 assert.ok(index.includes("'ai_grade_assignment'"), 'Admin Orb must expose AI grading drafts');
+assert.ok(index.includes('item.userid||item.user_id||item.user'), 'AI grading cards must display the normalized Moodle user ID');
 assert.ok(index.includes("'create_online_class'"), 'Admin Orb must expose the Google Meet workflow');
 assert.ok(index.includes('parameters.properties.meet_url'), 'Online classes must accept a teacher-provided Meet link');
 assert.ok(api.includes("$action === 'ai-grade-assignment'"), 'Moodle bridge must generate AI grading drafts');
