@@ -12,6 +12,7 @@ class MoodleClient
 {
     protected $endpoint;
     protected $token;
+    protected $lastFileDownloadError = '';
 
     public function __construct($baseUrl, $token)
     {
@@ -312,26 +313,78 @@ class MoodleClient
     /** Tải nguyên nội dung file để bộ đọc DOCX/PDF xử lý. */
     public function downloadSubmissionFileBytes($fileUrl, $maxBytes = 5242880)
     {
+        $this->lastFileDownloadError = '';
         $file = parse_url((string)$fileUrl);
         $endpoint = parse_url($this->endpoint);
-        if (!$file || !$endpoint || empty($file['host']) || empty($endpoint['host']) || strcasecmp($file['host'], $endpoint['host']) !== 0) return null;
-        if (isset($file['scheme']) && isset($endpoint['scheme']) && strcasecmp($file['scheme'], $endpoint['scheme']) !== 0) return null;
-        $url = $fileUrl . (strpos($fileUrl, '?') !== false ? '&' : '?') . 'token=' . urlencode($this->token);
-        $ch = curl_init($url);
-        curl_setopt_array($ch, array(
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT => 30,
-            CURLOPT_FOLLOWLOCATION => true,
-            CURLOPT_SSL_VERIFYPEER => true,
-        ));
-        $data = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-
-        if ($data === false || $httpCode !== 200) {
+        if (!$file || !$endpoint || empty($file['host']) || empty($endpoint['host']) || strcasecmp($file['host'], $endpoint['host']) !== 0) {
+            $this->lastFileDownloadError = 'Moodle trả về đường dẫn file không cùng máy chủ.';
             return null;
         }
-        if (strlen($data) > $maxBytes) return null;
-        return $data;
+        if (isset($file['scheme']) && isset($endpoint['scheme']) && strcasecmp($file['scheme'], $endpoint['scheme']) !== 0) {
+            $this->lastFileDownloadError = 'Giao thức đường dẫn file Moodle không hợp lệ.';
+            return null;
+        }
+
+        // Một số phiên bản/cấu hình Moodle trả pluginfile.php dù token Web Service
+        // chỉ được phép tải qua webservice/pluginfile.php. Thử URL chuẩn trước.
+        $candidates = array();
+        $path = isset($file['path']) ? $file['path'] : '';
+        if (preg_match('#^(.*?)/(?:webservice/)?pluginfile\.php(/.*)?$#', $path, $match)) {
+            $scheme = isset($endpoint['scheme']) ? $endpoint['scheme'] : 'https';
+            $authority = $scheme . '://' . $endpoint['host'];
+            if (!empty($endpoint['port'])) $authority .= ':' . $endpoint['port'];
+            $normalized = $authority . $match[1] . '/webservice/pluginfile.php' . (isset($match[2]) ? $match[2] : '');
+            if (!empty($file['query'])) $normalized .= '?' . $file['query'];
+            $candidates[] = $normalized;
+        }
+        $candidates[] = (string)$fileUrl;
+        $candidates = array_values(array_unique($candidates));
+
+        foreach ($candidates as $candidate) {
+            $url = $candidate . (strpos($candidate, '?') !== false ? '&' : '?') . 'token=' . urlencode($this->token);
+            $ch = curl_init($url);
+            curl_setopt_array($ch, array(
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_TIMEOUT => 30,
+                CURLOPT_FOLLOWLOCATION => true,
+                CURLOPT_MAXREDIRS => 3,
+                CURLOPT_SSL_VERIFYPEER => true,
+            ));
+            $data = curl_exec($ch);
+            $httpCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $contentType = strtolower((string)curl_getinfo($ch, CURLINFO_CONTENT_TYPE));
+            $effectiveUrl = (string)curl_getinfo($ch, CURLINFO_EFFECTIVE_URL);
+            $curlError = curl_error($ch);
+            curl_close($ch);
+
+            $effective = parse_url($effectiveUrl);
+            if ($effective && !empty($effective['host']) && strcasecmp($effective['host'], $endpoint['host']) !== 0) {
+                $this->lastFileDownloadError = 'Moodle chuyển hướng file sang máy chủ không được phép.';
+                continue;
+            }
+            if ($data === false || $httpCode !== 200) {
+                $this->lastFileDownloadError = 'Moodle không cho tải file (HTTP '.$httpCode.').'.($curlError !== '' ? ' '.$curlError : '');
+                continue;
+            }
+            if (strlen($data) > $maxBytes) {
+                $this->lastFileDownloadError = 'File bài nộp lớn hơn giới hạn cho phép.';
+                return null;
+            }
+
+            $trimmed = ltrim(substr($data, 0, 500));
+            $looksHtml = strpos($contentType, 'text/html') !== false || preg_match('/^<(?:!doctype|html|head|body)\b/i', $trimmed);
+            $looksJsonError = strpos($contentType, 'application/json') !== false && preg_match('/"(?:exception|errorcode|error)"\s*:/i', $trimmed);
+            if ($looksHtml || $looksJsonError) {
+                $this->lastFileDownloadError = 'Moodle trả về trang lỗi thay vì file. Hãy bật “Can download files” cho External service đang cấp token.';
+                continue;
+            }
+            return $data;
+        }
+        return null;
+    }
+
+    public function getLastFileDownloadError()
+    {
+        return $this->lastFileDownloadError;
     }
 }

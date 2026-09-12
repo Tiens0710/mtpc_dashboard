@@ -5,6 +5,7 @@ const path = require('node:path');
 const root = path.resolve(__dirname, '..');
 const index = fs.readFileSync(path.join(root, 'admin', 'index.html'), 'utf8');
 const api = fs.readFileSync(path.join(root, 'admin', 'api', 'moodle.php'), 'utf8');
+const client = fs.readFileSync(path.join(root, 'admin', 'api', 'moodle-client', 'MoodleClient.php'), 'utf8');
 const upgrade = fs.readFileSync(path.join(root, 'moodle-plugin', 'local', 'mtpcbridge', 'db', 'upgrade.php'), 'utf8');
 const version = fs.readFileSync(path.join(root, 'moodle-plugin', 'local', 'mtpcbridge', 'version.php'), 'utf8');
 const services = fs.readFileSync(path.join(root, 'moodle-plugin', 'local', 'mtpcbridge', 'db', 'services.php'), 'utf8');
@@ -71,10 +72,12 @@ assert.ok(api.includes("'requires_teacher_review'=>true"), 'AI grades must requi
 assert.ok(api.includes("'saved'=>false"), 'AI grading drafts must not silently write official grades');
 assert.ok(api.includes('mtpc_moodle_submission_file_part'), 'AI grading must read supported Moodle submission files');
 assert.ok(api.includes('downloadSubmissionFileBytes'), 'AI grading must download binary Moodle submissions safely');
+assert.ok(client.includes('/webservice/pluginfile.php'), 'Moodle file downloads must use the Web Service pluginfile endpoint');
+assert.ok(client.includes('Can download files'), 'Moodle file download errors must explain the external-service permission');
 assert.ok(index.includes('assignment_name'), 'Moodle schema should accept assignment names');
 assert.ok(index.includes('user_query'), 'Moodle schema should accept natural user queries');
 assert.ok(index.includes('ai-file-chat.js?v=20260911-2'), 'AI file adapter cache version is stale');
-assert.ok(version.includes('$plugin->version = 2026091101;'), 'Plugin version was not bumped');
+assert.ok(version.includes('$plugin->version = 2026091201;'), 'Plugin version was not bumped');
 assert.ok(upgrade.includes('upgrade_plugin_savepoint(true, 2026090901'), 'AI grading service upgrade is missing');
 assert.ok(upgrade.includes('upgrade_plugin_savepoint(true, 2026090902'), 'Zalo notification queue upgrade is missing');
 assert.ok(events.includes('\\\\core\\\\event\\\\notification_sent'), 'Moodle course notifications are not observed');
@@ -142,5 +145,7 @@ assert.ok(services.includes("'local_mtpcbridge_create_quiz_from_questions'"), 'P
 assert.ok(external.includes('create_quiz_from_questions'), 'Plugin implementation is missing create_quiz_from_questions');
 assert.ok(install.includes("'local_mtpcbridge_create_quiz_from_questions'"), 'Fresh installation does not grant create_quiz_from_questions');
 assert.ok(upgrade.includes('upgrade_plugin_savepoint(true, 2026091101'), 'Quiz question import upgrade is missing');
+assert.ok(upgrade.includes('upgrade_plugin_savepoint(true, 2026091201'), 'Submission file download upgrade is missing');
+assert.ok(upgrade.includes("'downloadfiles', 1"), 'Dashboard service must allow token-based file downloads');
 
 console.log(`Moodle tool contract OK: ${apiActions.length} actions, ${new Set(requiredFunctions).size} Web Service functions.`);

@@ -24,6 +24,7 @@ function xmldb_local_mtpcbridge_install() {
         $name = core_text::strtolower(trim((string)$service->name));
         $shortname = core_text::strtolower(trim((string)$service->shortname));
         if ($name !== 'dashboard' && $shortname !== 'dashboard') continue;
+        if (empty($service->downloadfiles)) $DB->set_field('external_services', 'downloadfiles', 1, array('id'=>$service->id));
         foreach ($functions as $functionname) {
             if (strpos($functionname, 'local_mtpcbridge_') !== 0 && !$DB->record_exists('external_functions', array('name'=>$functionname))) continue;
             if ($DB->record_exists('external_services_functions', array('externalserviceid'=>$service->id, 'functionname'=>$functionname))) continue;

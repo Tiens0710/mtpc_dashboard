@@ -147,7 +147,15 @@ function mtpc_moodle_submission_file_part($moodle, $file)
     if (!in_array($ext, array('docx','pdf','txt','md','csv','html','png','jpg','jpeg','webp'), true)) throw new Exception('Chưa hỗ trợ định dạng .'.$ext.'.');
     if (empty($file['fileurl'])) throw new Exception('Moodle không trả về đường dẫn file.');
     $bytes = $moodle->downloadSubmissionFileBytes($file['fileurl'], 5 * 1024 * 1024);
-    if ($bytes === null) throw new Exception('Không tải được file hoặc file lớn hơn 5 MB.');
+    if ($bytes === null) {
+        $reason = method_exists($moodle, 'getLastFileDownloadError') ? $moodle->getLastFileDownloadError() : '';
+        throw new Exception($reason !== '' ? $reason : 'Không tải được file hoặc file lớn hơn 5 MB.');
+    }
+    if ($ext === 'docx' && substr($bytes, 0, 2) !== 'PK') throw new Exception('Dữ liệu tải về không phải DOCX hợp lệ. Hãy bật “Can download files” cho External service Moodle.');
+    if ($ext === 'pdf' && substr($bytes, 0, 5) !== '%PDF-') throw new Exception('Dữ liệu tải về không phải PDF hợp lệ.');
+    if ($ext === 'png' && substr($bytes, 0, 4) !== "\x89PNG") throw new Exception('Dữ liệu tải về không phải PNG hợp lệ.');
+    if (in_array($ext, array('jpg','jpeg'), true) && substr($bytes, 0, 2) !== "\xFF\xD8") throw new Exception('Dữ liệu tải về không phải JPEG hợp lệ.');
+    if ($ext === 'webp' && !(substr($bytes, 0, 4) === 'RIFF' && substr($bytes, 8, 4) === 'WEBP')) throw new Exception('Dữ liệu tải về không phải WebP hợp lệ.');
     $temp = tempnam(sys_get_temp_dir(), 'mtpc-grade-');
     if ($temp === false) throw new Exception('Không tạo được file tạm.');
     try {

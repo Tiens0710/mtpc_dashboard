@@ -235,5 +235,19 @@ function xmldb_local_mtpcbridge_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2026091101, 'local', 'mtpcbridge');
     }
 
+    if ($oldversion < 2026091201) {
+        // Submission attachments are downloaded through webservice/pluginfile.php.
+        // Moodle rejects token-based downloads unless the matching service opts in.
+        foreach ($DB->get_records('external_services') as $service) {
+            $name = core_text::strtolower(trim((string)$service->name));
+            $shortname = core_text::strtolower(trim((string)$service->shortname));
+            if ($name !== 'dashboard' && $shortname !== 'dashboard') continue;
+            if (empty($service->downloadfiles)) {
+                $DB->set_field('external_services', 'downloadfiles', 1, array('id'=>$service->id));
+            }
+        }
+        upgrade_plugin_savepoint(true, 2026091201, 'local', 'mtpcbridge');
+    }
+
     return true;
 }
