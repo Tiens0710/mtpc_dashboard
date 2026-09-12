@@ -69,6 +69,9 @@ assert.ok(index.includes('item.userid||item.user_id||item.user'), 'AI grading ca
 assert.ok(index.includes("'create_online_class'"), 'Admin Orb must expose the Google Meet workflow');
 assert.ok(index.includes('parameters.properties.meet_url'), 'Online classes must accept a teacher-provided Meet link');
 assert.ok(index.includes("meet_url:String(args.meet_url||'')"), 'Online classes must allow Calendar API creation without a pasted Meet link');
+assert.ok(index.includes('function mtpcOnlineClassArgs'), 'Online classes must normalize Vietnamese relative date requests');
+assert.ok(index.includes("result.event_name='Buổi học online'"), 'Online classes must derive an event name when the model omits it');
+assert.ok(index.includes("adminLastUserRequest=text"), 'Typed Orb requests must remain available for deterministic tool normalization');
 assert.ok(api.includes("$action === 'ai-grade-assignment'"), 'Moodle bridge must generate AI grading drafts');
 assert.ok(api.includes("'requires_teacher_review'=>true"), 'AI grades must require teacher review before saving');
 assert.ok(api.includes("'saved'=>false"), 'AI grading drafts must not silently write official grades');
