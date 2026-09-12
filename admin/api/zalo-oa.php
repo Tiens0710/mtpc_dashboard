@@ -782,6 +782,26 @@ function mtpc_google_create_meet($settings, $name, $description, $start, $end, $
     if ($raw === false || $status < 200 || $status >= 300 || !is_array($created)) throw new Exception('Không tạo được sự kiện Google Meet (HTTP ' . $status . ').' . ($error !== '' ? ' ' . $error : '') . (!empty($created['error']['message']) ? ' ' . $created['error']['message'] : ''));
     $meetUrl = isset($created['hangoutLink']) ? (string)$created['hangoutLink'] : '';
     if ($meetUrl === '' && !empty($created['conferenceData']['entryPoints'])) foreach ($created['conferenceData']['entryPoints'] as $entry) if (isset($entry['entryPointType']) && $entry['entryPointType'] === 'video' && !empty($entry['uri'])) { $meetUrl = (string)$entry['uri']; break; }
+    // Google may return the Calendar event while conferenceData is still pending.
+    // Poll the newly-created event briefly instead of reporting a false failure.
+    if ($meetUrl === '' && !empty($created['id'])) {
+        $eventUrl = 'https://www.googleapis.com/calendar/v3/calendars/' . $calendar . '/events/' . rawurlencode((string)$created['id']);
+        for ($attempt = 0; $attempt < 10 && $meetUrl === ''; $attempt++) {
+            usleep(500000);
+            $poll = curl_init($eventUrl);
+            curl_setopt_array($poll, array(
+                CURLOPT_RETURNTRANSFER => true, CURLOPT_CONNECTTIMEOUT => 10, CURLOPT_TIMEOUT => 20,
+                CURLOPT_HTTPHEADER => array('Authorization: Bearer ' . $token),
+            ));
+            $pollRaw = curl_exec($poll); $pollStatus = (int)curl_getinfo($poll, CURLINFO_HTTP_CODE); curl_close($poll);
+            $refreshed = json_decode((string)$pollRaw, true);
+            if ($pollRaw === false || $pollStatus < 200 || $pollStatus >= 300 || !is_array($refreshed)) continue;
+            $created = array_merge($created, $refreshed);
+            if (!empty($refreshed['hangoutLink'])) $meetUrl = (string)$refreshed['hangoutLink'];
+            if ($meetUrl === '' && !empty($refreshed['conferenceData']['entryPoints'])) foreach ($refreshed['conferenceData']['entryPoints'] as $entry) if (isset($entry['entryPointType']) && $entry['entryPointType'] === 'video' && !empty($entry['uri'])) { $meetUrl = (string)$entry['uri']; break; }
+            if (!empty($refreshed['conferenceData']['createRequest']['status']['statusCode']) && $refreshed['conferenceData']['createRequest']['status']['statusCode'] === 'failure') break;
+        }
+    }
     if ($meetUrl === '') throw new Exception('Google đã tạo sự kiện nhưng chưa trả về đường dẫn Meet. Hãy kiểm tra quyền Google Workspace của service account.');
     return array('event_id' => isset($created['id']) ? $created['id'] : '', 'event_url' => isset($created['htmlLink']) ? $created['htmlLink'] : '', 'meet_url' => $meetUrl);
 }

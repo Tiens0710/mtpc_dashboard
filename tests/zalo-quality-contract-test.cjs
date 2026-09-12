@@ -39,6 +39,7 @@ assert.ok(agent.includes('$round<3'), 'Zalo agent can still hold the worker for 
 assert.ok(agent.includes("$write && !$confirmed"), 'Moodle writes can bypass Zalo confirmation');
 assert.ok(oa.includes("$action === 'create-online-class'"), 'Google Meet to Moodle/Zalo workflow is missing');
 assert.ok(oa.includes('conferenceDataVersion=1'), 'Google Calendar event creation must enable Meet conference data');
+assert.ok(oa.includes('conferenceData is still pending'), 'Google Meet creation must wait for asynchronous conference data');
 assert.ok(oa.includes("'hangoutsMeet'"), 'Online classes must request a Google Meet conference');
 assert.ok(oa.includes("'online_class_notification'"), 'Online class Zalo notifications must be audited');
 assert.ok(oa.includes('function mtpc_online_class_meet_url'), 'Teacher-provided Meet links must be validated');
