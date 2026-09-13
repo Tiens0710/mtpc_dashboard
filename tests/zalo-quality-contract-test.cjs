@@ -16,6 +16,14 @@ assert.ok(oa.includes("$messageType === 'sticker'"), 'Sticker webhook events do 
 assert.ok(oa.includes('chỉ 1 đến 3 câu'), 'Zalo response prompt is not concise');
 assert.ok(oa.includes('maxOutputTokens\' => 220'), 'Zalo response token budget is too high');
 assert.ok(index.includes('rel="icon"'), 'Admin favicon is missing');
+assert.ok(index.includes('id="admin-orb-v6-interface"'), 'Modern Orb interface layer is missing');
+assert.ok(index.includes('<button class="admin-ai-entry-card"'), 'Orb entry surface must be keyboard-accessible');
+assert.ok(index.includes('data-ai-status="Chạm orb để nói"'), 'Orb status badge is missing');
+assert.ok(index.includes('widget.dataset.aiStatus=text'), 'Orb status badge is not synchronized with the live state');
+assert.ok(index.includes('class="ai-orb" aria-hidden="true"'), 'Decorative Orb artwork must be hidden from assistive technology');
+assert.ok(index.includes('name="admin-orb-message"'), 'Orb message input must expose a form name');
+assert.ok(index.includes('placeholder="Nhập yêu cầu cho Nhi…"'), 'Orb message placeholder is not concise');
+assert.ok(index.includes('@media(prefers-reduced-motion:reduce)'), 'Orb interface must honor reduced-motion preferences');
 assert.ok(admin.includes("'email_briefing'"), 'Zalo admin email briefing intent is missing');
 assert.ok(admin.includes('đọc mail hôm nay'), 'Zalo admin must support the common read-mail command path');
 assert.ok(admin.includes("'/home/mtpc/private/email-config.php'"), 'Zalo admin email gateway config path is missing');
