@@ -42,6 +42,8 @@ assert.ok(oa.includes('conferenceDataVersion=1'), 'Google Calendar event creatio
 assert.ok(oa.includes('conferenceData is still pending'), 'Google Meet creation must wait for asynchronous conference data');
 assert.ok(oa.includes("'hangoutsMeet'"), 'Online classes must request a Google Meet conference');
 assert.ok(oa.includes("'online_class_notification'"), 'Online class Zalo notifications must be audited');
+assert.ok(oa.includes("stripos($studentLookupError->getMessage(), 'zalo_user_id')"), 'A legacy student schema must not abort Google Meet creation');
+assert.ok(oa.includes('Chưa gửi Zalo: database thiếu cột zalo_user_id'), 'A missing student Zalo migration must produce an actionable warning');
 assert.ok(oa.includes('function mtpc_online_class_meet_url'), 'Teacher-provided Meet links must be validated');
 assert.ok(oa.includes("'source'=>'teacher_link'"), 'Teacher-provided Meet links must bypass Google API creation');
 assert.ok(oa.includes('function mtpc_online_class_teaching_role'), 'Teachers must be limited to courses they teach');

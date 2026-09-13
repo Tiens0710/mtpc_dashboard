@@ -1295,7 +1295,16 @@ if ($action === 'create-online-class') {
         if ($emails) { $marks = array(); $i = 0; foreach (array_keys($emails) as $email) { $key = ':email_' . $i++; $marks[] = $key; $params[$key] = $email; } $where[] = 'LOWER(email) IN (' . implode(',', $marks) . ')'; }
         if ($codes) { $marks = array(); $i = 0; foreach (array_keys($codes) as $code) { $key = ':code_' . $i++; $marks[] = $key; $params[$key] = $code; } $where[] = 'student_code IN (' . implode(',', $marks) . ')'; }
         $students = array();
-        if ($where) { $statement = $dashboard['pdo']->prepare('SELECT id,student_code,full_name,zalo_user_id FROM students WHERE (' . implode(' OR ', $where) . ')'); $statement->execute($params); $students = $statement->fetchAll(); }
+        if ($where) {
+            try {
+                $statement = $dashboard['pdo']->prepare('SELECT id,student_code,full_name,zalo_user_id FROM students WHERE (' . implode(' OR ', $where) . ')');
+                $statement->execute($params);
+                $students = $statement->fetchAll();
+            } catch (PDOException $studentLookupError) {
+                if (stripos($studentLookupError->getMessage(), 'zalo_user_id') === false) throw $studentLookupError;
+                $warnings[] = 'Chưa gửi Zalo: database thiếu cột zalo_user_id. Hãy chạy database/migrations/20260831_add_student_zalo_user_id.sql.';
+            }
+        }
         $zaloSent = 0; $zaloSkipped = 0; $zaloFailed = 0;
         foreach ($students as $student) {
             $zaloId = trim((string)$student['zalo_user_id']);
