@@ -10,6 +10,8 @@ deployment:
     - /bin/cp -f api/tts56.php $DEPLOYPATH/api/tts.php
     - /bin/mkdir -p /home/mtpc/public_html/admin
     - /bin/cp -R admin/* /home/mtpc/public_html/admin/
+    - /bin/mkdir -p /home/mtpc/private/mtpc-knowledge
+    - /usr/local/bin/php tools/install-knowledge-bundle.php database/knowledge/mtpc-manual-knowledge.json /home/mtpc/private/mtpc-knowledge/manual-bundle.json
     - /bin/mkdir -p /home/mtpc/public_html/admin/api
     - /bin/cp -f api/chat56.php /home/mtpc/public_html/admin/api/chat.php
     - /bin/cp -f api/live-token56.php /home/mtpc/public_html/admin/api/live-token.php
