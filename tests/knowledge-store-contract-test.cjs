@@ -15,12 +15,11 @@ assert(bundle.sources.some(source => source.title.includes('Răng Hàm Mặt') &
 assert(bundle.sources.some(source => source.file_name === 'cover2.pptx' && !source.active), 'mixed historical slide deck should stay inactive');
 
 const chat = read('api/chat56.php');
-const zalo = read('admin/api/zalo-oa.php');
 const admin = read('admin/index.html');
 const deployment = read('.cpanel.yml');
 assert(chat.includes('manual-bundle.json'), 'website chatbot must load manual knowledge');
-assert(zalo.includes('manual-bundle.json'), 'Zalo chatbot must load manual knowledge');
 assert(admin.includes('knowledgeUploadButton') && admin.includes('knowledge-manager.js'), 'admin must expose persistent upload UI');
-assert(deployment.includes('install-knowledge-bundle.php'), 'deployment must install the reviewed bundle');
+assert(!deployment.includes('/home/mtpc/public_html/agent'), 'dashboard deployment must never overwrite the Agent');
+assert(!deployment.includes('install-knowledge-bundle.php'), 'dashboard deployment must not install Agent knowledge');
 
 console.log(`knowledge-store-contract: ${bundle.active_source_count}/${bundle.source_count} active sources, ${bundle.chunk_count} chunks`);

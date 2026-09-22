@@ -381,16 +381,19 @@ viên có luồng đăng bài giảng ngắn nhất.
 
 ## Triển khai
 
-Từ repository hiện tại, `.cpanel.yml` copy:
+Repository Dashboard chỉ triển khai khu vực quản trị và tích hợp Moodle:
 
 ```text
 admin/* -> /home/mtpc/public_html/admin/
+moodle-plugin/* -> /home/mtpc/public_html/moodle/public/local/mtpcbridge/
+moodle-theme/* -> /home/mtpc/public_html/moodle/public/theme/mtpc/
 ```
 
-Phần `agent` được copy riêng:
+Website Agent, chatbot công khai, kho kiến thức và webhook Zalo được triển khai
+từ repository `mtpc_agent`; Dashboard không ghi file vào thư mục Agent:
 
 ```text
-index.html + api/* -> /home/mtpc/public_html/agent/
+mtpc_agent -> /home/mtpc/public_html/agent/
 ```
 
 Quy trình:
