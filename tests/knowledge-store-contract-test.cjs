@@ -16,9 +16,15 @@ assert(bundle.sources.some(source => source.file_name === 'cover2.pptx' && !sour
 
 const chat = read('api/chat56.php');
 const admin = read('admin/index.html');
+const knowledgeApi = read('admin/api/knowledge.php');
+const knowledgeManager = read('admin/knowledge-manager.js');
 const deployment = read('.cpanel.yml');
 assert(chat.includes('manual-bundle.json'), 'website chatbot must load manual knowledge');
 assert(admin.includes('knowledgeUploadButton') && admin.includes('knowledge-manager.js'), 'admin must expose persistent upload UI');
+assert(admin.includes('knowledgeUnansweredList') && knowledgeManager.includes("request('unanswered')"), 'admin must show unanswered Agent questions');
+assert(knowledgeApi.includes("mtpc_knowledge_source($file['name']") && knowledgeApi.includes("$mtpcActor['username'],false"), 'new uploads must remain drafts until an admin approves them');
+assert(knowledgeManager.includes('Xem nội dung AI đã đọc') && knowledgeManager.includes('data-knowledge-toggle'), 'admin must preview extracted content before approval');
+assert(knowledgeApi.includes("$action==='delete'") && knowledgeApi.includes("$found['origin']!=='upload'"), 'admin may delete uploads but must preserve seed sources');
 assert(!deployment.includes('/home/mtpc/public_html/agent'), 'dashboard deployment must never overwrite the Agent');
 assert(!deployment.includes('install-knowledge-bundle.php'), 'dashboard deployment must not install Agent knowledge');
 
